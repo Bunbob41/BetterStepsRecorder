@@ -147,6 +147,7 @@ ipcMain.handle('recording:start', async () => {
     imageFormat: settings.values.imageFormat,
     imageQuality: settings.values.imageQuality,
     imageScale: settings.values.imageScale,
+    recordKeyboard: settings.values.recordKeyboard,
   });
   send('session:saved', { dir, count: 0 });
   return { ok: true, dir };
@@ -196,6 +197,7 @@ ipcMain.handle('step:rerecord', async (_e, { id }) => {
     imageFormat: settings.values.imageFormat,
     imageQuality: settings.values.imageQuality,
     imageScale: settings.values.imageScale,
+    recordKeyboard: settings.values.recordKeyboard,
   });
   sidecar.pause();
   sidecar.armOnce(id);

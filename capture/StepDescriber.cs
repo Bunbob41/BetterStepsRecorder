@@ -30,6 +30,26 @@ internal static class StepDescriber
         return what is null ? $"{verb}{where}" : $"{verb} {what}{where}";
     }
 
+    /// <summary>Adds field and window context to an already-formed key phrase.</summary>
+    internal static string DescribeKey(string phrase, TargetInfo? target, WindowInfo? window)
+    {
+        var field = target is not null
+                    && target.ControlType is not ("Window" or "Pane" or "TitleBar")
+                    && !string.IsNullOrWhiteSpace(target.Name)
+                    && !string.Equals(target.Name, window?.Title, StringComparison.Ordinal)
+            ? $" into the \"{target.Name}\" field"
+            : "";
+
+        var where = window is not null && !string.IsNullOrWhiteSpace(window.Title)
+            ? $" in \"{window.Title}\""
+            : "";
+
+        // "Pressed Enter into the X field" reads wrong; only typing goes *into*.
+        if (!phrase.StartsWith("Typed", StringComparison.Ordinal)) field = "";
+
+        return $"{phrase}{field}{where}";
+    }
+
     private static string? DescribeTarget(TargetInfo? t)
     {
         if (t is null) return null;

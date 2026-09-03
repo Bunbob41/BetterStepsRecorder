@@ -14,6 +14,7 @@ const el = {
   quality: $('set-quality'), qualityVal: $('set-quality-val'),
   qualityField: $('quality-field'),
   scale: $('set-scale'), scaleVal: $('set-scale-val'), setClose: $('set-close'),
+  keyboard: $('set-keyboard'),
 };
 
 let steps = [];
@@ -238,6 +239,7 @@ window.bsr.onReplaced(({ index, step }) => {
 
 function paintSettings(v) {
   el.root.value = v.saveRoot;
+  el.keyboard.checked = v.recordKeyboard !== false;
   el.format.value = v.imageFormat;
   el.quality.value = v.imageQuality;
   el.qualityVal.textContent = String(v.imageQuality);
@@ -261,6 +263,10 @@ el.browse.addEventListener('click', async () => {
 
 el.format.addEventListener('change', async () => {
   paintSettings(await window.bsr.setSettings({ imageFormat: el.format.value }));
+});
+
+el.keyboard.addEventListener('change', async () => {
+  await window.bsr.setSettings({ recordKeyboard: el.keyboard.checked });
 });
 
 el.quality.addEventListener('input', () => { el.qualityVal.textContent = el.quality.value; });

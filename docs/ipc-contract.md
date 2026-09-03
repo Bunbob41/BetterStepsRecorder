@@ -8,7 +8,10 @@ Every message: { "v": 1, "type": "<name>", "id": "<uuid>", ...payload }
 
 ## UI -> Sidecar (commands)
 
-start        { "sessionDir": "...", "ignorePids": [1234] }  begin hooking input
+start        { "sessionDir": "...", "ignorePids": [1234],
+               "recordKeyboard": true }                begin hooking input
+             recordKeyboard: when false the keyboard hook is not installed at
+             all, rather than installed and ignored.
              ignorePids: windows owned by these processes are never recorded.
              The UI passes its own pid so its Stop click is not captured.
 armOnce      { "replaceId": "<step id>" }              capture exactly one event,
@@ -32,7 +35,10 @@ log          { "level": "info|warn", "message": "" }
 {
   "v": 1, "type": "step", "id": "<uuid>", "seq": 7,
   "ts": "2026-09-03T14:22:31.115Z",
-  "action": "leftClick" | "rightClick" | "doubleClick" | "drag" | "keyText",
+  "action": "leftClick" | "rightClick" | "doubleClick" | "drag"
+          | "keyText"   typing, aggregated per focused field
+          | "keyPress"  a named key or a modifier chord
+          | "password"  typing occurred in a masked field,
   "point":  { "x": 412, "y": 308 },              // virtual-desktop px
   "endPoint": { "x": 980, "y": 512 },            // drag only
   "monitor": { "index": 0, "scale": 1.5 },       // DPI scale of source monitor
@@ -45,8 +51,22 @@ log          { "level": "info|warn", "message": "" }
     "name": "Save", "controlType": "Button", "automationId": "btnSave"
   },
   "screenshot": "steps/0007.png",                 // relative to sessionDir
+  "typed": "ACME Corp",                           // keyText only, redacted
   "text": "Clicked the \"Save\" button in Notepad"  // generated description
 }
+
+## Keyboard rules
+
+- Keystrokes are aggregated per focused control and emitted as one step when
+  focus moves, a named key is pressed, or typing goes quiet for 1.5s.
+- A "password" step carries no `typed` field and says nothing about length.
+  Classic password controls are detected structurally in the hook (ES_PASSWORD)
+  so those characters are never even translated; UI Automation covers WPF,
+  WinUI and browser inputs on the worker.
+- `typed` is passed through a redactor that masks Luhn-valid card numbers and
+  SSN-shaped strings even in ordinary fields.
+- Single-shot re-recording (armOnce) ignores keys: it exists to refresh one
+  click, and a stray keystroke consuming the arm would make it unusable.
 
 ## Rules
 

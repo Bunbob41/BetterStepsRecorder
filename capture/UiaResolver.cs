@@ -12,6 +12,37 @@ internal static class UiaResolver
     // indefinitely, so every lookup runs off-thread behind a hard deadline.
     private static readonly TimeSpan Deadline = TimeSpan.FromMilliseconds(400);
 
+    /// <summary>
+    /// Whether the focused control masks its input. Covers the cases the cheap
+    /// Win32 style check cannot see: WPF, WinUI and every browser password box.
+    /// Fails closed is not an option here (it would suppress ordinary typing),
+    /// so it fails open and the structural check remains the first line.
+    /// </summary>
+    internal static bool IsPasswordField(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return false;
+        try
+        {
+            var task = Task.Run(() =>
+            {
+                var element = AutomationElement.FromHandle(hwnd);
+                if (element is null) return false;
+                if (element.Current.IsPassword) return true;
+
+                // Browsers expose the input as a descendant rather than as the
+                // window itself, so the focused child is what actually knows.
+                var focused = AutomationElement.FocusedElement;
+                return focused is not null && focused.Current.IsPassword;
+            });
+
+            return task.Wait(Deadline) && task.Result;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     internal static TargetInfo? Resolve(int x, int y)
     {
         try

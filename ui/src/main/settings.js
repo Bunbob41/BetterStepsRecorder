@@ -7,6 +7,7 @@ const DEFAULTS = {
   imageFormat: 'png',   // png | jpeg
   imageQuality: 85,     // jpeg only
   imageScale: 1.0,      // 0.25 - 1.0
+  recordKeyboard: true,
 };
 
 class Settings {
@@ -42,6 +43,7 @@ class Settings {
     v.imageFormat = v.imageFormat === 'jpeg' ? 'jpeg' : 'png';
     v.imageQuality = Math.min(100, Math.max(1, Number(v.imageQuality) || 85));
     v.imageScale = Math.min(1, Math.max(0.25, Number(v.imageScale) || 1));
+    v.recordKeyboard = v.recordKeyboard !== false;
     if (typeof v.saveRoot !== 'string' || !v.saveRoot.trim()) v.saveRoot = DEFAULTS.saveRoot;
   }
 

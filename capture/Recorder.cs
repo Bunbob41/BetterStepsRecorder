@@ -1,6 +1,7 @@
 using System.IO;
 using System.Collections.Concurrent;
 using System.Drawing;
+using System.Text;
 
 namespace BetterSteps.Capture;
 
@@ -13,7 +14,10 @@ internal readonly record struct RawEvent(
 
 internal sealed class Recorder : IDisposable
 {
-    private readonly BlockingCollection<RawEvent> _queue = new(new ConcurrentQueue<RawEvent>());
+    /// <summary>Typing is flushed into one step after this much quiet.</summary>
+    private static readonly TimeSpan TypingIdle = TimeSpan.FromMilliseconds(1500);
+
+    private readonly BlockingCollection<object> _queue = new(new ConcurrentQueue<object>());
     private readonly Thread _worker;
     private readonly int _doubleClickMs = Win32.GetDoubleClickTime();
 
@@ -27,6 +31,12 @@ internal sealed class Recorder : IDisposable
     private DateTime _lastClickUtc = DateTime.MinValue;
     private Win32.POINT _lastClickPoint;
     private string? _lastStepId;
+
+    // Typing buffer, worker-thread only.
+    private readonly StringBuilder _typed = new();
+    private IntPtr _typingFocus;
+    private bool _typingSecret;
+    private DateTime _typingLastUtc;
 
     internal volatile RecordingState State = RecordingState.Idle;
 
@@ -75,14 +85,188 @@ internal sealed class Recorder : IDisposable
         if (!_queue.IsAddingCompleted) _queue.Add(e);
     }
 
+    /// <summary>
+    /// Called on the keyboard hook thread. Single-shot re-recording deliberately
+    /// ignores keys: it exists to refresh one click, and consuming the arm on a
+    /// stray keystroke would make it unusable.
+    /// </summary>
+    internal void OfferKey(RawKey k)
+    {
+        if (State != RecordingState.Recording) return;
+        if (!_queue.IsAddingCompleted) _queue.Add(k);
+    }
+
     private void Run()
     {
-        foreach (var e in _queue.GetConsumingEnumerable())
+        while (true)
         {
-            try { Process(e); }
+            object? item;
+            try
+            {
+                // Bounded wait rather than a blocking read: an unfinished typing
+                // buffer has to flush on silence, not only on the next event.
+                if (!_queue.TryTake(out item, 250))
+                {
+                    FlushTypingIfIdle();
+                    if (_queue.IsAddingCompleted && _queue.Count == 0) break;
+                    continue;
+                }
+            }
+            catch (ObjectDisposedException) { break; }
+            catch (InvalidOperationException) { break; }
+
+            try
+            {
+                switch (item)
+                {
+                    case RawEvent mouse:
+                        // Ordering matters: whatever was typed happened before
+                        // the click that ended it.
+                        FlushTyping();
+                        Process(mouse);
+                        break;
+
+                    case RawKey key:
+                        ProcessKey(key);
+                        break;
+                }
+            }
             catch (Exception ex) { Protocol.Error("STEP_FAILED", ex.Message); }
         }
+
+        FlushTyping();
     }
+
+    // ---- keyboard -----------------------------------------------------------
+
+    private void ProcessKey(RawKey k)
+    {
+        // Focus moved: the previous field's contents are complete.
+        if (k.Focus != _typingFocus)
+        {
+            FlushTyping();
+            _typingFocus = k.Focus;
+            // Resolve once per field, not per keystroke: UI Automation is a
+            // cross-process COM call and would be ruinous on every character.
+            _typingSecret = UiaResolver.IsPasswordField(k.Focus);
+        }
+
+        switch (k.Kind)
+        {
+            case KeyKind.Secret:
+                _typingSecret = true;
+                _typingLastUtc = k.Utc;
+                break;
+
+            case KeyKind.Text:
+                // A password field's characters are counted, never kept.
+                if (!_typingSecret) _typed.Append(k.Char);
+                _typingLastUtc = k.Utc;
+                break;
+
+            case KeyKind.Named when k.Label == "Backspace":
+                if (_typed.Length > 0) _typed.Length--;
+                _typingLastUtc = k.Utc;
+                break;
+
+            case KeyKind.Named:
+                FlushTyping();
+                EmitKeyStep("keyPress", $"Pressed {k.Label}", k.Focus, k.Utc);
+                break;
+
+            case KeyKind.Chord:
+                FlushTyping();
+                EmitKeyStep("keyPress", $"Pressed {k.Label}", k.Focus, k.Utc);
+                break;
+        }
+    }
+
+    private void FlushTypingIfIdle()
+    {
+        if (_typed.Length == 0 && !_typingSecret) return;
+        if (DateTime.UtcNow - _typingLastUtc < TypingIdle) return;
+        FlushTyping();
+    }
+
+    private void FlushTyping()
+    {
+        var hadSecret = _typingSecret;
+        var text = _typed.ToString();
+
+        _typed.Clear();
+        _typingSecret = false;
+
+        if (!hadSecret && string.IsNullOrEmpty(text)) return;
+
+        if (hadSecret)
+        {
+            // Deliberately says nothing about length or content.
+            EmitKeyStep("password", "Entered password", _typingFocus, DateTime.UtcNow);
+            return;
+        }
+
+        var safe = Redactor.Apply(text);
+        EmitKeyStep("keyText", $"Typed \"{safe}\"", _typingFocus, DateTime.UtcNow, safe);
+    }
+
+    private void EmitKeyStep(string action, string description, IntPtr focus,
+                             DateTime utc, string? typed = null)
+    {
+        // Anchor the step on the focused control if we can, so the indicator
+        // lands on the field rather than wherever the mouse happens to rest.
+        var point = ControlCentre(focus) ?? CursorPoint();
+
+        var hwnd = focus != IntPtr.Zero
+            ? Win32.GetAncestor(focus, Win32.GA_ROOT)
+            : WindowResolver.RootWindowAt(point);
+
+        if (_ignoredPids.Contains(WindowResolver.ProcessIdOf(hwnd))) return;
+
+        var bounds = ScreenCapture.ResolveBounds(hwnd, point);
+        var seq = ++_seq;
+        var relative = $"steps/{seq:D4}.{_options.Extension}";
+        ScreenCapture.CaptureTo(bounds, Path.Combine(_sessionDir, relative), _options);
+
+        var window = WindowResolver.Describe(hwnd, bounds);
+        var target = UiaResolver.Resolve(point.X, point.Y);
+
+        var step = new StepMessage
+        {
+            Seq = seq,
+            Ts = utc.ToString("o"),
+            Action = action,
+            Point = new Point2(point.X, point.Y),
+            Monitor = WindowResolver.DescribeMonitor(point),
+            Window = window,
+            Target = target,
+            Screenshot = relative,
+            Typed = typed,
+            Text = StepDescriber.DescribeKey(description, target, window),
+        };
+
+        Protocol.Emit(step);
+
+        // Typing breaks any pending double-click pairing.
+        _lastClickUtc = DateTime.MinValue;
+        _lastStepId = null;
+    }
+
+    private static Win32.POINT CursorPoint() =>
+        Win32.GetCursorPos(out var p) ? p : new Win32.POINT { X = 0, Y = 0 };
+
+    private static Win32.POINT? ControlCentre(IntPtr focus)
+    {
+        if (focus == IntPtr.Zero) return null;
+        if (!Win32.GetWindowRect(focus, out var r)) return null;
+
+        var w = r.Right - r.Left;
+        var h = r.Bottom - r.Top;
+        if (w <= 0 || h <= 0) return null;
+
+        return new Win32.POINT { X = r.Left + w / 2, Y = r.Top + h / 2 };
+    }
+
+    // ---- mouse --------------------------------------------------------------
 
     private void Process(RawEvent e)
     {

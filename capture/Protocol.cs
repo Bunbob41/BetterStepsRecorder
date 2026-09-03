@@ -57,5 +57,7 @@ internal sealed record StepMessage
     public WindowInfo? Window { get; init; }
     public TargetInfo? Target { get; init; }
     public string? Screenshot { get; init; }
+    /// <summary>Redacted text for a keyText step. Never set for a password step.</summary>
+    public string? Typed { get; init; }
     public string? Text { get; init; }
 }

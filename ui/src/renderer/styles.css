@@ -206,3 +206,13 @@ dialog h2 { margin: 0 0 16px; font-size: 15px; }
 .meta #btn-rerecord { margin-left: auto; }
 .meta #btn-delete { margin-left: 0; }
 .redone { color: var(--accent); font-size: 11px; }
+
+.checkfield {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  align-items: center;
+}
+.checkfield input { accent-color: var(--accent); width: 15px; height: 15px; }
+.checkfield > span { color: var(--text); font-size: 13px; }
+.checkfield small { grid-column: 2; }

@@ -8,6 +8,7 @@ internal static class Program
 {
     private static Recorder? _recorder;
     private static MouseHook? _hook;
+    private static KeyboardHook? _keyboard;
     private static uint _mainThreadId;
 
     [STAThread]
@@ -53,8 +54,32 @@ internal static class Program
         }
 
         _hook.Dispose();
+        _keyboard?.Dispose();
         _recorder.Dispose();
         return 0;
+    }
+
+    private static void SetKeyboardHook(bool enabled)
+    {
+        if (enabled && _keyboard is null)
+        {
+            var hook = new KeyboardHook(_recorder!);
+            if (hook.Install())
+            {
+                _keyboard = hook;
+                Protocol.Log("info", "keyboard capture on");
+            }
+            else
+            {
+                Protocol.Error("HOOK_FAILED", "SetWindowsHookEx(WH_KEYBOARD_LL) failed.");
+            }
+        }
+        else if (!enabled && _keyboard is not null)
+        {
+            _keyboard.Dispose();
+            _keyboard = null;
+            Protocol.Log("info", "keyboard capture off");
+        }
     }
 
     private static void ReadCommands()
@@ -93,6 +118,13 @@ internal static class Program
                                      && scp.TryGetDouble(out var scv) ? scv : null;
 
                         _recorder!.StartSession(dir, ignored, CaptureOptions.Clamp(fmt, q, sc));
+
+                        // The keyboard hook is installed only while it is wanted.
+                        // A global key hook that exists but is "switched off" is
+                        // indefensible to a security team, and to antivirus.
+                        var wantKeys = !root.TryGetProperty("recordKeyboard", out var rk)
+                                       || rk.ValueKind != JsonValueKind.False;
+                        SetKeyboardHook(wantKeys);
                         Protocol.Log("info", $"recording to {dir}");
                         break;
 
