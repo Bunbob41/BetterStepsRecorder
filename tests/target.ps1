@@ -1,6 +1,8 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-[System.Windows.Forms.Application]::SetHighDpiMode([System.Windows.Forms.HighDpiMode]::PerMonitorV2) | Out-Null
+# Windows PowerShell 5.1 runs .NET Framework WinForms, which predates
+# HighDpiMode. Harmless for a test target; the window is just system-DPI-aware.
+try { [System.Windows.Forms.Application]::SetHighDpiMode([System.Windows.Forms.HighDpiMode]::PerMonitorV2) | Out-Null } catch {}
 $f = New-Object System.Windows.Forms.Form
 $f.Text = "BSR Test Window"
 $f.ClientSize = New-Object System.Drawing.Size(600, 400)

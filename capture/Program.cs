@@ -79,7 +79,14 @@ internal static class Program
                             Protocol.Error("BAD_COMMAND", "start requires sessionDir");
                             break;
                         }
-                        _recorder!.StartSession(dir);
+                        var ignored = new List<uint>();
+                        if (root.TryGetProperty("ignorePids", out var ip)
+                            && ip.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var v in ip.EnumerateArray())
+                                if (v.TryGetUInt32(out var pid)) ignored.Add(pid);
+                        }
+                        _recorder!.StartSession(dir, ignored);
                         Protocol.Log("info", $"recording to {dir}");
                         break;
 

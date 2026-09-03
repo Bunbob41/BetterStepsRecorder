@@ -8,7 +8,9 @@ Every message: { "v": 1, "type": "<name>", "id": "<uuid>", ...payload }
 
 ## UI -> Sidecar (commands)
 
-start        { "sessionDir": "C:/...\session-123" }  begin hooking input
+start        { "sessionDir": "...", "ignorePids": [1234] }  begin hooking input
+             ignorePids: windows owned by these processes are never recorded.
+             The UI passes its own pid so its Stop click is not captured.
 pause        {}                                        stop recording, keep hooks
 resume       {}                                        resume recording
 stop         {}                                        unhook, flush, exit cleanly

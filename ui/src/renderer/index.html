@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; img-src bsr: data:; style-src 'self'; script-src 'self';" />
+  <title>Steps Recorder</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="toolbar">
+    <div class="brand">Steps Recorder</div>
+    <div class="controls">
+      <button id="btn-record" class="primary">Start recording</button>
+      <button id="btn-pause" disabled>Pause</button>
+      <button id="btn-stop" disabled>Stop</button>
+      <button id="btn-open">Open…</button>
+    </div>
+    <div class="status">
+      <span id="dot" class="dot idle"></span>
+      <span id="status-text">Idle</span>
+    </div>
+  </header>
+
+  <main>
+    <aside class="steps">
+      <div class="steps-head">
+        <span>Steps</span><span id="count" class="count">0</span>
+      </div>
+      <p id="empty" class="empty">
+        Press <strong>Start recording</strong>, then use your computer normally.
+        Every click is captured with a screenshot.
+      </p>
+      <ol id="step-list"></ol>
+    </aside>
+
+    <section class="detail">
+      <div id="detail-empty" class="detail-empty">Select a step to view it</div>
+      <div id="detail-body" hidden>
+        <input id="detail-text" class="detail-text" type="text"
+               aria-label="Step description" />
+        <div class="meta">
+          <span id="detail-meta"></span>
+          <button id="btn-delete" class="danger">Delete step</button>
+        </div>
+        <div id="shot-wrap" class="shot-wrap">
+          <img id="shot" alt="" />
+          <div id="indicator" class="indicator"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

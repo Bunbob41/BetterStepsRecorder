@@ -18,6 +18,7 @@ internal sealed class Recorder : IDisposable
     private readonly int _doubleClickMs = Win32.GetDoubleClickTime();
 
     private string _sessionDir = "";
+    private HashSet<uint> _ignoredPids = new();
     private int _seq;
 
     // Worker-thread only; no locking needed.
@@ -33,9 +34,16 @@ internal sealed class Recorder : IDisposable
         _worker.Start();
     }
 
-    internal void StartSession(string sessionDir)
+    internal void StartSession(string sessionDir, IEnumerable<uint>? ignoredPids = null)
     {
         _sessionDir = sessionDir;
+        // The UI's own windows. Without this, the click that ends a recording
+        // is itself recorded, and every session finishes with a junk step
+        // showing the recorder instead of the user's application.
+        _ignoredPids = new HashSet<uint>(ignoredPids ?? Array.Empty<uint>())
+        {
+            (uint)Environment.ProcessId,
+        };
         Directory.CreateDirectory(Path.Combine(_sessionDir, "steps"));
         State = RecordingState.Recording;
     }
@@ -75,6 +83,10 @@ internal sealed class Recorder : IDisposable
         }
 
         var hwnd = WindowResolver.RootWindowAt(e.Point);
+
+        // Checked before any screenshot or UIA work: cheapest possible bail-out.
+        if (_ignoredPids.Contains(WindowResolver.ProcessIdOf(hwnd))) return;
+
         var bounds = ScreenCapture.ResolveBounds(hwnd, e.Point);
 
         var seq = ++_seq;

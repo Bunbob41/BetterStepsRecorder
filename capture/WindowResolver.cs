@@ -14,6 +14,13 @@ internal static class WindowResolver
         return root != IntPtr.Zero ? root : hwnd;
     }
 
+    internal static uint ProcessIdOf(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return 0;
+        Win32.GetWindowThreadProcessId(hwnd, out var pid);
+        return pid;
+    }
+
     internal static WindowInfo? Describe(IntPtr hwnd, Rectangle bounds)
     {
         if (hwnd == IntPtr.Zero) return null;

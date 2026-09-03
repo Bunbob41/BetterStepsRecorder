@@ -1,0 +1,13 @@
+{
+  "name": "bettersteps-ui",
+  "version": "0.1.0",
+  "description": "Step recorder UI shell",
+  "main": "src/main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^34.0.0"
+  }
+}
