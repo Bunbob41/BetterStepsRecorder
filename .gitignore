@@ -1,0 +1,13 @@
+# .NET
+bin/
+obj/
+*.user
+
+# Node / Electron
+node_modules/
+dist/
+out/
+
+# Recording sessions and scratch
+scratch/
+*.bsr/
