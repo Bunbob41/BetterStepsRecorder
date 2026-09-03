@@ -3,6 +3,20 @@
 import ctypes, time, subprocess, os, json, glob
 from ctypes import wintypes
 
+def save_root():
+    """Read the app's configured save location. Hardcoding Documents here once
+    made this test report PASS against stale directories while recording was
+    silently writing somewhere else entirely."""
+    cfg = os.path.expanduser("~/AppData/Roaming/bettersteps-ui/settings.json")
+    try:
+        return json.load(open(cfg, encoding="utf-8"))["saveRoot"]
+    except Exception:
+        return os.path.expanduser("~/Documents/StepRecordings")
+
+ROOT = save_root()
+BEFORE = set(glob.glob(os.path.join(ROOT, "session-*")))
+print(f"save root: {ROOT} ({len(BEFORE)} existing sessions)")
+
 u32 = ctypes.windll.user32
 u32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
 
@@ -35,10 +49,24 @@ u32.SetForegroundWindow(app); time.sleep(0.8)
 r = rect(app)
 print(f"app at {r.left},{r.top} {r.right-r.left}x{r.bottom-r.top}")
 
-# "Start recording" button, from the screenshot layout (toolbar, ~72px down)
-click(r.left + 220, r.top + 72)
-time.sleep(2.5)
-print("pressed Start recording")
+def new_sessions():
+    return sorted(set(glob.glob(os.path.join(ROOT, "session-*"))) - BEFORE)
+
+# "Start recording" button, from the screenshot layout (toolbar, ~72px down).
+# Verified rather than assumed: a click arriving just after launch can be
+# consumed activating the window instead of pressing the button, which
+# previously made this test fail intermittently for no application reason.
+for attempt in range(3):
+    click(r.left + 220, r.top + 72)
+    deadline = time.time() + 5
+    while time.time() < deadline and not new_sessions():
+        time.sleep(0.25)
+    if new_sessions():
+        print(f"pressed Start recording (attempt {attempt + 1})")
+        break
+else:
+    raise AssertionError("Start recording never created a session after 3 attempts")
+time.sleep(1.0)
 
 # Launch a target and click it
 tgt = subprocess.Popen(["powershell.exe","-NoProfile","-ExecutionPolicy","Bypass",
@@ -64,9 +92,10 @@ click(r.left + 416, r.top + 72)
 time.sleep(1.5)
 print("pressed Stop")
 
-sessions = sorted(glob.glob(os.path.expanduser("~/Documents/StepRecordings/session-*")))
-assert sessions, "no session directory created"
-latest = sessions[-1]
+fresh = sorted(set(glob.glob(os.path.join(ROOT, "session-*"))) - BEFORE)
+assert fresh, f"no NEW session directory appeared under {ROOT}"
+assert len(fresh) == 1, f"expected exactly one new session, got {len(fresh)}"
+latest = fresh[0]
 print(f"\nsession: {latest}")
 meta = json.load(open(os.path.join(latest,"session.json"), encoding="utf-8"))
 print(f"steps persisted: {len(meta['steps'])}")

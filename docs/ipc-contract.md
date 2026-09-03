@@ -11,6 +11,9 @@ Every message: { "v": 1, "type": "<name>", "id": "<uuid>", ...payload }
 start        { "sessionDir": "...", "ignorePids": [1234] }  begin hooking input
              ignorePids: windows owned by these processes are never recorded.
              The UI passes its own pid so its Stop click is not captured.
+armOnce      { "replaceId": "<step id>" }              capture exactly one event,
+             then park in paused. The resulting step carries replaces=<id>
+             so the UI can swap it in without disturbing the other steps.
 pause        {}                                        stop recording, keep hooks
 resume       {}                                        resume recording
 stop         {}                                        unhook, flush, exit cleanly

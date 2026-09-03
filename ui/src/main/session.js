@@ -36,9 +36,41 @@ class Session {
     return { replaced: false, index: this.steps.length - 1, step };
   }
 
+  /**
+   * Swap in a fresh capture for an existing step, keeping its position in the
+   * guide. The whole point of re-recording is that steps 1..n-1 stay valid.
+   */
+  replaceStep(id, fresh) {
+    const i = this.steps.findIndex((s) => s.id === id);
+    if (i === -1) return null;
+
+    const old = this.steps[i];
+    const merged = {
+      ...fresh,
+      id: old.id,                 // keep identity so selection and links survive
+      seq: old.seq,
+      // A description the user rewrote is worth more than a regenerated one:
+      // the screenshot went stale, their prose usually did not.
+      text: old.textEdited ? old.text : fresh.text,
+      textEdited: old.textEdited || false,
+      rerecordedAt: new Date().toISOString(),
+    };
+
+    this.steps[i] = merged;
+    this.flush();
+
+    // Drop the superseded screenshot once the new one is safely referenced.
+    if (old.screenshot && old.screenshot !== merged.screenshot) {
+      try { fs.unlinkSync(path.join(this.dir, old.screenshot)); } catch { /* already gone */ }
+    }
+    return { index: i, step: merged };
+  }
+
   updateStep(id, patch) {
     const i = this.steps.findIndex((s) => s.id === id);
     if (i === -1) return null;
+    // Remember that the wording is the user's, so a later re-record keeps it.
+    if (patch.text !== undefined) patch = { ...patch, textEdited: true };
     this.steps[i] = { ...this.steps[i], ...patch };
     this.flush();
     return this.steps[i];

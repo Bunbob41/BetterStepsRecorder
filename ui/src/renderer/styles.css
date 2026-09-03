@@ -184,3 +184,25 @@ dialog h2 { margin: 0 0 16px; font-size: 15px; }
 }
 .field input[type=range] { accent-color: var(--accent); }
 .dialog-actions { display: flex; justify-content: flex-end; }
+
+.arming {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.7);
+  display: grid; place-items: center;
+  z-index: 10;
+}
+.arming[hidden] { display: none; }
+.arming-card {
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 22px 26px;
+  max-width: 420px;
+  text-align: center;
+}
+.arming-title { font-size: 15px; margin-bottom: 8px; }
+.arming-card p { color: var(--muted); margin: 0 0 16px; }
+.meta button + button { margin-left: 8px; }
+.meta #btn-rerecord { margin-left: auto; }
+.meta #btn-delete { margin-left: 0; }
+.redone { color: var(--accent); font-size: 11px; }

@@ -4,7 +4,7 @@ using System.Drawing;
 
 namespace BetterSteps.Capture;
 
-internal enum RecordingState { Idle, Recording, Paused }
+internal enum RecordingState { Idle, Recording, Paused, RecordingOnce }
 
 /// <summary>A click as the hook saw it. Deliberately tiny: the hook callback
 /// must return in single-digit milliseconds or Windows silently evicts it.</summary>
@@ -20,6 +20,7 @@ internal sealed class Recorder : IDisposable
     private string _sessionDir = "";
     private HashSet<uint> _ignoredPids = new();
     private CaptureOptions _options = new();
+    private string? _replaceId;
     private int _seq;
 
     // Worker-thread only; no locking needed.
@@ -51,10 +52,26 @@ internal sealed class Recorder : IDisposable
         State = RecordingState.Recording;
     }
 
+    /// <summary>
+    /// Arms a single capture that will replace an existing step, then parks.
+    /// Used to refresh one step of an ageing guide without re-recording the rest.
+    /// </summary>
+    internal void ArmOnce(string replaceId)
+    {
+        _replaceId = replaceId;
+        State = RecordingState.RecordingOnce;
+    }
+
     /// <summary>Called on the hook thread. Enqueue and get out.</summary>
     internal void Offer(RawEvent e)
     {
-        if (State != RecordingState.Recording) return;
+        var state = State;
+        if (state != RecordingState.Recording && state != RecordingState.RecordingOnce) return;
+
+        // Flip before enqueueing: several events can arrive in the time the
+        // worker takes to run, and single-shot must mean exactly one.
+        if (state == RecordingState.RecordingOnce) State = RecordingState.Paused;
+
         if (!_queue.IsAddingCompleted) _queue.Add(e);
     }
 
@@ -72,10 +89,15 @@ internal sealed class Recorder : IDisposable
         var action = e.Action;
         string? supersedes = null;
 
+        // Consume the pending replacement target, if any.
+        var replaces = _replaceId;
+        _replaceId = null;
+
         // Double-click arrives as two clicks. Rather than delaying every single
         // click by the double-click interval to find out, we emit immediately and
         // tell the UI to fold the pair together if a second one shows up.
-        if (action == "leftClick"
+        if (replaces is null
+            && action == "leftClick"
             && (e.Utc - _lastClickUtc).TotalMilliseconds <= _doubleClickMs
             && Math.Abs(e.Point.X - _lastClickPoint.X) <= 4
             && Math.Abs(e.Point.Y - _lastClickPoint.Y) <= 4
@@ -92,8 +114,12 @@ internal sealed class Recorder : IDisposable
 
         var bounds = ScreenCapture.ResolveBounds(hwnd, e.Point);
 
-        var seq = ++_seq;
-        var relative = $"steps/{seq:D4}.{_options.Extension}";   // forward slashes: the UI treats this as a URL
+        // A replacement keeps its own numbering namespace so it cannot collide
+        // with an existing screenshot file.
+        var seq = replaces is null ? ++_seq : _seq;
+        var relative = replaces is null
+            ? $"steps/{seq:D4}.{_options.Extension}"
+            : $"steps/redo-{DateTime.UtcNow:yyyyMMddHHmmssfff}.{_options.Extension}";   // forward slashes: the UI treats this as a URL
         ScreenCapture.CaptureTo(bounds, Path.Combine(_sessionDir, relative), _options);
 
         var window = WindowResolver.Describe(hwnd, bounds);
@@ -106,6 +132,7 @@ internal sealed class Recorder : IDisposable
             Ts = e.Utc.ToString("o"),
             Action = action,
             Supersedes = supersedes,
+            Replaces = replaces,
             Point = new Point2(e.Point.X, e.Point.Y),
             EndPoint = action == "drag" ? new Point2(e.EndPoint.X, e.EndPoint.Y) : null,
             Monitor = monitor,
@@ -117,7 +144,14 @@ internal sealed class Recorder : IDisposable
 
         Protocol.Emit(step);
 
-        if (action == "leftClick")
+        if (replaces is not null)
+        {
+            // Do not let a re-recording seed double-click folding for whatever
+            // the user does next.
+            _lastClickUtc = DateTime.MinValue;
+            _lastStepId = null;
+        }
+        else if (action == "leftClick")
         {
             _lastClickUtc = e.Utc;
             _lastClickPoint = e.Point;

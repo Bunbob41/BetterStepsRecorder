@@ -42,6 +42,7 @@
                aria-label="Step description" />
         <div class="meta">
           <span id="detail-meta"></span>
+          <button id="btn-rerecord">Re-record step</button>
           <button id="btn-delete" class="danger">Delete step</button>
         </div>
         <div id="shot-wrap" class="shot-wrap">
@@ -51,6 +52,15 @@
       </div>
     </section>
   </main>
+
+  <div id="arming" class="arming" hidden>
+    <div class="arming-card">
+      <div class="arming-title">Re-recording step <b id="arming-n"></b></div>
+      <p>Switch to your application and perform the action once.
+         This window will come back automatically.</p>
+      <button id="arming-cancel">Cancel</button>
+    </div>
+  </div>
 
   <footer class="savebar">
     <span id="save-state" class="save-state">No recording yet</span>

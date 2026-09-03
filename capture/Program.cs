@@ -96,6 +96,18 @@ internal static class Program
                         Protocol.Log("info", $"recording to {dir}");
                         break;
 
+                    case "armOnce":
+                        var replaceId = root.TryGetProperty("replaceId", out var rid)
+                                        ? rid.GetString() : null;
+                        if (string.IsNullOrWhiteSpace(replaceId))
+                        {
+                            Protocol.Error("BAD_COMMAND", "armOnce requires replaceId");
+                            break;
+                        }
+                        _recorder!.ArmOnce(replaceId);
+                        Protocol.Log("info", $"armed single capture to replace {replaceId}");
+                        break;
+
                     case "pause":
                         _recorder!.State = RecordingState.Paused;
                         break;

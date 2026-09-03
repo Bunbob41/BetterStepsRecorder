@@ -5,6 +5,8 @@ const el = {
   dot: $('dot'), status: $('status-text'), list: $('step-list'), count: $('count'),
   empty: $('empty'), detailEmpty: $('detail-empty'), detailBody: $('detail-body'),
   text: $('detail-text'), meta: $('detail-meta'), del: $('btn-delete'),
+  rerecord: $('btn-rerecord'), arming: $('arming'), armingN: $('arming-n'),
+  armingCancel: $('arming-cancel'),
   shot: $('shot'), indicator: $('indicator'),
   saveState: $('save-state'), reveal: $('btn-reveal'),
   settingsBtn: $('btn-settings'), dialog: $('settings'),
@@ -81,11 +83,13 @@ async function select(id) {
     step.window?.title ? `"${step.window.title}"` : null,
     `${step.point.x}, ${step.point.y}`,
     step.monitor ? `${Math.round(step.monitor.scale * 100)}% scaling` : null,
+    step.rerecordedAt ? 're-recorded' : null,
   ].filter(Boolean).join('   ·   ');
 
   el.indicator.style.display = 'none';
   const url = await window.bsr.shotUrl(step.screenshot);
-  el.shot.src = url || '';
+  // Cache-bust: a re-recorded step swaps the file behind the same <img>.
+  el.shot.src = url ? `${url}#${step.rerecordedAt || ''}` : '';
   el.shot.onload = () => placeIndicator(step);
 }
 
@@ -204,6 +208,31 @@ window.bsr.onError((m) => {
 
 window.bsr.onExit(() => setState('idle'));
 window.bsr.onLog((m) => console.log('[capture]', m.level, m.message));
+
+// ---- re-record ----------------------------------------------------------------
+// Guides rot: one dialog changes and a forty-step SOP is quietly wrong. This
+// refreshes a single step in place, keeping every other step and the user's
+// own wording.
+
+el.rerecord.addEventListener('click', async () => {
+  if (!selectedId) return;
+  const step = steps.find((s) => s.id === selectedId);
+  el.armingN.textContent = String(steps.indexOf(step) + 1);
+  el.arming.hidden = false;
+
+  const r = await window.bsr.rerecordStep(selectedId);
+  el.arming.hidden = true;
+
+  if (!r.ok) { alert(r.error); return; }
+});
+
+el.armingCancel.addEventListener('click', () => { el.arming.hidden = true; });
+
+window.bsr.onReplaced(({ index, step }) => {
+  steps[index] = step;
+  renderList();
+  if (selectedId === step.id) select(step.id);
+});
 
 // ---- settings ----------------------------------------------------------------
 

@@ -49,6 +49,8 @@ internal sealed record StepMessage
     public string Action { get; init; } = "leftClick";
     /// <summary>Step id this one replaces (double-click folding). Usually null.</summary>
     public string? Supersedes { get; init; }
+    /// <summary>Step id this re-recording replaces, from an armOnce command.</summary>
+    public string? Replaces { get; init; }
     public Point2? Point { get; init; }
     public Point2? EndPoint { get; init; }
     public MonitorInfo? Monitor { get; init; }

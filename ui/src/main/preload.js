@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('bsr', {
 
   updateStep: (id, patch) => ipcRenderer.invoke('step:update', { id, patch }),
   removeStep: (id) => ipcRenderer.invoke('step:remove', { id }),
+  rerecordStep: (id) => ipcRenderer.invoke('step:rerecord', { id }),
   reorderStep: (from, to) => ipcRenderer.invoke('step:reorder', { from, to }),
   shotUrl: (screenshot) => ipcRenderer.invoke('shot:url', { screenshot }),
   revealSession: () => ipcRenderer.invoke('session:reveal'),
@@ -23,6 +24,7 @@ contextBridge.exposeInMainWorld('bsr', {
 
   onStep:  (fn) => ipcRenderer.on('session:step',  (_e, m) => fn(m)),
   onSaved: (fn) => ipcRenderer.on('session:saved', (_e, m) => fn(m)),
+  onReplaced: (fn) => ipcRenderer.on('session:replaced', (_e, m) => fn(m)),
   onReady: (fn) => ipcRenderer.on('sidecar:ready', (_e, m) => fn(m)),
   onError: (fn) => ipcRenderer.on('sidecar:error', (_e, m) => fn(m)),
   onLog:   (fn) => ipcRenderer.on('sidecar:log',   (_e, m) => fn(m)),
