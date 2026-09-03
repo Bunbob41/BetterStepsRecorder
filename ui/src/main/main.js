@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol, net, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -53,6 +53,7 @@ function wireSidecar() {
     if (!session) return;
     const result = session.addStep(step);
     send('session:step', result);
+    send('session:saved', { dir: session.dir, count: session.steps.length });
   });
 
   sidecar.on('exit', (code) => send('sidecar:exit', { code }));
@@ -106,6 +107,7 @@ ipcMain.handle('recording:start', async () => {
 
   // Our own process, so clicking Stop does not become the last recorded step.
   sidecar.startSession(dir, [process.pid]);
+  send('session:saved', { dir, count: 0 });
   return { ok: true, dir };
 });
 
@@ -138,6 +140,12 @@ ipcMain.handle('session:open', async () => {
   if (r.canceled || !r.filePaths[0]) return { ok: false };
   session = Session.load(r.filePaths[0]);
   return { ok: true, dir: session.dir, steps: session.steps };
+});
+
+ipcMain.handle('session:reveal', () => {
+  if (!session) return { ok: false };
+  shell.openPath(session.dir);
+  return { ok: true };
 });
 
 ipcMain.handle('shot:url', (_e, { screenshot }) => {

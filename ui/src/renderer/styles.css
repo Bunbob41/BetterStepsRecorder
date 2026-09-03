@@ -137,3 +137,19 @@ main { flex: 1; display: grid; grid-template-columns: 320px 1fr; min-height: 0; 
   pointer-events: none;
   display: none;
 }
+
+.savebar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 14px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+.savebar button { padding: 4px 10px; font-size: 12px; }
+.savebar button:last-child { margin-left: auto; }
+.save-state { user-select: text; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.save-state .ok { color: #57c06b; }
+.save-state .path { color: var(--text); }

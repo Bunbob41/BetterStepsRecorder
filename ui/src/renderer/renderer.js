@@ -6,6 +6,7 @@ const el = {
   empty: $('empty'), detailEmpty: $('detail-empty'), detailBody: $('detail-body'),
   text: $('detail-text'), meta: $('detail-meta'), del: $('btn-delete'),
   shot: $('shot'), indicator: $('indicator'),
+  saveState: $('save-state'), reveal: $('btn-reveal'),
 };
 
 let steps = [];
@@ -128,6 +129,8 @@ el.stop.addEventListener('click', async () => {
 el.open.addEventListener('click', async () => {
   const r = await window.bsr.openSession();
   if (!r.ok) return;
+  el.saveState.textContent = `${r.steps.length} steps · ${r.dir}`;
+  el.reveal.disabled = false;
   steps = r.steps;
   selectedId = null;
   el.detailBody.hidden = true;
@@ -169,6 +172,24 @@ window.bsr.onStep(({ replaced, index, step }) => {
   if (!selectedId || replaced) select(step.id);
   else el.list.lastElementChild?.scrollIntoView({ block: 'nearest' });
 });
+
+// There is no Save button by design: every step is flushed to disk as it is
+// recorded. This bar exists so that is visible rather than merely true.
+window.bsr.onSaved(({ dir, count }) => {
+  el.saveState.replaceChildren();
+  const tick = document.createElement('span');
+  tick.className = 'ok';
+  tick.textContent = '✓ Saved';
+  const rest = document.createElement('span');
+  rest.textContent = ` · ${count} step${count === 1 ? '' : 's'} · `;
+  const path = document.createElement('span');
+  path.className = 'path';
+  path.textContent = dir;
+  el.saveState.append(tick, rest, path);
+  el.reveal.disabled = false;
+});
+
+el.reveal.addEventListener('click', () => window.bsr.revealSession());
 
 window.bsr.onError((m) => {
   console.error('[capture]', m);
