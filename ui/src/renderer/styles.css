@@ -153,3 +153,34 @@ main { flex: 1; display: grid; grid-template-columns: 320px 1fr; min-height: 0; 
 .save-state { user-select: text; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .save-state .ok { color: #57c06b; }
 .save-state .path { color: var(--text); }
+
+dialog {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px;
+  width: 520px;
+  max-width: 90vw;
+}
+dialog::backdrop { background: rgba(0,0,0,.55); }
+dialog h2 { margin: 0 0 16px; font-size: 15px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+.field > span { color: var(--muted); font-size: 12px; }
+.field small { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.field b { color: var(--text); }
+.row { display: flex; gap: 8px; }
+
+.field input[type=text], .field select {
+  flex: 1;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 7px 10px;
+  font: inherit;
+  min-width: 0;
+}
+.field input[type=range] { accent-color: var(--accent); }
+.dialog-actions { display: flex; justify-content: flex-end; }

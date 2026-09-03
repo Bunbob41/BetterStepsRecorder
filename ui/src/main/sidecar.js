@@ -85,8 +85,8 @@ class Sidecar extends EventEmitter {
     return true;
   }
 
-  startSession(sessionDir, ignorePids = []) {
-    return this.send({ type: 'start', sessionDir, ignorePids });
+  startSession(sessionDir, ignorePids = [], image = {}) {
+    return this.send({ type: 'start', sessionDir, ignorePids, ...image });
   }
   pause()  { return this.send({ type: 'pause' }); }
   resume() { return this.send({ type: 'resume' }); }

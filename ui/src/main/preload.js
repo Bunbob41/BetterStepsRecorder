@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld('bsr', {
   shotUrl: (screenshot) => ipcRenderer.invoke('shot:url', { screenshot }),
   revealSession: () => ipcRenderer.invoke('session:reveal'),
 
+  getSettings: () => ipcRenderer.invoke('settings:get'),
+  setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
+  chooseFolder: () => ipcRenderer.invoke('settings:chooseFolder'),
+
   onStep:  (fn) => ipcRenderer.on('session:step',  (_e, m) => fn(m)),
   onSaved: (fn) => ipcRenderer.on('session:saved', (_e, m) => fn(m)),
   onReady: (fn) => ipcRenderer.on('sidecar:ready', (_e, m) => fn(m)),

@@ -86,7 +86,13 @@ internal static class Program
                             foreach (var v in ip.EnumerateArray())
                                 if (v.TryGetUInt32(out var pid)) ignored.Add(pid);
                         }
-                        _recorder!.StartSession(dir, ignored);
+                        string? fmt = root.TryGetProperty("imageFormat", out var f) ? f.GetString() : null;
+                        int? q = root.TryGetProperty("imageQuality", out var qq)
+                                 && qq.TryGetInt32(out var qv) ? qv : null;
+                        double? sc = root.TryGetProperty("imageScale", out var scp)
+                                     && scp.TryGetDouble(out var scv) ? scv : null;
+
+                        _recorder!.StartSession(dir, ignored, CaptureOptions.Clamp(fmt, q, sc));
                         Protocol.Log("info", $"recording to {dir}");
                         break;
 

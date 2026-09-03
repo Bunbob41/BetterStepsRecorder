@@ -1,6 +1,7 @@
 using System.IO;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Linq;
 
 namespace BetterSteps.Capture;
 
@@ -43,19 +44,65 @@ internal static class ScreenCapture
         return rect;
     }
 
-    internal static void CaptureTo(Rectangle bounds, string path)
+    internal static void CaptureTo(Rectangle bounds, string path, CaptureOptions options)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
-        using var bmp = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
-        using (var g = Graphics.FromImage(bmp))
+        using var shot = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(shot))
         {
             // CopyFromScreen over PrintWindow: PrintWindow returns black for many
             // GPU-composited apps (Chrome, Electron, anything hardware accelerated).
             g.CopyFromScreen(bounds.Location, System.Drawing.Point.Empty, bounds.Size);
         }
 
-        bmp.Save(path, ImageFormat.Png);
+        using var image = options.Scale < 1.0 ? Downscale(shot, options.Scale) : shot;
+
+        if (options.Format == "jpeg")
+        {
+            SaveJpeg(image, path, options.Quality);
+        }
+        else
+        {
+            image.Save(path, ImageFormat.Png);
+        }
+    }
+
+    private static Bitmap Downscale(Bitmap source, double scale)
+    {
+        var w = Math.Max(1, (int)Math.Round(source.Width * scale));
+        var h = Math.Max(1, (int)Math.Round(source.Height * scale));
+
+        var scaled = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+        using var g = Graphics.FromImage(scaled);
+        // HighQualityBicubic: screenshots are mostly text and thin borders, which
+        // the cheaper filters turn to mush.
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+        g.DrawImage(source, 0, 0, w, h);
+        return scaled;
+    }
+
+    private static void SaveJpeg(Bitmap image, string path, int quality)
+    {
+        var codec = ImageCodecInfo.GetImageEncoders()
+            .FirstOrDefault(c => c.FormatID == ImageFormat.Jpeg.Guid);
+
+        if (codec is null) { image.Save(path, ImageFormat.Png); return; }
+
+        using var parameters = new EncoderParameters(1);
+        parameters.Param[0] = new EncoderParameter(Encoder.Quality, (long)quality);
+
+        // JPEG has no alpha channel; compositing onto white avoids black fringes
+        // where the window had transparent corners.
+        using var flat = new Bitmap(image.Width, image.Height, PixelFormat.Format24bppRgb);
+        using (var g = Graphics.FromImage(flat))
+        {
+            g.Clear(Color.White);
+            g.DrawImageUnscaled(image, 0, 0);
+        }
+
+        flat.Save(path, codec, parameters);
     }
 
     private static Rectangle FromRect(Win32.RECT r) =>

@@ -5,12 +5,14 @@ const os = require('node:os');
 const { pathToFileURL } = require('node:url');
 const { Sidecar } = require('./sidecar');
 const { Session } = require('./session');
+const { Settings } = require('./settings');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
 
 let win = null;
 let sidecar = null;
 let session = null;
+let settings = null;
 
 // Screenshots live outside the app directory, so a custom protocol serves them
 // instead of loosening webSecurity for the whole renderer.
@@ -72,6 +74,7 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(target).href);
   });
 
+  settings = new Settings(app.getPath('userData'));
   wireSidecar();
   createWindow();
 });
@@ -93,7 +96,12 @@ ipcMain.handle('recording:start', async () => {
     return { ok: false, error: 'Capture engine not found. Build it with: dotnet build capture' };
   }
 
-  const dir = path.join(os.homedir(), 'Documents', 'StepRecordings',
+  const writable = settings.probe();
+  if (!writable.ok) {
+    return { ok: false, error: `Cannot write to ${settings.values.saveRoot}: ${writable.error}` };
+  }
+
+  const dir = path.join(settings.values.saveRoot,
     `session-${new Date().toISOString().replace(/[:.]/g, '-')}`);
   session = new Session(dir);
 
@@ -106,7 +114,11 @@ ipcMain.handle('recording:start', async () => {
   }
 
   // Our own process, so clicking Stop does not become the last recorded step.
-  sidecar.startSession(dir, [process.pid]);
+  sidecar.startSession(dir, [process.pid], {
+    imageFormat: settings.values.imageFormat,
+    imageQuality: settings.values.imageQuality,
+    imageScale: settings.values.imageScale,
+  });
   send('session:saved', { dir, count: 0 });
   return { ok: true, dir };
 });
@@ -140,6 +152,20 @@ ipcMain.handle('session:open', async () => {
   if (r.canceled || !r.filePaths[0]) return { ok: false };
   session = Session.load(r.filePaths[0]);
   return { ok: true, dir: session.dir, steps: session.steps };
+});
+
+ipcMain.handle('settings:get', () => settings.values);
+
+ipcMain.handle('settings:set', (_e, patch) => settings.update(patch));
+
+ipcMain.handle('settings:chooseFolder', async () => {
+  const r = await dialog.showOpenDialog(win, {
+    title: 'Where should recordings be saved?',
+    defaultPath: settings.values.saveRoot,
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (r.canceled || !r.filePaths[0]) return { ok: false };
+  return { ok: true, values: settings.update({ saveRoot: r.filePaths[0] }) };
 });
 
 ipcMain.handle('session:reveal', () => {

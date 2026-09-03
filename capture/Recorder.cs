@@ -19,6 +19,7 @@ internal sealed class Recorder : IDisposable
 
     private string _sessionDir = "";
     private HashSet<uint> _ignoredPids = new();
+    private CaptureOptions _options = new();
     private int _seq;
 
     // Worker-thread only; no locking needed.
@@ -34,9 +35,11 @@ internal sealed class Recorder : IDisposable
         _worker.Start();
     }
 
-    internal void StartSession(string sessionDir, IEnumerable<uint>? ignoredPids = null)
+    internal void StartSession(string sessionDir, IEnumerable<uint>? ignoredPids = null,
+                               CaptureOptions? options = null)
     {
         _sessionDir = sessionDir;
+        _options = options ?? new CaptureOptions();
         // The UI's own windows. Without this, the click that ends a recording
         // is itself recorded, and every session finishes with a junk step
         // showing the recorder instead of the user's application.
@@ -90,8 +93,8 @@ internal sealed class Recorder : IDisposable
         var bounds = ScreenCapture.ResolveBounds(hwnd, e.Point);
 
         var seq = ++_seq;
-        var relative = $"steps/{seq:D4}.png";   // forward slashes: the UI treats this as a URL
-        ScreenCapture.CaptureTo(bounds, Path.Combine(_sessionDir, relative));
+        var relative = $"steps/{seq:D4}.{_options.Extension}";   // forward slashes: the UI treats this as a URL
+        ScreenCapture.CaptureTo(bounds, Path.Combine(_sessionDir, relative), _options);
 
         var window = WindowResolver.Describe(hwnd, bounds);
         var monitor = WindowResolver.DescribeMonitor(e.Point);

@@ -7,6 +7,11 @@ const el = {
   text: $('detail-text'), meta: $('detail-meta'), del: $('btn-delete'),
   shot: $('shot'), indicator: $('indicator'),
   saveState: $('save-state'), reveal: $('btn-reveal'),
+  settingsBtn: $('btn-settings'), dialog: $('settings'),
+  root: $('set-root'), browse: $('set-browse'), format: $('set-format'),
+  quality: $('set-quality'), qualityVal: $('set-quality-val'),
+  qualityField: $('quality-field'),
+  scale: $('set-scale'), scaleVal: $('set-scale-val'), setClose: $('set-close'),
 };
 
 let steps = [];
@@ -200,5 +205,45 @@ window.bsr.onError((m) => {
 window.bsr.onExit(() => setState('idle'));
 window.bsr.onLog((m) => console.log('[capture]', m.level, m.message));
 
+// ---- settings ----------------------------------------------------------------
+
+function paintSettings(v) {
+  el.root.value = v.saveRoot;
+  el.format.value = v.imageFormat;
+  el.quality.value = v.imageQuality;
+  el.qualityVal.textContent = String(v.imageQuality);
+  el.scale.value = Math.round(v.imageScale * 100);
+  el.scaleVal.textContent = `${Math.round(v.imageScale * 100)}%`;
+  // Quality only means anything for a lossy format.
+  el.qualityField.style.display = v.imageFormat === 'jpeg' ? 'flex' : 'none';
+}
+
+el.settingsBtn.addEventListener('click', async () => {
+  paintSettings(await window.bsr.getSettings());
+  el.dialog.showModal();
+});
+
+el.setClose.addEventListener('click', () => el.dialog.close());
+
+el.browse.addEventListener('click', async () => {
+  const r = await window.bsr.chooseFolder();
+  if (r.ok) paintSettings(r.values);
+});
+
+el.format.addEventListener('change', async () => {
+  paintSettings(await window.bsr.setSettings({ imageFormat: el.format.value }));
+});
+
+el.quality.addEventListener('input', () => { el.qualityVal.textContent = el.quality.value; });
+el.quality.addEventListener('change', async () => {
+  await window.bsr.setSettings({ imageQuality: Number(el.quality.value) });
+});
+
+el.scale.addEventListener('input', () => { el.scaleVal.textContent = `${el.scale.value}%`; });
+el.scale.addEventListener('change', async () => {
+  await window.bsr.setSettings({ imageScale: Number(el.scale.value) / 100 });
+});
+
 setState('idle');
 renderList();
+window.bsr.getSettings().then(paintSettings);
