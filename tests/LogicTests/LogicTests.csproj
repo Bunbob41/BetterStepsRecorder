@@ -12,6 +12,7 @@
   <ItemGroup>
     <!-- Compile the engine's pure logic directly; no hooks, no input, no COM. -->
     <Compile Include="../../capture/Keys.cs" />
+    <Compile Include="../../capture/UiaNaming.cs" />
     <Compile Include="../../capture/StepDescriber.cs" />
     <Compile Include="../../capture/Protocol.cs" />
   </ItemGroup>

@@ -47,5 +47,34 @@ Check("password wording never mentions content or length",
     StepDescriber.DescribeKey("Entered password", field, window)
         == "Entered password in \"Billing\"");
 
+Console.WriteLine("");
+Console.WriteLine("UIA naming (the text-box content leak):");
+
+// The actual regression: a WinForms TextBox with no AccessibleName reports its
+// contents as its Name, which put typed text into click descriptions.
+Check("a Name equal to the field's contents is dropped",
+    UiaNaming.SafeName("hunter2secret", "hunter2secret", false, "Edit", null) is null);
+Check("a real label is kept",
+    UiaNaming.SafeName("Customer Name", "ACME Corp", false, "Edit", null) == "Customer Name");
+Check("LabeledBy is preferred when the Name is content",
+    UiaNaming.SafeName("ACME Corp", "ACME Corp", false, "Edit", "Customer Name")
+        == "Customer Name");
+Check("a password field never uses its Name",
+    UiaNaming.SafeName("hunter2", "hunter2", true, "Edit", null) is null);
+Check("a password field still uses LabeledBy",
+    UiaNaming.SafeName("hunter2", "hunter2", true, "Edit", "Password") == "Password");
+Check("a truncated echo of the contents is dropped",
+    UiaNaming.SafeName("ACME", "ACME Corp Limited", false, "Edit", null) is null);
+Check("buttons keep their Name (not a text-entry control)",
+    UiaNaming.SafeName("Save", null, false, "Button", null) == "Save");
+Check("a Document control is treated as text entry",
+    UiaNaming.SafeName("my private notes", "my private notes", false, "Document", null) is null);
+Check("an empty value cannot cause a false match",
+    UiaNaming.SafeName("Customer Name", "", false, "Edit", null) == "Customer Name");
+Check("whitespace-only Name yields no label",
+    UiaNaming.SafeName("   ", null, false, "Edit", null) is null);
+Check("short values do not trigger the prefix rule",
+    UiaNaming.SafeName("ID", "ID", false, "Edit", null) is null);
+
 Console.WriteLine($"\n{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;

@@ -18,6 +18,33 @@ internal static class UiaResolver
     /// Fails closed is not an option here (it would suppress ordinary typing),
     /// so it fails open and the structural check remains the first line.
     /// </summary>
+    /// <summary>The control's text, used only to detect a Name that is content.</summary>
+    private static string? ValueOf(AutomationElement element)
+    {
+        try
+        {
+            if (element.TryGetCurrentPattern(ValuePattern.Pattern, out var pattern)
+                && pattern is ValuePattern v)
+            {
+                return v.Current.Value;
+            }
+        }
+        catch { /* pattern unavailable or the element went away */ }
+        return null;
+    }
+
+    /// <summary>The element that labels this one, when the app declares one.</summary>
+    private static string? LabelOf(AutomationElement element)
+    {
+        try
+        {
+            var labelled = element.GetCurrentPropertyValue(AutomationElement.LabeledByProperty)
+                           as AutomationElement;
+            return labelled?.Current.Name;
+        }
+        catch { return null; }
+    }
+
     internal static bool IsPasswordField(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero) return false;
@@ -53,9 +80,19 @@ internal static class UiaResolver
                 if (element is null) return null;
 
                 var info = element.Current;
-                var name = string.IsNullOrWhiteSpace(info.Name) ? null : info.Name.Trim();
                 var controlType = info.ControlType?.ProgrammaticName?.Replace("ControlType.", "");
                 var automationId = string.IsNullOrWhiteSpace(info.AutomationId) ? null : info.AutomationId;
+
+                // For text-entry controls the Name is often the field's contents,
+                // so it is checked against the value and dropped if it matches.
+                // The value is read only to make that comparison and is never
+                // stored or emitted.
+                var name = UiaNaming.SafeName(
+                    info.Name,
+                    UiaNaming.IsTextEntry(controlType) ? ValueOf(element) : null,
+                    info.IsPassword,
+                    controlType,
+                    LabelOf(element));
 
                 if (name is null && automationId is null && controlType is null) return null;
                 return new TargetInfo(name, controlType, automationId);
