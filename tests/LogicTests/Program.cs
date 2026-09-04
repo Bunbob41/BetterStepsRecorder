@@ -4,6 +4,10 @@ using BetterSteps.Capture;
 // Pure-logic checks for the parts of keyboard capture that need no global input:
 // redaction and step wording. The hook itself can only be verified by real
 // typing, which is the user's to drive.
+// Match the engine: it sets this before any DC exists, and without it every
+// bound reported here is virtualised and the frame sizes are a fiction.
+Win32.SetProcessDpiAwarenessContext(Win32.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
 var pass = 0;
 var fail = 0;
 
@@ -225,6 +229,32 @@ catch (Exception ex)
 }
 
 try { Directory.Delete(tempDir, recursive: true); } catch { }
+
+Console.WriteLine("");
+Console.WriteLine("capture frame:");
+
+Check("window is the default",
+    CaptureOptions.Clamp("png", 85, 1.0, null).Frame == "window");
+Check("an unknown frame falls back to window",
+    CaptureOptions.Clamp("png", 85, 1.0, "nonsense").Frame == "window");
+Check("monitor is accepted", CaptureOptions.Clamp("png", 85, 1.0, "monitor").Frame == "monitor");
+Check("screen is accepted", CaptureOptions.Clamp("png", 85, 1.0, "SCREEN").Frame == "screen");
+
+// The frames must actually differ in size on a real desktop, and a click with
+// no window must still yield a usable frame rather than a blind guess.
+var here = new Win32.POINT { X = 10, Y = 10 };
+var win = ScreenCapture.ResolveBounds(IntPtr.Zero, here, "window");
+var mon = ScreenCapture.ResolveBounds(IntPtr.Zero, here, "monitor");
+var all = ScreenCapture.ResolveBounds(IntPtr.Zero, here, "screen");
+
+Console.WriteLine($"    window={win.Width}x{win.Height} monitor={mon.Width}x{mon.Height} screen={all.Width}x{all.Height}");
+Check("a window-less click still resolves a frame", win.Width > 0 && win.Height > 0);
+Check("monitor framing is at least as large as the fallback box",
+    mon.Width >= win.Width && mon.Height >= win.Height);
+Check("screen framing covers the whole virtual desktop",
+    all.Width >= mon.Width && all.Height >= mon.Height);
+Check("monitor framing starts at a real monitor origin",
+    mon.Width > 100 && mon.Height > 100);
 
 Console.WriteLine($"\n{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;

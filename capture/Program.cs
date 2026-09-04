@@ -126,7 +126,9 @@ internal static class Program
                         }
 
                         _recorder!.StartSession(dir, ignored,
-                            CaptureOptions.Clamp(fmt, q, sc), allowed);
+                            CaptureOptions.Clamp(fmt, q, sc,
+                                root.TryGetProperty("imageFrame", out var fr) ? fr.GetString() : null),
+                            allowed);
 
                         if (allowed.Count > 0)
                             Protocol.Log("info", $"scoped to pids {string.Join(",", allowed)}");

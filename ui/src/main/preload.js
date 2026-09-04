@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('bsr', {
   openSession: () => ipcRenderer.invoke('session:open'),
 
   updateStep: (id, patch) => ipcRenderer.invoke('step:update', { id, patch }),
+  addNote: (text, afterId) => ipcRenderer.invoke('step:addNote', { text, afterId }),
   removeStep: (id) => ipcRenderer.invoke('step:remove', { id }),
   rerecordStep: (id) => ipcRenderer.invoke('step:rerecord', { id }),
   reorderStep: (from, to) => ipcRenderer.invoke('step:reorder', { from, to }),

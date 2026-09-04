@@ -42,13 +42,24 @@ function dataUri(file) {
   return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
 }
 
+/** Steps that survive into a document; excluded ones never reach the reader. */
+function exportable(session) {
+  return (session.steps || []).filter((s) => !s.excluded);
+}
+
+/** Non-note steps, i.e. the ones that carry a number in the finished guide. */
+const countSteps = (steps) => steps.filter((s) => s.action !== 'note').length;
+
 /**
  * Where the click happened, as a percentage of the screenshot, so the marker
  * scales with the image at any width. Returns null when the point falls
  * outside the captured frame.
  */
 function markerPosition(step) {
-  const rect = step.window && step.window.rect;
+  // The captured frame, not the window: framing by monitor or full screen means
+  // the screenshot is larger than the window and window-relative maths is wrong.
+  const rect = (step.frame && step.frame.w ? step.frame : null)
+            || (step.window && step.window.rect);
   if (!rect || !rect.w || !rect.h) return null;
 
   const x = ((step.point.x - rect.x) / rect.w) * 100;
@@ -59,10 +70,23 @@ function markerPosition(step) {
 }
 
 function buildHtml(session, { title, embedImages = true }) {
-  const steps = session.steps || [];
+  const steps = exportable(session);
   const generated = new Date().toLocaleString();
 
-  const body = steps.map((step, i) => {
+  let n = 0;
+  const body = steps.map((step) => {
+    if (step.action === 'note') {
+      // An authored aside, not something that was clicked.
+      return `
+    <li class="step note">
+      <div class="step-head">
+        <span class="num note-num">&bull;</span>
+        <p class="text">${escapeHtml(step.text || '')}</p>
+      </div>
+    </li>`;
+    }
+
+    const i = n++;
     const abs = path.join(session.dir, step.screenshot || '');
     const hasShot = step.screenshot && fs.existsSync(abs);
     const src = hasShot
@@ -125,6 +149,8 @@ function buildHtml(session, { title, embedImages = true }) {
     background: var(--accent); color: #fff; font-size: 15px; font-weight: 600;
     display: grid; place-items: center;
   }
+  .note .num { background: var(--panel); color: var(--muted); border: 1px solid var(--line); }
+  .note .text { font-style: italic; }
   .text { margin: 2px 0 0; font-size: 17px; }
   .context { margin: 6px 0 0 44px; color: var(--muted); font-size: 13px; }
   .shot { position: relative; margin: 14px 0 0 44px; display: inline-block; max-width: calc(100% - 44px); }
@@ -148,7 +174,7 @@ function buildHtml(session, { title, embedImages = true }) {
 <body>
   <div class="wrap">
     <h1>${escapeHtml(title)}</h1>
-    <p class="meta">${steps.length} step${steps.length === 1 ? '' : 's'} · ${escapeHtml(generated)}</p>
+    <p class="meta">${countSteps(steps)} step${countSteps(steps) === 1 ? '' : 's'} · ${escapeHtml(generated)}</p>
     <ol>${body}</ol>
     <footer>Recorded with Steps Recorder.</footer>
   </div>
@@ -157,10 +183,18 @@ function buildHtml(session, { title, embedImages = true }) {
 }
 
 function buildMarkdown(session, { title, imageDir }) {
-  const steps = session.steps || [];
-  const lines = [`# ${title}`, '', `${steps.length} step${steps.length === 1 ? '' : 's'}`, ''];
+  const steps = exportable(session);
+  const lines = [`# ${title}`, '',
+                 `${countSteps(steps)} step${countSteps(steps) === 1 ? '' : 's'}`, ''];
 
-  steps.forEach((step, i) => {
+  let n = 0;
+  steps.forEach((step) => {
+    if (step.action === 'note') {
+      lines.push(`> ${step.text || ''}`, '');
+      return;
+    }
+
+    const i = n++;
     lines.push(`## ${i + 1}. ${toImperative(step)}`, '');
 
     const context = [step.window && step.window.title, step.window && step.window.process]
@@ -180,7 +214,9 @@ function buildMarkdown(session, { title, imageDir }) {
 function copyImages(session, targetDir) {
   fs.mkdirSync(targetDir, { recursive: true });
   let copied = 0;
-  for (const step of session.steps || []) {
+  // Excluded steps are not in the document, so their images must not travel
+  // with it - copying them would defeat the point of excluding them.
+  for (const step of exportable(session)) {
     if (!step.screenshot) continue;
     const from = path.join(session.dir, step.screenshot);
     if (!fs.existsSync(from)) continue;
@@ -190,4 +226,4 @@ function copyImages(session, targetDir) {
   return copied;
 }
 
-module.exports = { buildHtml, buildMarkdown, copyImages, toImperative };
+module.exports = { buildHtml, buildMarkdown, copyImages, toImperative, exportable };

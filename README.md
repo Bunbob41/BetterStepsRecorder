@@ -16,6 +16,8 @@ A modern replacement for the deprecated Windows PSR.exe.
   in ordinary fields.
 - **Scopes to one application.** Documenting one system does not capture your
   mail and chat alongside it — out-of-scope events are never captured at all.
+- **Frames each shot as you choose** — the window that was clicked, the whole
+  monitor, or every display.
 - **Blurs regions destructively.** The pixels in the file are replaced, so a
   redacted guide's source images do not still contain the data.
 - **Re-records a single step.** Guides rot when an application changes; refresh
@@ -38,8 +40,9 @@ no administrator prompt.
 1. **Capture** — optionally scope to one application, then **Start recording**.
 2. Do the thing you are documenting. `Ctrl+Shift+F9` pauses, `Ctrl+Shift+F10`
    stops, from wherever you are.
-3. **Edit** — reword steps, delete noise, blur anything sensitive, re-record a
-   step that came out wrong.
+3. **Edit** — reword steps, drag to reorder them, add written steps for the
+   instructions that are not clicks, exclude ones you want kept but not
+   published, blur anything sensitive, re-record a step that came out wrong.
 4. **Export** — HTML, PDF or Markdown.
 
 Recordings save continuously to `Documents\StepRecordings` (configurable). There

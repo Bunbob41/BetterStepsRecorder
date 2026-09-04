@@ -63,6 +63,42 @@ s.removeStep('e');
 check('a screenshot shared with another step is kept',
       fs.existsSync(path.join(dir, 'steps', 'shared.png')));
 
+
+// 6. written steps
+const fresh = new Session(path.join(os.tmpdir(), 'bsr-notes-' + Date.now()));
+fs.mkdirSync(path.join(fresh.dir, 'steps'), { recursive: true });
+fresh.addStep(mk('x', 'Clicked x'));
+fresh.addStep(mk('y', 'Clicked y'));
+
+const note = fresh.addNote('Wait for the batch', 'x');
+check('note is inserted after the chosen step', fresh.steps[1].id === note.step.id);
+check('note keeps the recorded steps around',
+      fresh.steps.map((s) => s.id).join() === 'x,' + note.step.id + ',y');
+check('note is marked as authored so export leaves it alone', note.step.textEdited === true);
+check('note has no screenshot', !note.step.screenshot);
+check('note reports its index', note.index === 1);
+
+const appended = fresh.addNote('At the end');
+check('a note with no anchor goes last',
+      fresh.steps[fresh.steps.length - 1].id === appended.step.id);
+
+// 7. reorder
+const beforeOrder = fresh.steps.map((s) => s.id).join();
+check('reorder moves a step', fresh.reorder(0, 2) === true);
+check('reorder actually changed the order', fresh.steps.map((s) => s.id).join() !== beforeOrder);
+check('reorder rejects an out-of-range source', fresh.reorder(99, 0) === false);
+check('reorder rejects an out-of-range target', fresh.reorder(0, 99) === false);
+check('reorder persists',
+      JSON.parse(fs.readFileSync(fresh.metaPath, 'utf8')).steps.length === 4);
+
+// 8. exclusion is a plain flag and must not mark the wording as hand-edited
+fresh.updateStep('y', { excluded: true });
+check('exclusion is stored', fresh.steps.find((s) => s.id === 'y').excluded === true);
+check('excluding does not mark the wording as hand-edited',
+      fresh.steps.find((s) => s.id === 'y').textEdited !== true);
+
+fs.rmSync(fresh.dir, { recursive: true, force: true });
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

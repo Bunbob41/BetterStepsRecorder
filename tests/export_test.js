@@ -2,7 +2,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { buildHtml, buildMarkdown, copyImages, toImperative } = require('../ui/src/main/export');
+const { buildHtml, buildMarkdown, copyImages, toImperative, exportable } = require('../ui/src/main/export');
 
 const dir = path.join(os.tmpdir(), 'bsr-export-test-' + Date.now());
 fs.mkdirSync(path.join(dir, 'steps'), { recursive: true });
@@ -69,6 +69,52 @@ check('missing screenshot omitted', !md.includes('nope.png'));
 const imgDir = path.join(dir, 'out-images');
 check('copyImages copies only what exists', copyImages(session, imgDir) === 2);
 check('copied files land in place', fs.readdirSync(imgDir).length === 2);
+
+
+console.log('');
+console.log('notes, exclusion and framing:');
+
+fs.writeFileSync(path.join(dir, 'steps', '0003.png'), PNG);
+const rect = { x: 100, y: 100, w: 200, h: 200 };
+const mkStep = (id, over) => ({ id, seq: 1, action: 'leftClick', text: `Clicked ${id}`,
+  point: { x: 150, y: 120 }, window: { title: 'Billing', process: 'app.exe', rect },
+  screenshot: 'steps/0001.png', ...over });
+
+const mixed = { dir, steps: [
+  mkStep('a'),
+  { id: 'n1', action: 'note', text: 'Wait for the overnight batch to finish', textEdited: true },
+  mkStep('b'),
+  mkStep('c', { excluded: true, screenshot: 'steps/0003.png' }),
+]};
+
+check('exportable drops excluded steps', exportable(mixed).length === 3);
+
+const h2 = buildHtml(mixed, { title: 'Mixed', embedImages: true });
+check('an excluded step does not appear', !h2.includes('Click c'));
+check('a note appears verbatim', h2.includes('Wait for the overnight batch to finish'));
+check('a note is styled as an aside', h2.includes('class="step note"'));
+check('notes do not consume step numbers',
+      h2.includes('>1</span>') && h2.includes('>2</span>') && !h2.includes('>3</span>'));
+check('the count excludes notes and excluded steps', h2.includes('2 steps'));
+
+const m2 = buildMarkdown(mixed, { title: 'Mixed', imageDir: 'img' });
+check('markdown renders a note as a quote', m2.includes('> Wait for the overnight batch'));
+check('markdown numbering skips notes',
+      m2.includes('## 1.') && m2.includes('## 2.') && !m2.includes('## 3.'));
+check('markdown omits excluded steps', !m2.includes('Click c'));
+check('copyImages skips excluded steps',
+      copyImages(mixed, path.join(dir, 'excluded-images')) === 2);
+
+// Framing: with a monitor-sized frame the marker must be placed against the
+// frame, or it lands in the wrong part of a much larger image.
+const framed = { dir, steps: [ mkStep('f', {
+  frame: { x: 0, y: 0, w: 1000, h: 1000 }, point: { x: 500, y: 250 } }) ]};
+check('marker uses the captured frame when present',
+      buildHtml(framed, { title: 'F', embedImages: true }).includes('left:50.00%'));
+
+const windowOnly = { dir, steps: [ mkStep('w', { point: { x: 150, y: 150 } }) ]};
+check('marker falls back to the window rect when no frame was recorded',
+      buildHtml(windowOnly, { title: 'W', embedImages: true }).includes('left:25.00%'));
 
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);

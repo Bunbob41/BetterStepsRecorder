@@ -21,6 +21,7 @@ const el = {
   expGo: $('exp-go'), expCancel: $('exp-cancel'),
   scopeBtn: $('btn-scope'), scopeDlg: $('scopedlg'), scopeList: $('scope-list'),
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
+  note: $('btn-note'), exclude: $('chk-exclude'), frame: $('set-frame'),
 };
 
 let steps = [];
@@ -48,14 +49,23 @@ function renderList() {
   el.empty.hidden = steps.length > 0;
   el.list.replaceChildren();
 
+  let number = 0;
   steps.forEach((s, i) => {
+    const isNote = s.action === 'note';
+
     const li = document.createElement('li');
-    li.className = 'step' + (s.id === selectedId ? ' selected' : '');
+    li.className = 'step'
+      + (s.id === selectedId ? ' selected' : '')
+      + (s.excluded ? ' excluded' : '')
+      + (isNote ? ' note' : '');
     li.dataset.id = s.id;
+    li.dataset.index = String(i);
+    li.draggable = true;
 
     const n = document.createElement('div');
     n.className = 'n';
-    n.textContent = String(i + 1);
+    // Notes carry no number: they are asides, not steps the reader counts.
+    n.textContent = isNote ? '•' : String(++number);
 
     const label = document.createElement('div');
     label.className = 'label';
@@ -66,11 +76,15 @@ function renderList() {
 
     const sub = document.createElement('div');
     sub.className = 'sub';
-    sub.textContent = [s.window?.process, s.action].filter(Boolean).join(' · ');
+    sub.textContent = isNote
+      ? (s.excluded ? 'note · excluded' : 'note')
+      : [s.window?.process, s.action, s.excluded ? 'excluded' : null]
+          .filter(Boolean).join(' · ');
 
     label.append(title, sub);
     li.append(n, label);
     li.addEventListener('click', () => select(s.id));
+    attachDrag(li);
     el.list.append(li);
   });
 }
@@ -85,6 +99,13 @@ async function select(id) {
   el.detailEmpty.hidden = true;
   el.detailBody.hidden = false;
   el.text.value = step.text || '';
+  el.exclude.checked = !!step.excluded;
+
+  const isNote = step.action === 'note';
+  // A written step has no screenshot, so the tools that act on one are moot.
+  el.blur.hidden = isNote;
+  el.rerecord.hidden = isNote;
+  el.text.placeholder = isNote ? 'Describe what the reader should do' : '';
   el.meta.textContent = [
     `Step ${steps.indexOf(step) + 1}`,
     step.action,
@@ -96,6 +117,13 @@ async function select(id) {
   ].filter(Boolean).join('   ·   ');
 
   el.indicator.style.display = 'none';
+
+  if (isNote) {
+    el.shot.removeAttribute('src');
+    el.meta.textContent = 'Written step — appears in the guide without a screenshot';
+    return;
+  }
+
   const url = await window.bsr.shotUrl(step.screenshot);
   // Cache-bust: a re-recorded step swaps the file behind the same <img>.
   // Query, not fragment: a fragment is not part of the cache key, so blurring 
@@ -112,7 +140,9 @@ async function select(id) {
  * Doing this in CSS pixels instead is what makes indicators drift on scaled displays.
  */
 function placeIndicator(step) {
-  const rect = step.window?.rect;
+  // The frame actually captured. With monitor or full-screen framing the
+  // screenshot is bigger than the window, so window-relative maths is wrong.
+  const rect = (step.frame?.w ? step.frame : null) || step.window?.rect;
   if (!rect || !el.shot.naturalWidth) return;
 
   const ratio = el.shot.clientWidth / el.shot.naturalWidth;
@@ -247,6 +277,89 @@ window.bsr.onReplaced(({ index, step }) => {
 });
 
 
+
+
+// ---- reorder ------------------------------------------------------------------
+// A recording comes out in the order things happened, which is not always the
+// order a reader needs. session.reorder() has existed and been tested since the
+// first version; this finally connects it.
+
+let dragId = null;
+
+function attachDrag(li) {
+  li.addEventListener('dragstart', (e) => {
+    dragId = li.dataset.id;
+    li.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    // Firefox refuses to start a drag without payload.
+    e.dataTransfer.setData('text/plain', dragId);
+  });
+
+  li.addEventListener('dragend', () => {
+    dragId = null;
+    li.classList.remove('dragging');
+    clearDropHints();
+  });
+
+  li.addEventListener('dragover', (e) => {
+    if (!dragId || li.dataset.id === dragId) return;
+    e.preventDefault();
+    const box = li.getBoundingClientRect();
+    const after = e.clientY > box.top + box.height / 2;
+    clearDropHints();
+    li.classList.add(after ? 'dropafter' : 'dropbefore');
+  });
+
+  li.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    if (!dragId || li.dataset.id === dragId) return;
+
+    const from = steps.findIndex((s) => s.id === dragId);
+    const box = li.getBoundingClientRect();
+    const after = e.clientY > box.top + box.height / 2;
+    let to = Number(li.dataset.index) + (after ? 1 : 0);
+
+    // Removing the dragged item first shifts every later index down by one.
+    if (from < to) to -= 1;
+    clearDropHints();
+    if (from === -1 || from === to) return;
+
+    const [moved] = steps.splice(from, 1);
+    steps.splice(to, 0, moved);
+    renderList();
+    await window.bsr.reorderStep(from, to);
+  });
+}
+
+function clearDropHints() {
+  for (const node of document.querySelectorAll('.dropbefore, .dropafter')) {
+    node.classList.remove('dropbefore', 'dropafter');
+  }
+}
+
+// ---- written steps ------------------------------------------------------------
+
+el.note.addEventListener('click', async () => {
+  const r = await window.bsr.addNote('', selectedId);
+  if (!r) { alert('Open or start a recording first.'); return; }
+
+  steps.splice(r.index, 0, r.step);
+  renderList();
+  select(r.step.id);
+  el.text.focus();     // it is empty on purpose: the user types the instruction
+});
+
+// ---- exclude from export ------------------------------------------------------
+
+el.exclude.addEventListener('change', async () => {
+  if (!selectedId) return;
+  const step = steps.find((s) => s.id === selectedId);
+  if (!step) return;
+
+  step.excluded = el.exclude.checked;
+  await window.bsr.updateStep(step.id, { excluded: step.excluded });
+  renderList();
+});
 
 // ---- capture scope ------------------------------------------------------------
 // Recording everything means documenting one system also captures whatever else
@@ -469,6 +582,7 @@ function paintSettings(v) {
   el.format.value = v.imageFormat;
   el.quality.value = v.imageQuality;
   el.qualityVal.textContent = String(v.imageQuality);
+  el.frame.value = v.imageFrame || 'window';
   el.scale.value = Math.round(v.imageScale * 100);
   el.scaleVal.textContent = `${Math.round(v.imageScale * 100)}%`;
   // Quality only means anything for a lossy format.
@@ -485,6 +599,10 @@ el.setClose.addEventListener('click', () => el.dialog.close());
 el.browse.addEventListener('click', async () => {
   const r = await window.bsr.chooseFolder();
   if (r.ok) paintSettings(r.values);
+});
+
+el.frame.addEventListener('change', async () => {
+  await window.bsr.setSettings({ imageFrame: el.frame.value });
 });
 
 el.format.addEventListener('change', async () => {

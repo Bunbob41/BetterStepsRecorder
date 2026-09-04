@@ -17,6 +17,10 @@ start        { "sessionDir": "...", "ignorePids": [1234],
              choice can never drag the recorder's own windows back in.
              hotkeys: chord labels ("Ctrl+Shift+F9") the UI has claimed
              globally, so pressing stop is not itself the final step.
+             imageFrame: "window" (default), "monitor" or "screen" - what each
+             screenshot frames. Window crops the noise; the wider options matter
+             when context around the click is the point, or when the click has
+             no window at all (desktop, taskbar, tray).
              ignorePids: windows owned by these processes are never recorded.
              The UI passes its own pid so its Stop click is not captured.
 armOnce      { "replaceId": "<step id>" }              capture exactly one event,
@@ -60,6 +64,7 @@ log          { "level": "info|warn", "message": "" }
   "target": {                                     // UI Automation, best-effort
     "name": "Save", "controlType": "Button", "automationId": "btnSave"
   },
+  "frame": { "x": 100, "y": 80, "w": 1200, "h": 800 },  // region captured
   "screenshot": "steps/0007.png",                 // relative to sessionDir
   "typed": "ACME Corp",                           // keyText only, redacted
   "text": "Clicked the \"Save\" button in Notepad"  // generated description
@@ -84,6 +89,10 @@ log          { "level": "info|warn", "message": "" }
 - `target` may be null. UI must render from `point` alone when it is.
 - Coordinates are ALWAYS physical pixels on the virtual desktop, never scaled.
   The UI divides by monitor.scale only for display.
+- `frame` is the region actually captured, which equals the window rect only
+  when framing by window. The click indicator is positioned against `frame`,
+  never against `window.rect`, or it lands in the wrong part of a monitor- or
+  screen-framed image.
 - Unknown `type` values are ignored, not fatal. Forward compatible.
 - Sidecar exits 0 on `stop`, non-zero on unrecoverable hook failure.
 
@@ -102,3 +111,16 @@ canvas painted from another scheme is tainted and cannot be read back.
 Export rewrites descriptions into the imperative ("Click Save" rather than
 "Clicked the Save button"). The engine records what happened; a procedure tells
 the reader what to do. Wording the user edited is emitted verbatim.
+
+
+## Steps the engine never produces
+
+The UI adds two things the capture engine knows nothing about:
+
+- **Notes** (`action: "note"`) are written steps with no screenshot. Every
+  procedure has instructions that are not clicks - wait for the overnight batch,
+  escalate above a threshold - and a recording alone can only describe what a
+  mouse did. They are authored, so export emits them verbatim and they carry no
+  step number.
+- **`excluded: true`** suppresses a step from every export without destroying
+  it, and its screenshot is not copied alongside a Markdown export either.

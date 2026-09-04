@@ -66,6 +66,30 @@ class Session {
     return { index: i, step: merged };
   }
 
+  /**
+   * Inserts a written step with no screenshot. Every procedure has instructions
+   * that are not clicks - wait for the overnight batch, escalate above a
+   * threshold, log into the VPN first - and without these a recording can only
+   * ever describe what a mouse did.
+   */
+  addNote(text, afterId = null) {
+    const note = {
+      id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      action: 'note',
+      ts: new Date().toISOString(),
+      text: text || '',
+      // A note is authored, never generated, so export must never rewrite it.
+      textEdited: true,
+    };
+
+    const at = afterId ? this.steps.findIndex((s) => s.id === afterId) : -1;
+    if (at === -1) this.steps.push(note);
+    else this.steps.splice(at + 1, 0, note);
+
+    this.flush();
+    return { index: at === -1 ? this.steps.length - 1 : at + 1, step: note };
+  }
+
   updateStep(id, patch) {
     const i = this.steps.findIndex((s) => s.id === id);
     if (i === -1) return null;

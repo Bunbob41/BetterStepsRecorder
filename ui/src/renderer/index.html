@@ -29,7 +29,9 @@
   <main>
     <aside class="steps">
       <div class="steps-head">
-        <span>Steps</span><span id="count" class="count">0</span>
+        <span>Steps</span>
+        <button id="btn-note" class="tiny" title="Add a written step">+ Note</button>
+        <span id="count" class="count">0</span>
       </div>
       <p id="empty" class="empty">
         Press <strong>Start recording</strong>, then use your computer normally.
@@ -45,6 +47,7 @@
                aria-label="Step description" />
         <div class="meta">
           <span id="detail-meta"></span>
+          <label class="exclude"><input id="chk-exclude" type="checkbox" /> Exclude from export</label>
           <button id="btn-blur">Blur area</button>
           <button id="btn-rerecord">Re-record step</button>
           <button id="btn-delete" class="danger">Delete step</button>
@@ -138,6 +141,18 @@
     <label class="field" id="quality-field">
       <span>JPEG quality — <b id="set-quality-val">85</b></span>
       <input id="set-quality" type="range" min="40" max="100" step="5" />
+    </label>
+
+    <label class="field">
+      <span>Each screenshot shows</span>
+      <select id="set-frame">
+        <option value="window">The window that was clicked (recommended)</option>
+        <option value="monitor">The whole monitor it was on</option>
+        <option value="screen">Every monitor</option>
+      </select>
+      <small>Window framing crops the noise and keeps files small. The wider
+             options help when context around the click matters, or for clicks
+             with no window at all — the desktop, taskbar or tray.</small>
     </label>
 
     <label class="field">

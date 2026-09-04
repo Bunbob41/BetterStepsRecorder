@@ -190,6 +190,7 @@ ipcMain.handle('recording:start', async () => {
     imageFormat: settings.values.imageFormat,
     imageQuality: settings.values.imageQuality,
     imageScale: settings.values.imageScale,
+    imageFrame: settings.values.imageFrame,
     recordKeyboard: settings.values.recordKeyboard,
     allowPids: scopePids,
     // So pressing the stop hotkey is not itself the final recorded step.
@@ -212,6 +213,9 @@ ipcMain.handle('session:get', () => ({
   dir: session ? session.dir : null,
   steps: session ? session.steps : [],
 }));
+
+ipcMain.handle('step:addNote', (_e, { text, afterId }) =>
+  session ? session.addNote(text, afterId) : null);
 
 ipcMain.handle('step:update', (_e, { id, patch }) =>
   session ? session.updateStep(id, patch) : null);
@@ -373,6 +377,7 @@ ipcMain.handle('step:rerecord', async (_e, { id }) => {
     imageFormat: settings.values.imageFormat,
     imageQuality: settings.values.imageQuality,
     imageScale: settings.values.imageScale,
+    imageFrame: settings.values.imageFrame,
     recordKeyboard: settings.values.recordKeyboard,
     // The scope applies here too. Without it, re-recording one step of a
     // recording deliberately scoped to a single application would capture a

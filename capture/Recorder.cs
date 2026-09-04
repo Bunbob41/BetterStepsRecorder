@@ -216,7 +216,7 @@ internal sealed class Recorder : IDisposable
 
         if (!InScope(WindowResolver.ProcessIdOf(hwnd))) return;
 
-        var bounds = ScreenCapture.ResolveBounds(hwnd, point);
+        var bounds = ScreenCapture.ResolveBounds(hwnd, point, _options.Frame);
         var seq = ++_seq;
         var relative = $"steps/{seq:D4}.{_options.Extension}";
         ScreenCapture.CaptureTo(bounds, Path.Combine(_sessionDir, relative), _options);
@@ -232,6 +232,7 @@ internal sealed class Recorder : IDisposable
             Point = new Point2(point.X, point.Y),
             Monitor = WindowResolver.DescribeMonitor(point),
             Window = window,
+            Frame = new RectInfo(bounds.X, bounds.Y, bounds.Width, bounds.Height),
             Target = target,
             Screenshot = relative,
             Typed = typed,
@@ -293,7 +294,7 @@ internal sealed class Recorder : IDisposable
         // Checked before any screenshot or UIA work: cheapest possible bail-out.
         if (!InScope(WindowResolver.ProcessIdOf(hwnd))) return;
 
-        var bounds = ScreenCapture.ResolveBounds(hwnd, e.Point);
+        var bounds = ScreenCapture.ResolveBounds(hwnd, e.Point, _options.Frame);
 
         // A replacement keeps its own numbering namespace so it cannot collide
         // with an existing screenshot file.
@@ -318,6 +319,7 @@ internal sealed class Recorder : IDisposable
             EndPoint = action == "drag" ? new Point2(e.EndPoint.X, e.EndPoint.Y) : null,
             Monitor = monitor,
             Window = window,
+            Frame = new RectInfo(bounds.X, bounds.Y, bounds.Width, bounds.Height),
             Target = target,
             Screenshot = relative,
             Text = StepDescriber.Describe(action, target, window),

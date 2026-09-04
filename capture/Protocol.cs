@@ -55,6 +55,10 @@ internal sealed record StepMessage
     public Point2? EndPoint { get; init; }
     public MonitorInfo? Monitor { get; init; }
     public WindowInfo? Window { get; init; }
+    /// <summary>The region actually captured. Equals the window rect when
+    /// framing by window, but is the monitor or desktop otherwise - the click
+    /// indicator is positioned against this, not against the window.</summary>
+    public RectInfo? Frame { get; init; }
     public TargetInfo? Target { get; init; }
     public string? Screenshot { get; init; }
     /// <summary>Redacted text for a keyText step. Never set for a password step.</summary>

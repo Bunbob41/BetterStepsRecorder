@@ -12,8 +12,14 @@ internal static class ScreenCapture
     /// cursor when the window is offscreen, minimised or degenerate, so a step
     /// is never lost just because we could not resolve a frame.
     /// </summary>
-    internal static Rectangle ResolveBounds(IntPtr hwnd, Win32.POINT click)
+    internal static Rectangle ResolveBounds(IntPtr hwnd, Win32.POINT click,
+                                            string frame = "window")
     {
+        var virtualScreenAll = SystemInformation.VirtualScreen;
+
+        if (frame == "screen") return virtualScreenAll;
+        if (frame == "monitor") return MonitorBounds(click, virtualScreenAll);
+
         Rectangle rect = Rectangle.Empty;
 
         // Extended frame bounds first: excludes the invisible resize border that
@@ -113,6 +119,22 @@ internal static class ScreenCapture
         }
 
         flat.Save(path, codec, parameters);
+    }
+
+    /// <summary>The display the click landed on, or the whole desktop if unknown.</summary>
+    private static Rectangle MonitorBounds(Win32.POINT click, Rectangle fallback)
+    {
+        var hmon = Win32.MonitorFromPoint(click, Win32.MONITOR_DEFAULTTONEAREST);
+        if (hmon == IntPtr.Zero) return fallback;
+
+        var mi = new Win32.MONITORINFOEX
+        {
+            cbSize = System.Runtime.InteropServices.Marshal.SizeOf<Win32.MONITORINFOEX>()
+        };
+        if (!Win32.GetMonitorInfo(hmon, ref mi)) return fallback;
+
+        var r = FromRect(mi.rcMonitor);
+        return r.Width > 0 && r.Height > 0 ? r : fallback;
     }
 
     private static Rectangle FromRect(Win32.RECT r) =>
