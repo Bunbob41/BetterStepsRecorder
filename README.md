@@ -38,16 +38,23 @@ no administrator prompt.
 ## Using it
 
 1. **Capture** — optionally scope to one application, then **Start recording**.
-2. Do the thing you are documenting. `Ctrl+Shift+F9` pauses, `Ctrl+Shift+F10`
+2. Do the thing you are documenting. The window shrinks to a small floating
+   strip so it is not in your way. `Ctrl+Shift+F9` pauses, `Ctrl+Shift+F10`
    stops, from wherever you are.
 3. **Edit** — reword steps, drag to reorder them, add written steps for the
    instructions that are not clicks, exclude ones you want kept but not
    published, blur anything sensitive, re-record a step that came out wrong.
+   Arrow keys move between steps, Ctrl+click and Shift+click select several,
+   Delete removes them and Ctrl+Z puts them back.
 4. **Export** — HTML, PDF or Markdown.
 
 Recordings save continuously to `Documents\StepRecordings` (configurable). There
 is no Save button because there is nothing to save: every step is on disk as it
-is captured.
+is captured. Name a recording in the field at the top left; the app opens onto
+your recent recordings so you can pick one up again.
+
+Exports can carry your organisation's name, logo and a footer — set them in
+Settings.
 
 ## Building from source
 

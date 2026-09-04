@@ -8,8 +8,19 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div id="compactbar" class="compactbar" hidden>
+    <span id="c-dot" class="dot rec"></span>
+    <span id="c-state" class="c-state">Recording</span>
+    <span id="c-count" class="c-count">0 steps</span>
+    <div class="c-actions">
+      <button id="c-pause">Pause</button>
+      <button id="c-stop" class="danger">Stop</button>
+    </div>
+  </div>
+
   <header class="toolbar">
-    <div class="brand">Steps Recorder</div>
+    <input id="session-name" class="session-name" type="text"
+           placeholder="Untitled recording" aria-label="Recording name" />
     <div class="controls">
       <button id="btn-scope">Capture: Everything</button>
       <button id="btn-record" class="primary">Start recording</button>
@@ -22,7 +33,6 @@
     <div class="status">
       <span id="dot" class="dot idle"></span>
       <span id="status-text">Idle</span>
-      <span class="hint" id="hotkey-hint">Ctrl+Shift+F9 pause · Ctrl+Shift+F10 stop</span>
     </div>
   </header>
 
@@ -41,7 +51,16 @@
     </aside>
 
     <section class="detail">
-      <div id="detail-empty" class="detail-empty">Select a step to view it</div>
+      <div id="detail-empty" class="detail-empty">
+        <div class="library">
+          <h2>Recent recordings</h2>
+          <div id="library-list" class="library-list"></div>
+          <p id="library-empty" class="library-none" hidden>
+            No recordings yet. Press <strong>Start recording</strong> and use your
+            computer normally.
+          </p>
+        </div>
+      </div>
       <div id="detail-body" hidden>
         <input id="detail-text" class="detail-text" type="text"
                aria-label="Step description" />
@@ -72,6 +91,7 @@
 
   <footer class="savebar">
     <span id="save-state" class="save-state">No recording yet</span>
+    <span class="hint" id="hotkey-hint">Ctrl+Shift+F9 pause · Ctrl+Shift+F10 stop</span>
     <button id="btn-reveal" disabled>Show in Explorer</button>
   </footer>
 
@@ -160,6 +180,28 @@
       <input id="set-scale" type="range" min="25" max="100" step="5" />
       <small>Shrinks every screenshot. Degrades text more predictably than
              JPEG quality does.</small>
+    </label>
+
+    <hr class="rule" />
+    <h3 class="subhead">Exports</h3>
+
+    <label class="field">
+      <span>Organisation name</span>
+      <input id="set-brand" type="text" placeholder="Shown under the title" />
+    </label>
+
+    <label class="field">
+      <span>Logo</span>
+      <div class="row">
+        <input id="set-logo" type="text" readonly placeholder="None" />
+        <button id="set-logo-pick">Choose…</button>
+        <button id="set-logo-clear">Clear</button>
+      </div>
+    </label>
+
+    <label class="field">
+      <span>Footer</span>
+      <input id="set-footer" type="text" placeholder="e.g. Internal use only" />
     </label>
 
     <div class="dialog-actions">

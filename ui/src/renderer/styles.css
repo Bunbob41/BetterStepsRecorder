@@ -26,11 +26,13 @@ body {
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
   padding: 10px 14px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
+/* Buttons must not wrap their labels: a two-line toolbar reads as broken. */
+.toolbar button { white-space: nowrap; }
 
 .brand { font-weight: 600; letter-spacing: .2px; }
 .controls { display: flex; gap: 8px; }
@@ -149,7 +151,7 @@ main { flex: 1; display: grid; grid-template-columns: 320px 1fr; min-height: 0; 
   color: var(--muted);
 }
 .savebar button { padding: 4px 10px; font-size: 12px; }
-.savebar button:last-child { margin-left: auto; }
+.savebar #btn-reveal { margin-left: auto; }
 .save-state { user-select: text; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .save-state .ok { color: #57c06b; }
 .save-state .path { color: var(--text); }
@@ -237,7 +239,7 @@ dialog h2 { margin: 0 0 16px; font-size: 15px; }
 .redacted-flag { color: #d6a02a; }
 .dialog-actions button + button { margin-left: 8px; }
 
-.hint { color: var(--muted); font-size: 11px; border-left: 1px solid var(--line); padding-left: 10px; }
+.hint { color: var(--muted); font-size: 11px; margin-left: 16px; white-space: nowrap; }
 
 .scope-list {
   max-height: 320px; overflow-y: auto;
@@ -269,3 +271,64 @@ button.tiny {
 .step.note .title { font-style: italic; }
 .exclude { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .exclude input { accent-color: var(--accent); }
+
+/* Compact recording strip: the only thing on screen while the user works in
+   the application they are documenting. */
+.compactbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "dot state count" "actions actions actions";
+  align-items: center;
+  gap: 8px 10px;
+  padding: 12px 14px;
+}
+.compactbar[hidden] { display: none; }
+#c-dot { grid-area: dot; }
+.c-state { grid-area: state; font-weight: 600; }
+.c-count { grid-area: count; color: var(--muted); font-size: 12px; }
+.c-actions { grid-area: actions; display: flex; gap: 8px; }
+.c-actions button { flex: 1; padding: 7px 0; }
+
+body.compact .toolbar,
+body.compact main,
+body.compact .savebar { display: none; }
+body.compact { overflow: hidden; }
+
+.session-name {
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  color: var(--text); font: inherit; font-weight: 600; padding: 6px 9px;
+  /* Yields space to the controls rather than forcing them to wrap. */
+  flex: 1 1 120px; min-width: 90px; max-width: 300px;
+  user-select: text;
+}
+.session-name:hover { border-color: var(--line); }
+.session-name:focus { outline: none; background: var(--panel-2); border-color: var(--accent); }
+
+.detail-empty { margin: 0 auto; width: 100%; max-width: 620px; text-align: left; }
+.library { padding: 30px 8px; }
+.library h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .8px;
+              color: var(--muted); margin: 0 0 14px; font-weight: 600; }
+.library-list { display: flex; flex-direction: column; gap: 8px; }
+.library-none { color: var(--muted); }
+.lib-row {
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 14px;
+  padding: 11px 14px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); cursor: pointer; align-items: center;
+}
+.lib-row:hover { background: var(--panel-2); border-color: var(--accent); }
+.lib-name { grid-column: 1; font-size: 14px; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap; }
+.lib-meta { grid-column: 1; grid-row: 2; color: var(--muted); font-size: 11px; }
+/* Both row AND column, or auto-placement puts the count in column one
+   and pushes the name across. */
+.lib-count { grid-column: 2; grid-row: 1 / span 2; color: var(--muted);
+             font-size: 12px; white-space: nowrap; text-align: right; }
+.lib-when { font-size: 11px; opacity: .75; margin-top: 2px; }
+
+.step.marked { background: #2a3550; box-shadow: inset 2px 0 0 var(--accent); }
+.step.marked.selected { background: #31405f; }
+
+.rule { border: 0; border-top: 1px solid var(--line); margin: 4px 0 16px; }
+.subhead { font-size: 12px; text-transform: uppercase; letter-spacing: .8px;
+           color: var(--muted); margin: 0 0 14px; }
+dialog { max-height: 86vh; overflow-y: auto; }

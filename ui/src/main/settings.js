@@ -9,6 +9,9 @@ const DEFAULTS = {
   imageScale: 1.0,      // 0.25 - 1.0
   imageFrame: 'window', // window | monitor | screen
   recordKeyboard: true,
+  brandName: '',      // shown under the title, e.g. the team or company
+  brandLogo: '',      // absolute path to an image embedded in exports
+  brandFooter: '',    // e.g. a classification or document reference
 };
 
 class Settings {
@@ -46,6 +49,9 @@ class Settings {
     v.imageScale = Math.min(1, Math.max(0.25, Number(v.imageScale) || 1));
     v.recordKeyboard = v.recordKeyboard !== false;
     if (!['window', 'monitor', 'screen'].includes(v.imageFrame)) v.imageFrame = 'window';
+    for (const k of ['brandName', 'brandLogo', 'brandFooter']) {
+      v[k] = typeof v[k] === 'string' ? v[k].slice(0, 400) : '';
+    }
     if (typeof v.saveRoot !== 'string' || !v.saveRoot.trim()) v.saveRoot = DEFAULTS.saveRoot;
   }
 

@@ -69,7 +69,24 @@ function markerPosition(step) {
   return { x, y };
 }
 
-function buildHtml(session, { title, embedImages = true }) {
+/** A logo, embedded so the document stays a single portable file. */
+function logoTag(brand) {
+  if (!brand || !brand.logo) return '';
+  try {
+    if (!fs.existsSync(brand.logo)) return '';
+    const ext = path.extname(brand.logo).toLowerCase();
+    const mime = ext === '.svg' ? 'image/svg+xml'
+               : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
+               : ext === '.gif' ? 'image/gif' : 'image/png';
+    const data = fs.readFileSync(brand.logo).toString('base64');
+    return `<img class="logo" src="data:${mime};base64,${data}" alt="" />`;
+  } catch {
+    // A missing or unreadable logo must never cost someone their export.
+    return '';
+  }
+}
+
+function buildHtml(session, { title, embedImages = true, brand = null }) {
   const steps = exportable(session);
   const generated = new Date().toLocaleString();
 
@@ -138,7 +155,10 @@ function buildHtml(session, { title, embedImages = true }) {
     font: 16px/1.6 "Segoe UI", system-ui, -apple-system, sans-serif;
   }
   .wrap { max-width: 900px; margin: 0 auto; }
-  h1 { font-size: 28px; margin: 0 0 6px; }
+  .head { display: flex; align-items: center; gap: 16px; }
+  .logo { max-height: 52px; max-width: 200px; width: auto; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  .brand { margin: 0; color: var(--muted); font-size: 14px; }
   .meta { color: var(--muted); font-size: 14px; margin: 0 0 32px; }
   ol { list-style: none; margin: 0; padding: 0; counter-reset: step; }
   .step { margin: 0 0 40px; padding: 0 0 32px; border-bottom: 1px solid var(--line); }
@@ -173,19 +193,29 @@ function buildHtml(session, { title, embedImages = true }) {
 </head>
 <body>
   <div class="wrap">
-    <h1>${escapeHtml(title)}</h1>
+    <header class="head">
+      ${logoTag(brand)}
+      <div>
+        <h1>${escapeHtml(title)}</h1>
+        ${brand && brand.name ? `<p class="brand">${escapeHtml(brand.name)}</p>` : ''}
+      </div>
+    </header>
     <p class="meta">${countSteps(steps)} step${countSteps(steps) === 1 ? '' : 's'} · ${escapeHtml(generated)}</p>
     <ol>${body}</ol>
-    <footer>Recorded with Steps Recorder.</footer>
+    <footer>${brand && brand.footer
+      ? escapeHtml(brand.footer) + ' &middot; '
+      : ''}Recorded with Steps Recorder.</footer>
   </div>
 </body>
 </html>`;
 }
 
-function buildMarkdown(session, { title, imageDir }) {
+function buildMarkdown(session, { title, imageDir, brand = null }) {
   const steps = exportable(session);
-  const lines = [`# ${title}`, '',
-                 `${countSteps(steps)} step${countSteps(steps) === 1 ? '' : 's'}`, ''];
+  const lines = [`# ${title}`, ''];
+  if (brand && brand.name) lines.push(`*${brand.name}*`, '');
+  lines.push(...['',
+                 `${countSteps(steps)} step${countSteps(steps) === 1 ? '' : 's'}`, '']);
 
   let n = 0;
   steps.forEach((step) => {
@@ -207,6 +237,7 @@ function buildMarkdown(session, { title, imageDir }) {
     }
   });
 
+  if (brand && brand.footer) lines.push('---', '', brand.footer, '');
   return lines.join('\n');
 }
 

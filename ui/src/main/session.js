@@ -13,10 +13,59 @@ class Session {
   constructor(dir) {
     this.dir = dir;
     this.steps = [];
+    // Folders stay timestamped so two recordings can never collide; the name is
+    // a label, and renaming must not move files around underneath a session.
+    this.name = '';
     fs.mkdirSync(path.join(dir, 'steps'), { recursive: true });
   }
 
+  rename(name) {
+    this.name = String(name || '').slice(0, 120);
+    this.flush();
+    return this.name;
+  }
+
   get metaPath() { return path.join(this.dir, 'session.json'); }
+  get trashDir() { return path.join(this.dir, '.trash'); }
+
+  /**
+   * Moves a screenshot aside instead of deleting it, so an undo can put it
+   * back. Blur and delete are otherwise irreversible, which during editing
+   * means one slip costs a re-record.
+   */
+  stash(relative) {
+    if (!relative) return null;
+    const from = path.join(this.dir, relative);
+    if (!fs.existsSync(from)) return null;
+
+    fs.mkdirSync(this.trashDir, { recursive: true });
+    const token = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-`
+                  + path.basename(relative);
+    const to = path.join(this.trashDir, token);
+    fs.copyFileSync(from, to);
+    return token;
+  }
+
+  /** Puts a stashed screenshot back at its original path. */
+  restore(token, relative) {
+    if (!token || !relative) return false;
+    const from = path.join(this.trashDir, token);
+    if (!fs.existsSync(from)) return false;
+
+    const to = path.join(this.dir, relative);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.copyFileSync(from, to);
+    try { fs.unlinkSync(from); } catch { /* leave it; harmless */ }
+    return true;
+  }
+
+  /** Re-inserts a step at a known position, for undoing a delete. */
+  insertAt(index, step) {
+    const at = Math.max(0, Math.min(index, this.steps.length));
+    this.steps.splice(at, 0, step);
+    this.flush();
+    return { index: at, step };
+  }
 
   addStep(step) {
     // Double-click folding: the sidecar emits the first click immediately, then
@@ -101,19 +150,23 @@ class Session {
   }
 
   removeStep(id) {
-    const doomed = this.steps.find((s) => s.id === id);
-    if (!doomed) return false;
+    const index = this.steps.findIndex((s) => s.id === id);
+    if (index === -1) return false;
 
-    this.steps = this.steps.filter((s) => s.id !== id);
+    const doomed = this.steps[index];
+    this.steps.splice(index, 1);
     this.flush();
 
     // Delete the screenshot too. A step is often deleted precisely because the
     // frame showed something it should not, and leaving the file behind means
-    // zipping or syncing the session folder still carries it.
+    // zipping or syncing the session folder still carries it. It is stashed
+    // first so an undo can restore it; the trash goes when the session closes.
+    let token = null;
     if (doomed.screenshot && !this.steps.some((s) => s.screenshot === doomed.screenshot)) {
-      try { fs.unlinkSync(path.join(this.dir, doomed.screenshot)); } catch { /* already gone */ }
+      token = this.stash(doomed.screenshot);
+      try { fs.unlinkSync(path.join(this.dir, doomed.screenshot)); } catch { /* gone */ }
     }
-    return true;
+    return { index, step: doomed, token };
   }
 
   reorder(fromIndex, toIndex) {
@@ -126,7 +179,9 @@ class Session {
   }
 
   flush() {
-    const payload = { v: 1, savedAt: new Date().toISOString(), steps: this.steps };
+    const payload = {
+      v: 1, name: this.name, savedAt: new Date().toISOString(), steps: this.steps,
+    };
     // Write-then-rename: a crash mid-write leaves the previous good file intact
     // rather than a truncated one.
     const tmp = this.metaPath + '.tmp';
@@ -139,7 +194,9 @@ class Session {
     const meta = path.join(dir, 'session.json');
     if (fs.existsSync(meta)) {
       try {
-        s.steps = JSON.parse(fs.readFileSync(meta, 'utf8')).steps || [];
+        const data = JSON.parse(fs.readFileSync(meta, 'utf8'));
+        s.steps = data.steps || [];
+        s.name = data.name || '';
       } catch {
         s.steps = [];
       }

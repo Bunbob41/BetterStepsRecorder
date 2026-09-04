@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, protocol, net, shell, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol, net, shell, globalShortcut, screen } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -21,6 +21,17 @@ let scopePids = [];
 let scopeLabel = 'Everything';
 let recordingPaused = false;
 
+// Undo history for destructive edits, newest last. Session-scoped: it exists to
+// cover a slip during editing, not to be a document revision system.
+let undoStack = [];
+const UNDO_LIMIT = 25;
+
+function pushUndo(entry) {
+  undoStack.push(entry);
+  if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  send('undo:depth', { depth: undoStack.length });
+}
+
 // Chosen to avoid colliding with anything common. Ctrl+Shift+F9/F10 are not
 // used by Office, browsers or the shell.
 const HOTKEY_PAUSE = 'Control+Shift+F9';
@@ -36,10 +47,27 @@ function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
 
+/**
+ * A sensible size for THIS display. The previous hardcoded 1280x860 is in
+ * logical pixels, so at 125% scaling it asked for 1600x1075 physical against a
+ * 1920x1020 work area - taller than the screen allows, which Windows clamps,
+ * and the app appeared to start maximised.
+ */
+function defaultBounds() {
+  const { workArea } = screen.getPrimaryDisplay();
+  const width = Math.min(1280, Math.round(workArea.width * 0.82));
+  const height = Math.min(860, Math.round(workArea.height * 0.86));
+  return {
+    width,
+    height,
+    x: workArea.x + Math.round((workArea.width - width) / 2),
+    y: workArea.y + Math.round((workArea.height - height) / 2),
+  };
+}
+
 function createWindow() {
   win = new BrowserWindow({
-    width: 1280,
-    height: 860,
+    ...defaultBounds(),
     minWidth: 940,
     minHeight: 600,
     backgroundColor: '#16171b',
@@ -125,6 +153,7 @@ function registerHotkeys() {
   const stopped = globalShortcut.register(HOTKEY_STOP, () => {
     if (!sidecar || !sidecar.running) return;
     recordingPaused = false;
+    leaveCompact();
     sidecar.stop();
     log.info('hotkey: stopped');
     send('hotkey', { action: 'stopped' });
@@ -146,6 +175,39 @@ app.on('window-all-closed', () => {
 // A global mouse hook must never outlive the UI.
 app.on('before-quit', () => { if (sidecar) sidecar.stop(); });
 process.on('exit', () => { if (sidecar) sidecar.kill(); });
+
+// ---- recording mode ---------------------------------------------------------
+// While recording, the user is inside the application they are documenting.
+// A full editor window is the one thing that should not be on screen, so the
+// window shrinks to a floating strip and returns afterwards. PSR did this and
+// it is the reason it felt usable despite everything else about it.
+
+const COMPACT = { width: 360, height: 132 };
+let fullBounds = null;
+
+function enterCompact() {
+  if (!win || fullBounds) return;
+  fullBounds = win.getBounds();
+
+  const { workArea } = screen.getPrimaryDisplay();
+  win.setMinimumSize(280, 110);
+  win.setBounds({
+    ...COMPACT,
+    x: workArea.x + workArea.width - COMPACT.width - 24,
+    y: workArea.y + 24,
+  });
+  win.setAlwaysOnTop(true, 'floating');
+  send('mode', { compact: true });
+}
+
+function leaveCompact() {
+  if (!win || !fullBounds) return;
+  win.setAlwaysOnTop(false);
+  win.setMinimumSize(940, 600);
+  win.setBounds(fullBounds);
+  fullBounds = null;
+  send('mode', { compact: false });
+}
 
 // ---- renderer API -----------------------------------------------------------
 
@@ -175,6 +237,7 @@ ipcMain.handle('recording:start', async () => {
 
   const writable = settings.probe();
   if (!writable.ok) {
+    leaveCompact();
     return { ok: false, error: `Cannot write to ${settings.values.saveRoot}: ${writable.error}` };
   }
 
@@ -182,10 +245,13 @@ ipcMain.handle('recording:start', async () => {
     `session-${new Date().toISOString().replace(/[:.]/g, '-')}`);
   log.info(`creating session at ${dir}`);
   session = new Session(dir);
+  session.rename(new Date().toLocaleString());
+  undoStack = [];
 
   await ensureSidecar();
 
   // Our own process, so clicking Stop does not become the last recorded step.
+  enterCompact();
   sidecar.startSession(dir, [process.pid], {
     imageFormat: settings.values.imageFormat,
     imageQuality: settings.values.imageQuality,
@@ -197,7 +263,7 @@ ipcMain.handle('recording:start', async () => {
     hotkeys: ['Ctrl+Shift+F9', 'Ctrl+Shift+F10'],
   });
   send('session:saved', { dir, count: 0 });
-  return { ok: true, dir, scope: scopeLabel };
+  return { ok: true, dir, scope: scopeLabel, name: session.name };
 });
 
 ipcMain.handle('recording:pause',  () => { recordingPaused = true;  sidecar.pause();  return { ok: true }; });
@@ -205,6 +271,7 @@ ipcMain.handle('recording:resume', () => { recordingPaused = false; sidecar.resu
 
 ipcMain.handle('recording:stop', () => {
   recordingPaused = false;
+  leaveCompact();
   sidecar.stop();
   return { ok: true, steps: session ? session.steps.length : 0 };
 });
@@ -220,8 +287,40 @@ ipcMain.handle('step:addNote', (_e, { text, afterId }) =>
 ipcMain.handle('step:update', (_e, { id, patch }) =>
   session ? session.updateStep(id, patch) : null);
 
-ipcMain.handle('step:remove', (_e, { id }) =>
-  session ? session.removeStep(id) : false);
+ipcMain.handle('step:remove', (_e, { id }) => {
+  if (!session) return false;
+  const removed = session.removeStep(id);
+  if (!removed) return false;
+  pushUndo({ type: 'delete', ...removed });
+  return true;
+});
+
+ipcMain.handle('edit:undo', () => {
+  if (!session || !undoStack.length) return { ok: false, empty: true };
+  const entry = undoStack.pop();
+  send('undo:depth', { depth: undoStack.length });
+
+  if (entry.type === 'delete') {
+    if (entry.token) session.restore(entry.token, entry.step.screenshot);
+    session.insertAt(entry.index, entry.step);
+    return { ok: true, action: 'delete', steps: session.steps };
+  }
+
+  if (entry.type === 'redact') {
+    if (!session.restore(entry.token, entry.step.screenshot)) {
+      return { ok: false, error: 'The original screenshot is no longer available.' };
+    }
+    session.updateStep(entry.step.id, {
+      redacted: entry.wasRedacted || false,
+      editedAt: new Date().toISOString(),
+    });
+    return { ok: true, action: 'redact', steps: session.steps };
+  }
+
+  return { ok: false };
+});
+
+ipcMain.handle('edit:undoDepth', () => ({ depth: undoStack.length }));
 
 ipcMain.handle('step:reorder', (_e, { from, to }) =>
   session ? session.reorder(from, to) : false);
@@ -264,6 +363,12 @@ ipcMain.handle('step:redact', (_e, { id, dataUrl }) => {
   const file = path.join(session.dir, step.screenshot);
   const bytes = Buffer.from(match[1], 'base64');
 
+  // Keep the pre-blur image so the edit can be undone. Blur destroys pixels by
+  // design; that is only defensible if a slip is recoverable while the session
+  // is open.
+  const token = session.stash(step.screenshot);
+  pushUndo({ type: 'redact', step: { ...step }, token, wasRedacted: step.redacted === true });
+
   // Write beside the original and rename over it, so an interrupted write
   // cannot leave a truncated screenshot where a real one used to be.
   const temp = file + '.tmp';
@@ -284,7 +389,12 @@ ipcMain.handle('export:run', async (_e, { format, title }) => {
     return { ok: false, error: 'Nothing to export yet.' };
   }
 
-  const safeTitle = (title || 'Recorded steps').trim() || 'Recorded steps';
+  const safeTitle = (title || session.name || 'Recorded steps').trim() || 'Recorded steps';
+  const brand = {
+    name: settings.values.brandName,
+    logo: settings.values.brandLogo,
+    footer: settings.values.brandFooter,
+  };
   const slug = safeTitle.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
 
   const filters = {
@@ -306,16 +416,16 @@ ipcMain.handle('export:run', async (_e, { format, title }) => {
     if (format === 'html') {
       // Images are embedded, so the export is a single portable file rather
       // than a document that breaks the moment it is emailed on its own.
-      fs.writeFileSync(out, buildHtml(session, { title: safeTitle, embedImages: true }), 'utf8');
+      fs.writeFileSync(out, buildHtml(session, { title: safeTitle, embedImages: true, brand }), 'utf8');
 
     } else if (format === 'md') {
       const imageDir = `${path.basename(out, '.md')}-images`;
       const copied = copyImages(session, path.join(path.dirname(out), imageDir));
-      fs.writeFileSync(out, buildMarkdown(session, { title: safeTitle, imageDir }), 'utf8');
+      fs.writeFileSync(out, buildMarkdown(session, { title: safeTitle, imageDir, brand }), 'utf8');
       log.info(`markdown export copied ${copied} images`);
 
     } else if (format === 'pdf') {
-      await exportPdf(safeTitle, out);
+      await exportPdf(safeTitle, out, brand);
 
     } else {
       // Without this, an unrecognised format wrote nothing and still reported
@@ -336,8 +446,8 @@ ipcMain.handle('export:run', async (_e, { format, title }) => {
  * Renders the same HTML in an offscreen window and prints it. Reusing the HTML
  * exporter keeps one layout to maintain rather than a separate PDF renderer.
  */
-async function exportPdf(title, outFile) {
-  const html = buildHtml(session, { title, embedImages: true });
+async function exportPdf(title, outFile, brand) {
+  const html = buildHtml(session, { title, embedImages: true, brand });
   const temp = path.join(app.getPath('temp'), `bsr-export-${Date.now()}.html`);
   fs.writeFileSync(temp, html, 'utf8');
 
@@ -421,6 +531,50 @@ ipcMain.handle('step:rerecord', async (_e, { id }) => {
     : { ok: false, error: 'Timed out waiting for a click.' };
 });
 
+/**
+ * Recent recordings, newest first. Read straight from disk so the list is
+ * correct even for sessions this process never opened.
+ */
+ipcMain.handle('library:list', () => {
+  const root = settings.values.saveRoot;
+  if (!fs.existsSync(root)) return [];
+
+  const entries = [];
+  for (const name of fs.readdirSync(root)) {
+    const dir = path.join(root, name);
+    const meta = path.join(dir, 'session.json');
+    if (!name.startsWith('session-') || !fs.existsSync(meta)) continue;
+
+    try {
+      const data = JSON.parse(fs.readFileSync(meta, 'utf8'));
+      const steps = data.steps || [];
+      entries.push({
+        dir,
+        name: data.name || '',
+        steps: steps.filter((s) => s.action !== 'note').length,
+        savedAt: data.savedAt || null,
+        // Recorded from the first step that names one, so the card says what
+        // the recording is actually about.
+        app: (steps.find((s) => s.window && s.window.process) || {}).window?.process || '',
+      });
+    } catch { /* a half-written session is skipped, not fatal */ }
+  }
+
+  return entries.sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt)));
+});
+
+ipcMain.handle('library:open', (_e, { dir }) => {
+  if (!dir || !fs.existsSync(path.join(dir, 'session.json'))) {
+    return { ok: false, error: 'That recording is no longer there.' };
+  }
+  session = Session.load(dir);
+  undoStack = [];
+  return { ok: true, dir: session.dir, name: session.name, steps: session.steps };
+});
+
+ipcMain.handle('session:rename', (_e, { name }) =>
+  session ? { ok: true, name: session.rename(name) } : { ok: false });
+
 ipcMain.handle('windows:list', async () => {
   const booted = await ensureSidecar();
   if (!booted.ok) return { ok: false, error: booted.error };
@@ -439,6 +593,16 @@ ipcMain.handle('scope:get', () => ({ pids: scopePids, label: scopeLabel }));
 ipcMain.handle('settings:get', () => settings.values);
 
 ipcMain.handle('settings:set', (_e, patch) => settings.update(patch));
+
+ipcMain.handle('settings:chooseLogo', async () => {
+  const r = await dialog.showOpenDialog(win, {
+    title: 'Choose a logo for exports',
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg'] }],
+    properties: ['openFile'],
+  });
+  if (r.canceled || !r.filePaths[0]) return { ok: false };
+  return { ok: true, values: settings.update({ brandLogo: r.filePaths[0] }) };
+});
 
 ipcMain.handle('settings:chooseFolder', async () => {
   const r = await dialog.showOpenDialog(win, {

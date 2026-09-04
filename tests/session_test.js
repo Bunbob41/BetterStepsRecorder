@@ -51,9 +51,12 @@ check('unknown id returns null', s.replaceStep('zzz', mk('x', 'y')) === null);
 // deleted precisely because the frame showed something it should not.
 fs.writeFileSync(path.join(dir, 'steps', 'd.png'), 'fake');
 s.addStep(mk('d', 'Clicked d'));
-check('delete removes the step', s.removeStep('d') === true);
+const removed = s.removeStep('d');
+check('delete reports what it removed', removed && removed.step.id === 'd');
+check('delete reports the index it came from', removed.index === s.steps.length);
 check('delete removes its screenshot', !fs.existsSync(path.join(dir, 'steps', 'd.png')));
 check('deleting an unknown id is a no-op', s.removeStep('nope') === false);
+check('a deleted screenshot is stashed for undo', typeof removed.token === 'string');
 
 // A screenshot still referenced by another step must survive.
 fs.writeFileSync(path.join(dir, 'steps', 'shared.png'), 'fake');
@@ -98,6 +101,41 @@ check('excluding does not mark the wording as hand-edited',
       fresh.steps.find((s) => s.id === 'y').textEdited !== true);
 
 fs.rmSync(fresh.dir, { recursive: true, force: true });
+
+
+// 9. undo support: stash, restore and re-insert
+const u = new Session(path.join(os.tmpdir(), 'bsr-undo-' + Date.now()));
+fs.mkdirSync(path.join(u.dir, 'steps'), { recursive: true });
+fs.writeFileSync(path.join(u.dir, 'steps', 'p.png'), 'original');
+u.addStep(mk('p', 'Clicked p'));
+u.addStep(mk('q', 'Clicked q'));
+
+const gone = u.removeStep('p');
+check('delete stashes the screenshot', typeof gone.token === 'string');
+check('the screenshot is gone from its place',
+      !fs.existsSync(path.join(u.dir, 'steps', 'p.png')));
+check('but it survives in the trash',
+      fs.existsSync(path.join(u.dir, '.trash', gone.token)));
+
+check('restore puts the file back', u.restore(gone.token, gone.step.screenshot) === true);
+check('the bytes are the original',
+      fs.readFileSync(path.join(u.dir, 'steps', 'p.png'), 'utf8') === 'original');
+u.insertAt(gone.index, gone.step);
+check('the step returns to its original position', u.steps[0].id === 'p');
+check('nothing else moved', u.steps.map((s) => s.id).join() === 'p,q');
+
+check('restoring a token that is gone fails safely', u.restore('nope', 'steps/p.png') === false);
+check('insertAt clamps an out-of-range index',
+      u.insertAt(99, mk('z', 'z')).index === u.steps.length - 1);
+
+// 10. naming
+u.rename('Raising an invoice');
+check('name is stored', u.name === 'Raising an invoice');
+check('name persists', JSON.parse(fs.readFileSync(u.metaPath, 'utf8')).name === 'Raising an invoice');
+check('a reloaded session keeps its name', Session.load(u.dir).name === 'Raising an invoice');
+check('a long name is trimmed', u.rename('x'.repeat(500)).length === 120);
+
+fs.rmSync(u.dir, { recursive: true, force: true });
 
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -15,6 +15,8 @@ const el = {
   qualityField: $('quality-field'),
   scale: $('set-scale'), scaleVal: $('set-scale-val'), setClose: $('set-close'),
   keyboard: $('set-keyboard'),
+  brand: $('set-brand'), logo: $('set-logo'), logoPick: $('set-logo-pick'),
+  logoClear: $('set-logo-clear'), footer: $('set-footer'),
   blur: $('btn-blur'), wrap: $('shot-wrap'), selection: $('selection'),
   exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
   expTitle: $('exp-title'), expFormat: $('exp-format'),
@@ -22,16 +24,24 @@ const el = {
   scopeBtn: $('btn-scope'), scopeDlg: $('scopedlg'), scopeList: $('scope-list'),
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
   note: $('btn-note'), exclude: $('chk-exclude'), frame: $('set-frame'),
+  sessionName: $('session-name'), libraryList: $('library-list'),
+  libraryEmpty: $('library-empty'),
+  compactBar: $('compactbar'), cDot: $('c-dot'), cState: $('c-state'),
+  cCount: $('c-count'), cPause: $('c-pause'), cStop: $('c-stop'),
 };
 
 let steps = [];
 let selectedId = null;
+let marked = new Set();      // multi-selection for trimming
 let state = 'idle';   // idle | recording | paused
 
 // ---- rendering --------------------------------------------------------------
 
 function setState(next) {
   state = next;
+  el.cDot.className = 'dot ' + (next === 'recording' ? 'rec' : next === 'paused' ? 'paused' : 'idle');
+  el.cState.textContent = next === 'paused' ? 'Paused' : 'Recording';
+  el.cPause.textContent = next === 'paused' ? 'Resume' : 'Pause';
   el.dot.className = 'dot ' + (next === 'recording' ? 'rec' : next === 'paused' ? 'paused' : 'idle');
   el.status.textContent =
     next === 'recording' ? 'Recording' : next === 'paused' ? 'Paused' : 'Idle';
@@ -46,6 +56,9 @@ function setState(next) {
 
 function renderList() {
   el.count.textContent = String(steps.length);
+  el.del.textContent = marked.size > 1 ? `Delete ${marked.size} steps` : 'Delete step';
+  const recorded = steps.filter((s) => s.action !== 'note').length;
+  el.cCount.textContent = `${recorded} step${recorded === 1 ? '' : 's'}`;
   el.empty.hidden = steps.length > 0;
   el.list.replaceChildren();
 
@@ -56,6 +69,7 @@ function renderList() {
     const li = document.createElement('li');
     li.className = 'step'
       + (s.id === selectedId ? ' selected' : '')
+      + (marked.has(s.id) ? ' marked' : '')
       + (s.excluded ? ' excluded' : '')
       + (isNote ? ' note' : '');
     li.dataset.id = s.id;
@@ -83,7 +97,25 @@ function renderList() {
 
     label.append(title, sub);
     li.append(n, label);
-    li.addEventListener('click', () => select(s.id));
+    li.addEventListener('click', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        // Toggle one step into the trimming selection.
+        marked.has(s.id) ? marked.delete(s.id) : marked.add(s.id);
+        renderList();
+        return;
+      }
+      if (e.shiftKey && selectedId) {
+        // Extend from the anchor, which is how every list in Windows behaves.
+        const from = steps.findIndex((x) => x.id === selectedId);
+        const to = i;
+        marked = new Set(steps.slice(Math.min(from, to), Math.max(from, to) + 1)
+                              .map((x) => x.id));
+        renderList();
+        return;
+      }
+      marked = new Set([s.id]);
+      select(s.id);
+    });
     attachDrag(li);
     el.list.append(li);
   });
@@ -163,6 +195,7 @@ el.record.addEventListener('click', async () => {
   if (!r.ok) { alert(r.error); return; }
   steps = [];
   selectedId = null;
+  el.sessionName.value = r.name || '';
   renderList();
   setState('recording');
 });
@@ -175,6 +208,7 @@ el.pause.addEventListener('click', async () => {
 el.stop.addEventListener('click', async () => {
   await window.bsr.stopRecording();
   setState('idle');
+  renderLibrary();
 });
 
 el.open.addEventListener('click', async () => {
@@ -189,14 +223,58 @@ el.open.addEventListener('click', async () => {
   renderList();
 });
 
-el.del.addEventListener('click', async () => {
-  if (!selectedId) return;
-  await window.bsr.removeStep(selectedId);
-  steps = steps.filter((s) => s.id !== selectedId);
+async function deleteSelection() {
+  const ids = marked.size ? [...marked] : (selectedId ? [selectedId] : []);
+  // Deleting several at once should read as one action in the list.
+  if (!ids.length) return;
+
+  // Deleted newest-last so each undo entry restores to the right index.
+  for (const id of ids) await window.bsr.removeStep(id);
+
+  steps = steps.filter((s) => !ids.includes(s.id));
+  marked.clear();
   selectedId = null;
   el.detailBody.hidden = true;
   el.detailEmpty.hidden = false;
   renderList();
+  renderLibrary();
+}
+
+el.del.addEventListener('click', deleteSelection);
+
+// ---- keyboard ------------------------------------------------------------------
+// Editing forty steps with the mouse alone is the difference between a tool
+// people use and one they abandon halfway through a recording.
+
+document.addEventListener('keydown', async (e) => {
+  const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) {
+    e.preventDefault();
+    const r = await window.bsr.undo();
+    if (r.empty) return;
+    if (!r.ok) { alert(r.error || 'Nothing to undo.'); return; }
+    steps = r.steps;
+    renderList();
+    if (selectedId && steps.some((s) => s.id === selectedId)) select(selectedId);
+    return;
+  }
+
+  if (typing || document.querySelector('dialog[open]')) return;
+
+  if (e.key === 'Delete') { e.preventDefault(); deleteSelection(); return; }
+
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!steps.length) return;
+    const at = steps.findIndex((s) => s.id === selectedId);
+    const next = e.key === 'ArrowDown'
+      ? Math.min(steps.length - 1, at + 1)
+      : Math.max(0, at <= 0 ? 0 : at - 1);
+    marked = new Set([steps[next].id]);
+    select(steps[next].id);
+    document.querySelector('.step.selected')?.scrollIntoView({ block: 'nearest' });
+  }
 });
 
 let saveTimer = null;
@@ -278,6 +356,60 @@ window.bsr.onReplaced(({ index, step }) => {
 
 
 
+
+// ---- library ------------------------------------------------------------------
+// The empty state used to say "select a step" over nothing at all. Opening onto
+// your own recordings is the difference between an app and a blank window.
+
+async function renderLibrary() {
+  const rows = await window.bsr.listLibrary();
+  el.libraryList.replaceChildren();
+  el.libraryEmpty.hidden = rows.length > 0;
+
+  for (const r of rows.slice(0, 12)) {
+    const row = document.createElement('div');
+    row.className = 'lib-row';
+
+    const name = document.createElement('div');
+    name.className = 'lib-name';
+    name.textContent = r.name || 'Untitled recording';
+
+    // The application, not the date: a recording named by default already
+    // carries its timestamp, and printing it twice reads as a mistake.
+    const meta = document.createElement('div');
+    meta.className = 'lib-meta';
+    meta.textContent = r.app || 'No application recorded';
+
+    const count = document.createElement('div');
+    count.className = 'lib-count';
+    const n = document.createElement('div');
+    n.textContent = `${r.steps} step${r.steps === 1 ? '' : 's'}`;
+    const when = document.createElement('div');
+    when.className = 'lib-when';
+    when.textContent = r.savedAt ? new Date(r.savedAt).toLocaleString() : '';
+    count.append(n, when);
+
+    row.append(name, meta, count);
+    row.addEventListener('click', async () => {
+      const res = await window.bsr.openLibrary(r.dir);
+      if (!res.ok) { alert(res.error); renderLibrary(); return; }
+      steps = res.steps;
+      selectedId = null;
+      el.sessionName.value = res.name || '';
+      el.saveState.textContent = `${res.steps.length} steps · ${res.dir}`;
+      el.reveal.disabled = false;
+      renderList();
+      if (steps.length) select(steps[0].id);
+    });
+    el.libraryList.append(row);
+  }
+}
+
+let renameTimer = null;
+el.sessionName.addEventListener('input', () => {
+  clearTimeout(renameTimer);
+  renameTimer = setTimeout(() => window.bsr.renameSession(el.sessionName.value), 400);
+});
 
 // ---- reorder ------------------------------------------------------------------
 // A recording comes out in the order things happened, which is not always the
@@ -447,6 +579,21 @@ el.scopeGo.addEventListener('click', async () => {
 
 // ---- global hotkeys -----------------------------------------------------------
 
+// The window shrinks to a floating strip while recording; the editor markup
+// stays in the DOM so returning is instant and selection survives.
+window.bsr.onUndoDepth(({ depth }) => {
+  el.del.textContent = marked.size > 1 ? `Delete ${marked.size} steps` : 'Delete step';
+  el.del.title = depth ? `${depth} change${depth === 1 ? '' : 's'} can be undone (Ctrl+Z)` : '';
+});
+
+window.bsr.onMode(({ compact }) => {
+  document.body.classList.toggle('compact', compact);
+  el.compactBar.hidden = !compact;
+});
+
+el.cPause.addEventListener('click', () => el.pause.click());
+el.cStop.addEventListener('click', () => el.stop.click());
+
 window.bsr.onHotkey(({ action }) => {
   if (action === 'paused') setState('paused');
   else if (action === 'resumed') setState('recording');
@@ -579,6 +726,9 @@ el.expGo.addEventListener('click', async () => {
 function paintSettings(v) {
   el.root.value = v.saveRoot;
   el.keyboard.checked = v.recordKeyboard !== false;
+  el.brand.value = v.brandName || '';
+  el.logo.value = v.brandLogo || '';
+  el.footer.value = v.brandFooter || '';
   el.format.value = v.imageFormat;
   el.quality.value = v.imageQuality;
   el.qualityVal.textContent = String(v.imageQuality);
@@ -613,6 +763,23 @@ el.keyboard.addEventListener('change', async () => {
   await window.bsr.setSettings({ recordKeyboard: el.keyboard.checked });
 });
 
+el.brand.addEventListener('change', async () => {
+  await window.bsr.setSettings({ brandName: el.brand.value });
+});
+
+el.footer.addEventListener('change', async () => {
+  await window.bsr.setSettings({ brandFooter: el.footer.value });
+});
+
+el.logoPick.addEventListener('click', async () => {
+  const r = await window.bsr.chooseLogo();
+  if (r.ok) paintSettings(r.values);
+});
+
+el.logoClear.addEventListener('click', async () => {
+  paintSettings(await window.bsr.setSettings({ brandLogo: '' }));
+});
+
 el.quality.addEventListener('input', () => { el.qualityVal.textContent = el.quality.value; });
 el.quality.addEventListener('change', async () => {
   await window.bsr.setSettings({ imageQuality: Number(el.quality.value) });
@@ -626,6 +793,7 @@ el.scale.addEventListener('change', async () => {
 setState('idle');
 renderList();
 window.bsr.getSettings().then(paintSettings);
+renderLibrary();
 window.bsr.getScope().then((s) => {
   scopeChoice = s;
   el.scopeBtn.textContent = `Capture: ${s.label}`;

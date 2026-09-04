@@ -116,6 +116,32 @@ const windowOnly = { dir, steps: [ mkStep('w', { point: { x: 150, y: 150 } }) ]}
 check('marker falls back to the window rect when no frame was recorded',
       buildHtml(windowOnly, { title: 'W', embedImages: true }).includes('left:25.00%'));
 
+
+console.log('');
+console.log('branding:');
+
+const logo = path.join(dir, 'logo.png');
+fs.writeFileSync(logo, PNG);
+const brand = { name: 'Acme & Co <Finance>', logo, footer: 'Internal use only' };
+
+const hb = buildHtml(session, { title: 'Branded', embedImages: true, brand });
+check('organisation name appears', hb.includes('Acme &amp; Co &lt;Finance&gt;'));
+check('brand name is escaped, not injected', !hb.includes('<Finance>'));
+check('the logo is embedded', hb.includes('class="logo"') && hb.includes('data:image/png;base64,'));
+check('the footer appears', hb.includes('Internal use only'));
+
+const noBrand = buildHtml(session, { title: 'Plain', embedImages: true });
+check('without branding there is no logo', !noBrand.includes('class="logo"'));
+check('without branding the document still renders', noBrand.includes('Plain'));
+
+const missing = buildHtml(session, { title: 'X', embedImages: true,
+  brand: { name: 'N', logo: path.join(dir, 'nope.png'), footer: '' } });
+check('a missing logo file does not break the export', missing.includes('>N<'));
+
+const mb = buildMarkdown(session, { title: 'Branded', imageDir: 'img', brand });
+check('markdown carries the organisation', mb.includes('*Acme & Co <Finance>*'));
+check('markdown carries the footer', mb.includes('Internal use only'));
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -78,11 +78,32 @@ def type_text(hwnd, s):
         if shift: u32.keybd_event(0x10, 0, 2, 0)
         time.sleep(0.03)
 
-# Toolbar and panel positions, read off a screenshot of the window.
+# Toolbar and panel positions, read off a screenshot of the window at its
+# default size. The toolbar is a flex row, so anything added to it moves every
+# button: assert_layout() fails loudly rather than clicking into empty space,
+# which is how a UI change once looked like a broken feature.
+LAYOUT = (1564, 875)
 BTN = {
-    "scope": (237, 72), "start": (403, 72), "pause": (519, 72), "stop": (597, 72),
-    "open": (682, 72), "export": (778, 72), "settings": (878, 72), "note": (328, 132),
+    "scope": (491, 71), "start": (657, 71), "pause": (773, 71), "stop": (852, 71),
+    "open": (936, 71), "export": (1032, 71), "settings": (1132, 71),
+    "note": (328, 132), "name": (200, 72),
 }
+# Detail pane controls, when a step is selected.
+DETAIL = {"exclude": (855, 200), "blur": (1161, 200),
+          "rerecord": (1379, 200), "delete": (1512, 200)}
+ROW0_Y, ROW_PITCH = 200, 70
+
+def row_y(i):
+    return ROW0_Y + i * ROW_PITCH
+
+def assert_layout(hwnd):
+    r = frame(hwnd)
+    size = (r.right - r.left, r.bottom - r.top)
+    if size != LAYOUT:
+        raise AssertionError(
+            f"window is {size[0]}x{size[1]}, expected {LAYOUT[0]}x{LAYOUT[1]}; "
+            "the coordinates in BTN/DETAIL were read at the default size and "
+            "will not land where they should")
 
 def close_window(hwnd):
     """WM_CLOSE, not terminate: killing a GUI process can leave its pixels

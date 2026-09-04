@@ -22,6 +22,12 @@ contextBridge.exposeInMainWorld('bsr', {
   redactStep: (id, dataUrl) => ipcRenderer.invoke('step:redact', { id, dataUrl }),
   shotData: (screenshot) => ipcRenderer.invoke('shot:data', { screenshot }),
 
+  listLibrary: () => ipcRenderer.invoke('library:list'),
+  openLibrary: (dir) => ipcRenderer.invoke('library:open', { dir }),
+  renameSession: (name) => ipcRenderer.invoke('session:rename', { name }),
+  undo: () => ipcRenderer.invoke('edit:undo'),
+  undoDepth: () => ipcRenderer.invoke('edit:undoDepth'),
+
   listWindows: () => ipcRenderer.invoke('windows:list'),
   setScope: (pids, label) => ipcRenderer.invoke('scope:set', { pids, label }),
   getScope: () => ipcRenderer.invoke('scope:get'),
@@ -29,6 +35,7 @@ contextBridge.exposeInMainWorld('bsr', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
   chooseFolder: () => ipcRenderer.invoke('settings:chooseFolder'),
+  chooseLogo: () => ipcRenderer.invoke('settings:chooseLogo'),
 
   onStep:  (fn) => ipcRenderer.on('session:step',  (_e, m) => fn(m)),
   onSaved: (fn) => ipcRenderer.on('session:saved', (_e, m) => fn(m)),
@@ -38,4 +45,6 @@ contextBridge.exposeInMainWorld('bsr', {
   onLog:   (fn) => ipcRenderer.on('sidecar:log',   (_e, m) => fn(m)),
   onExit:  (fn) => ipcRenderer.on('sidecar:exit',  (_e, m) => fn(m)),
   onHotkey: (fn) => ipcRenderer.on('hotkey', (_e, m) => fn(m)),
+  onMode: (fn) => ipcRenderer.on('mode', (_e, m) => fn(m)),
+  onUndoDepth: (fn) => ipcRenderer.on('undo:depth', (_e, m) => fn(m)),
 });
