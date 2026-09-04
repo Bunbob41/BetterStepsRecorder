@@ -11,6 +11,7 @@
   <header class="toolbar">
     <div class="brand">Steps Recorder</div>
     <div class="controls">
+      <button id="btn-scope">Capture: Everything</button>
       <button id="btn-record" class="primary">Start recording</button>
       <button id="btn-pause" disabled>Pause</button>
       <button id="btn-stop" disabled>Stop</button>
@@ -21,6 +22,7 @@
     <div class="status">
       <span id="dot" class="dot idle"></span>
       <span id="status-text">Idle</span>
+      <span class="hint" id="hotkey-hint">Ctrl+Shift+F9 pause · Ctrl+Shift+F10 stop</span>
     </div>
   </header>
 
@@ -69,6 +71,19 @@
     <span id="save-state" class="save-state">No recording yet</span>
     <button id="btn-reveal" disabled>Show in Explorer</button>
   </footer>
+
+  <dialog id="scopedlg">
+    <h2>What should be recorded?</h2>
+    <p class="note">Scoping a recording to one application keeps everything else
+       — mail, chat, whatever is behind it — out of the guide entirely. Clicks
+       elsewhere are not captured at all, not merely hidden.</p>
+    <div id="scope-list" class="scope-list"></div>
+    <div class="dialog-actions">
+      <button id="scope-refresh">Refresh</button>
+      <button id="scope-cancel">Cancel</button>
+      <button id="scope-go" class="primary">Use selection</button>
+    </div>
+  </dialog>
 
   <dialog id="exportdlg">
     <h2>Export steps</h2>

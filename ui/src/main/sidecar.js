@@ -88,6 +88,29 @@ class Sidecar extends EventEmitter {
   startSession(sessionDir, ignorePids = [], image = {}) {
     return this.send({ type: 'start', sessionDir, ignorePids, ...image });
   }
+
+  /** Top-level windows the user could scope a recording to. */
+  listWindows(excludePids = [], timeoutMs = 4000) {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.off('windows', onWindows);
+        resolve([]);          // an unresponsive engine must not hang the dialog
+      }, timeoutMs);
+
+      const onWindows = (msg) => {
+        clearTimeout(timer);
+        this.off('windows', onWindows);
+        resolve(msg.items || []);
+      };
+
+      this.on('windows', onWindows);
+      if (!this.send({ type: 'listWindows', excludePids })) {
+        clearTimeout(timer);
+        this.off('windows', onWindows);
+        resolve([]);
+      }
+    });
+  }
   armOnce(replaceId) { return this.send({ type: 'armOnce', replaceId }); }
   pause()  { return this.send({ type: 'pause' }); }
   resume() { return this.send({ type: 'resume' }); }

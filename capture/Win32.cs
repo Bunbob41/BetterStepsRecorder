@@ -98,6 +98,10 @@ internal static class Win32
 
     internal const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
 
+    [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
+    internal static extern int DwmGetWindowAttributeInt(IntPtr hwnd, int attr, out int value,
+        int size = sizeof(int));
+
     [StructLayout(LayoutKind.Sequential)]
     internal struct POINT { public int X; public int Y; }
 

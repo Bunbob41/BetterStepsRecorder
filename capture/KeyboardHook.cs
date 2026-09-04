@@ -13,6 +13,12 @@ internal sealed class KeyboardHook : IDisposable
     private readonly Win32.HookProc _proc;   // field, not local: GC would collect it
     private IntPtr _handle;
 
+    /// <summary>
+    /// Chords the UI has claimed as global hotkeys. Pressing "stop recording"
+    /// must not be the last thing the recording contains.
+    /// </summary>
+    internal HashSet<string> SuppressedChords { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     internal KeyboardHook(Recorder recorder)
     {
         _recorder = recorder;
@@ -72,7 +78,8 @@ internal sealed class KeyboardHook : IDisposable
         if (ctrl || alt || win)
         {
             var label = named ?? Printable(vk, scan, shift) ?? "?";
-            _recorder.OfferKey(RawKey.Chord(focus, Modifiers(ctrl, alt, win, shift) + label.ToUpperInvariant()));
+            var chord = Modifiers(ctrl, alt, win, shift) + label.ToUpperInvariant();
+            if (!SuppressedChords.Contains(chord)) _recorder.OfferKey(RawKey.Chord(focus, chord));
             return;
         }
 

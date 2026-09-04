@@ -12,6 +12,11 @@ start        { "sessionDir": "...", "ignorePids": [1234],
                "recordKeyboard": true }                begin hooking input
              recordKeyboard: when false the keyboard hook is not installed at
              all, rather than installed and ignored.
+             allowPids: when non-empty, ONLY these processes are recorded.
+             Exclusion always wins: ignorePids is checked first, so a scope
+             choice can never drag the recorder's own windows back in.
+             hotkeys: chord labels ("Ctrl+Shift+F9") the UI has claimed
+             globally, so pressing stop is not itself the final step.
              ignorePids: windows owned by these processes are never recorded.
              The UI passes its own pid so its Stop click is not captured.
 armOnce      { "replaceId": "<step id>" }              capture exactly one event,
@@ -20,6 +25,10 @@ armOnce      { "replaceId": "<step id>" }              capture exactly one event
 pause        {}                                        stop recording, keep hooks
 resume       {}                                        resume recording
 stop         {}                                        unhook, flush, exit cleanly
+listWindows  { "excludePids": [1234] }                 enumerate top-level
+             windows for the scope picker. Answered with a `windows` message
+             carrying { hwnd, pid, title, process }. Electron cannot see other
+             applications' windows, so the engine answers this.
 ping         {}                                        health check
 
 ## Sidecar -> UI (events)
@@ -28,6 +37,7 @@ ready        { "pid": 1234, "dpiAware": true }         emitted once on startup
 step         { see below }                             one recorded user action
 error        { "code": "HOOK_FAILED", "message": "" }
 pong         {}
+windows      { "items": [ { hwnd, pid, title, process } ] }
 log          { "level": "info|warn", "message": "" }
 
 ## step payload

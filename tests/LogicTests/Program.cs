@@ -76,5 +76,23 @@ Check("whitespace-only Name yields no label",
 Check("short values do not trigger the prefix rule",
     UiaNaming.SafeName("ID", "ID", false, "Edit", null) is null);
 
+Console.WriteLine("");
+Console.WriteLine("capture scope:");
+
+var none = new HashSet<uint>();
+var ignored = new HashSet<uint> { 100 };
+var allowed = new HashSet<uint> { 200 };
+
+Check("with no scope, anything is recorded",
+    Scope.Allows(555, none, none));
+Check("an ignored process is never recorded",
+    !Scope.Allows(100, ignored, none));
+Check("with a scope, an in-scope process is recorded",
+    Scope.Allows(200, ignored, allowed));
+Check("with a scope, everything else is dropped",
+    !Scope.Allows(201, ignored, allowed));
+Check("ignore beats allow, so the recorder cannot record itself",
+    !Scope.Allows(100, ignored, new HashSet<uint> { 100 }));
+
 Console.WriteLine($"\n{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;

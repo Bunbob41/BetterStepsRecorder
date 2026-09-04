@@ -21,6 +21,10 @@ contextBridge.exposeInMainWorld('bsr', {
   redactStep: (id, dataUrl) => ipcRenderer.invoke('step:redact', { id, dataUrl }),
   shotData: (screenshot) => ipcRenderer.invoke('shot:data', { screenshot }),
 
+  listWindows: () => ipcRenderer.invoke('windows:list'),
+  setScope: (pids, label) => ipcRenderer.invoke('scope:set', { pids, label }),
+  getScope: () => ipcRenderer.invoke('scope:get'),
+
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
   chooseFolder: () => ipcRenderer.invoke('settings:chooseFolder'),
@@ -32,4 +36,5 @@ contextBridge.exposeInMainWorld('bsr', {
   onError: (fn) => ipcRenderer.on('sidecar:error', (_e, m) => fn(m)),
   onLog:   (fn) => ipcRenderer.on('sidecar:log',   (_e, m) => fn(m)),
   onExit:  (fn) => ipcRenderer.on('sidecar:exit',  (_e, m) => fn(m)),
+  onHotkey: (fn) => ipcRenderer.on('hotkey', (_e, m) => fn(m)),
 });

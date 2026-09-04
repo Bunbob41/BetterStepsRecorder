@@ -117,7 +117,19 @@ internal static class Program
                         double? sc = root.TryGetProperty("imageScale", out var scp)
                                      && scp.TryGetDouble(out var scv) ? scv : null;
 
-                        _recorder!.StartSession(dir, ignored, CaptureOptions.Clamp(fmt, q, sc));
+                        var allowed = new List<uint>();
+                        if (root.TryGetProperty("allowPids", out var ap)
+                            && ap.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var v in ap.EnumerateArray())
+                                if (v.TryGetUInt32(out var pid)) allowed.Add(pid);
+                        }
+
+                        _recorder!.StartSession(dir, ignored,
+                            CaptureOptions.Clamp(fmt, q, sc), allowed);
+
+                        if (allowed.Count > 0)
+                            Protocol.Log("info", $"scoped to pids {string.Join(",", allowed)}");
 
                         // The keyboard hook is installed only while it is wanted.
                         // A global key hook that exists but is "switched off" is
@@ -125,6 +137,15 @@ internal static class Program
                         var wantKeys = !root.TryGetProperty("recordKeyboard", out var rk)
                                        || rk.ValueKind != JsonValueKind.False;
                         SetKeyboardHook(wantKeys);
+
+                        if (_keyboard is not null && root.TryGetProperty("hotkeys", out var hk)
+                            && hk.ValueKind == JsonValueKind.Array)
+                        {
+                            _keyboard.SuppressedChords = new HashSet<string>(
+                                hk.EnumerateArray().Select(x => x.GetString() ?? "")
+                                  .Where(x => x.Length > 0),
+                                StringComparer.OrdinalIgnoreCase);
+                        }
                         Protocol.Log("info", $"recording to {dir}");
                         break;
 
@@ -146,6 +167,23 @@ internal static class Program
 
                     case "resume":
                         _recorder!.State = RecordingState.Recording;
+                        break;
+
+                    case "listWindows":
+                        var exclude = new HashSet<uint> { (uint)Environment.ProcessId };
+                        if (root.TryGetProperty("excludePids", out var xp)
+                            && xp.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var v in xp.EnumerateArray())
+                                if (v.TryGetUInt32(out var pid)) exclude.Add(pid);
+                        }
+                        Protocol.Emit(new
+                        {
+                            v = 1,
+                            type = "windows",
+                            id = Guid.NewGuid().ToString(),
+                            items = WindowLister.List(exclude),
+                        });
                         break;
 
                     case "ping":

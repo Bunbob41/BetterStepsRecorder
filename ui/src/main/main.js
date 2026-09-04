@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, protocol, net, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol, net, shell, globalShortcut } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -15,6 +15,16 @@ let win = null;
 let sidecar = null;
 let session = null;
 let settings = null;
+
+// Scope chosen for the next recording: [] means everything.
+let scopePids = [];
+let scopeLabel = 'Everything';
+let recordingPaused = false;
+
+// Chosen to avoid colliding with anything common. Ctrl+Shift+F9/F10 are not
+// used by Office, browsers or the shell.
+const HOTKEY_PAUSE = 'Control+Shift+F9';
+const HOTKEY_STOP = 'Control+Shift+F10';
 
 // Screenshots live outside the app directory, so a custom protocol serves them
 // instead of loosening webSecurity for the whole renderer.
@@ -90,11 +100,42 @@ app.whenReady().then(() => {
   });
 
   log.init(app.getPath('userData'));
+  registerHotkeys();
   settings = new Settings(app.getPath('userData'));
   log.info(`settings: ${JSON.stringify(settings.values)}`);
   wireSidecar();
   createWindow();
 });
+
+/**
+ * Pause and stop have to work while another application is in front, because
+ * that is where the user is during a recording. Making them hunt for this
+ * window mid-flow puts the hunt into the guide they are recording.
+ */
+function registerHotkeys() {
+  const paused = globalShortcut.register(HOTKEY_PAUSE, () => {
+    if (!sidecar || !sidecar.running) return;
+    recordingPaused = !recordingPaused;
+    if (recordingPaused) sidecar.pause(); else sidecar.resume();
+    log.info(`hotkey: ${recordingPaused ? 'paused' : 'resumed'}`);
+    send('hotkey', { action: recordingPaused ? 'paused' : 'resumed' });
+  });
+
+  const stopped = globalShortcut.register(HOTKEY_STOP, () => {
+    if (!sidecar || !sidecar.running) return;
+    recordingPaused = false;
+    sidecar.stop();
+    log.info('hotkey: stopped');
+    send('hotkey', { action: 'stopped' });
+  });
+
+  if (!paused || !stopped) {
+    // Another application already owns the combination; the buttons still work.
+    log.warn(`hotkey registration failed (pause=${paused}, stop=${stopped})`);
+  }
+}
+
+app.on('will-quit', () => globalShortcut.unregisterAll());
 
 app.on('window-all-closed', () => {
   if (sidecar) sidecar.stop();
@@ -149,15 +190,19 @@ ipcMain.handle('recording:start', async () => {
     imageQuality: settings.values.imageQuality,
     imageScale: settings.values.imageScale,
     recordKeyboard: settings.values.recordKeyboard,
+    allowPids: scopePids,
+    // So pressing the stop hotkey is not itself the final recorded step.
+    hotkeys: ['Ctrl+Shift+F9', 'Ctrl+Shift+F10'],
   });
   send('session:saved', { dir, count: 0 });
-  return { ok: true, dir };
+  return { ok: true, dir, scope: scopeLabel };
 });
 
-ipcMain.handle('recording:pause',  () => { sidecar.pause();  return { ok: true }; });
-ipcMain.handle('recording:resume', () => { sidecar.resume(); return { ok: true }; });
+ipcMain.handle('recording:pause',  () => { recordingPaused = true;  sidecar.pause();  return { ok: true }; });
+ipcMain.handle('recording:resume', () => { recordingPaused = false; sidecar.resume(); return { ok: true }; });
 
 ipcMain.handle('recording:stop', () => {
+  recordingPaused = false;
   sidecar.stop();
   return { ok: true, steps: session ? session.steps.length : 0 };
 });
@@ -352,6 +397,21 @@ ipcMain.handle('step:rerecord', async (_e, { id }) => {
     ? { ok: true, step: session.steps.find((s) => s.id === id) }
     : { ok: false, error: 'Timed out waiting for a click.' };
 });
+
+ipcMain.handle('windows:list', async () => {
+  const booted = await ensureSidecar();
+  if (!booted.ok) return { ok: false, error: booted.error };
+  return { ok: true, windows: await sidecar.listWindows([process.pid]) };
+});
+
+ipcMain.handle('scope:set', (_e, { pids, label }) => {
+  scopePids = Array.isArray(pids) ? pids : [];
+  scopeLabel = label || 'Everything';
+  log.info(`capture scope: ${scopeLabel} (${scopePids.join(',') || 'all'})`);
+  return { ok: true, label: scopeLabel };
+});
+
+ipcMain.handle('scope:get', () => ({ pids: scopePids, label: scopeLabel }));
 
 ipcMain.handle('settings:get', () => settings.values);
 

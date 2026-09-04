@@ -19,6 +19,8 @@ const el = {
   exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
   expTitle: $('exp-title'), expFormat: $('exp-format'),
   expGo: $('exp-go'), expCancel: $('exp-cancel'),
+  scopeBtn: $('btn-scope'), scopeDlg: $('scopedlg'), scopeList: $('scope-list'),
+  scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
 };
 
 let steps = [];
@@ -38,6 +40,7 @@ function setState(next) {
   el.stop.disabled = next === 'idle';
   el.pause.textContent = next === 'paused' ? 'Resume' : 'Pause';
   el.open.disabled = next !== 'idle';
+  el.scopeBtn.disabled = next !== 'idle';
 }
 
 function renderList() {
@@ -241,6 +244,99 @@ window.bsr.onReplaced(({ index, step }) => {
 });
 
 
+
+// ---- capture scope ------------------------------------------------------------
+// Recording everything means documenting one system also captures whatever else
+// is on screen. Scoping drops out-of-scope events in the engine, before any
+// screenshot is taken - they are never captured, not captured then filtered.
+
+let scopeChoice = { pids: [], label: 'Everything' };
+
+function renderScopeList(windows) {
+  el.scopeList.replaceChildren();
+
+  const row = (value, title, sub, checked) => {
+    const label = document.createElement('label');
+    label.className = 'scope-row';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'scope';
+    input.value = value;
+    input.checked = checked;
+    const box = document.createElement('span');
+    const t = document.createElement('div');
+    t.className = 't';
+    t.textContent = title;
+    const p = document.createElement('div');
+    p.className = 'p';
+    p.textContent = sub;
+    box.append(t, p);
+    label.append(input, box);
+    el.scopeList.append(label);
+  };
+
+  row('', 'Everything', 'Every application on screen', scopeChoice.pids.length === 0);
+
+  if (!windows.length) {
+    const empty = document.createElement('div');
+    empty.className = 'scope-empty';
+    empty.textContent = 'No other windows found.';
+    el.scopeList.append(empty);
+    return;
+  }
+
+  // One row per process, not per window: dialogs and child windows of the same
+  // application must stay in scope or half the recording silently vanishes.
+  const byPid = new Map();
+  for (const w of windows) {
+    if (!byPid.has(w.pid)) byPid.set(w.pid, w);
+  }
+  for (const w of byPid.values()) {
+    row(String(w.pid), w.title, `${w.process} · pid ${w.pid}`,
+        scopeChoice.pids.includes(w.pid));
+  }
+}
+
+async function openScope() {
+  el.scopeList.replaceChildren();
+  const loading = document.createElement('div');
+  loading.className = 'scope-empty';
+  loading.textContent = 'Looking for open windows…';
+  el.scopeList.append(loading);
+  el.scopeDlg.showModal();
+
+  const r = await window.bsr.listWindows();
+  renderScopeList(r.ok ? r.windows : []);
+}
+
+el.scopeBtn.addEventListener('click', openScope);
+el.scopeRefresh.addEventListener('click', openScope);
+el.scopeCancel.addEventListener('click', () => el.scopeDlg.close());
+
+el.scopeGo.addEventListener('click', async () => {
+  const picked = el.scopeList.querySelector('input[name=scope]:checked');
+  const value = picked ? picked.value : '';
+
+  if (!value) {
+    scopeChoice = { pids: [], label: 'Everything' };
+  } else {
+    const row = picked.parentElement.querySelector('.p').textContent;
+    scopeChoice = { pids: [Number(value)], label: row.split(' · ')[0] };
+  }
+
+  await window.bsr.setScope(scopeChoice.pids, scopeChoice.label);
+  el.scopeBtn.textContent = `Capture: ${scopeChoice.label}`;
+  el.scopeDlg.close();
+});
+
+// ---- global hotkeys -----------------------------------------------------------
+
+window.bsr.onHotkey(({ action }) => {
+  if (action === 'paused') setState('paused');
+  else if (action === 'resumed') setState('recording');
+  else if (action === 'stopped') setState('idle');
+});
+
 // ---- blur ---------------------------------------------------------------------
 // Destructive by design: the pixels are replaced in the file on disk. An overlay
 // that merely covered them would leave the real data in the session folder, and
@@ -409,3 +505,7 @@ el.scale.addEventListener('change', async () => {
 setState('idle');
 renderList();
 window.bsr.getSettings().then(paintSettings);
+window.bsr.getScope().then((s) => {
+  scopeChoice = s;
+  el.scopeBtn.textContent = `Capture: ${s.label}`;
+});

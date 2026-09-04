@@ -23,6 +23,7 @@ internal sealed class Recorder : IDisposable
 
     private string _sessionDir = "";
     private HashSet<uint> _ignoredPids = new();
+    private HashSet<uint> _allowedPids = new();
     private CaptureOptions _options = new();
     private string? _replaceId;
     private int _seq;
@@ -47,8 +48,13 @@ internal sealed class Recorder : IDisposable
     }
 
     internal void StartSession(string sessionDir, IEnumerable<uint>? ignoredPids = null,
-                               CaptureOptions? options = null)
+                               CaptureOptions? options = null,
+                               IEnumerable<uint>? allowedPids = null)
     {
+        // An empty allow-list means "record everything". A populated one scopes
+        // the recording to chosen applications, so documenting one system does
+        // not incidentally capture mail, chat, or whatever else is on screen.
+        _allowedPids = new HashSet<uint>(allowedPids ?? Array.Empty<uint>());
         _sessionDir = sessionDir;
         _options = options ?? new CaptureOptions();
         // The UI's own windows. Without this, the click that ends a recording
@@ -220,7 +226,7 @@ internal sealed class Recorder : IDisposable
             ? Win32.GetAncestor(focus, Win32.GA_ROOT)
             : WindowResolver.RootWindowAt(point);
 
-        if (_ignoredPids.Contains(WindowResolver.ProcessIdOf(hwnd))) return;
+        if (!InScope(WindowResolver.ProcessIdOf(hwnd))) return;
 
         var bounds = ScreenCapture.ResolveBounds(hwnd, point);
         var seq = ++_seq;
@@ -250,6 +256,9 @@ internal sealed class Recorder : IDisposable
         _lastClickUtc = DateTime.MinValue;
         _lastStepId = null;
     }
+
+    /// <summary>Whether an event belonging to this process should be recorded.</summary>
+    private bool InScope(uint pid) => Scope.Allows(pid, _ignoredPids, _allowedPids);
 
     private static Win32.POINT CursorPoint() =>
         Win32.GetCursorPos(out var p) ? p : new Win32.POINT { X = 0, Y = 0 };
@@ -294,7 +303,7 @@ internal sealed class Recorder : IDisposable
         var hwnd = WindowResolver.RootWindowAt(e.Point);
 
         // Checked before any screenshot or UIA work: cheapest possible bail-out.
-        if (_ignoredPids.Contains(WindowResolver.ProcessIdOf(hwnd))) return;
+        if (!InScope(WindowResolver.ProcessIdOf(hwnd))) return;
 
         var bounds = ScreenCapture.ResolveBounds(hwnd, e.Point);
 
