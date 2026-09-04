@@ -77,10 +77,19 @@ class Session {
   }
 
   removeStep(id) {
-    const before = this.steps.length;
+    const doomed = this.steps.find((s) => s.id === id);
+    if (!doomed) return false;
+
     this.steps = this.steps.filter((s) => s.id !== id);
-    if (this.steps.length !== before) this.flush();
-    return this.steps.length !== before;
+    this.flush();
+
+    // Delete the screenshot too. A step is often deleted precisely because the
+    // frame showed something it should not, and leaving the file behind means
+    // zipping or syncing the session folder still carries it.
+    if (doomed.screenshot && !this.steps.some((s) => s.screenshot === doomed.screenshot)) {
+      try { fs.unlinkSync(path.join(this.dir, doomed.screenshot)); } catch { /* already gone */ }
+    }
+    return true;
   }
 
   reorder(fromIndex, toIndex) {

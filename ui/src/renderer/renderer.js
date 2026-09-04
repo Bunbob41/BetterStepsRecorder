@@ -98,7 +98,10 @@ async function select(id) {
   el.indicator.style.display = 'none';
   const url = await window.bsr.shotUrl(step.screenshot);
   // Cache-bust: a re-recorded step swaps the file behind the same <img>.
-  el.shot.src = url ? `${url}#${step.rerecordedAt || ''}-${step.editedAt || ''}` : '';
+  // Query, not fragment: a fragment is not part of the cache key, so blurring 
+  // in place (same filename) would keep showing the unredacted image.
+  const version = encodeURIComponent(`${step.rerecordedAt || ''}-${step.editedAt || ''}`);
+  el.shot.src = url ? `${url}?v=${version}` : '';
   el.shot.onload = () => placeIndicator(step);
 }
 

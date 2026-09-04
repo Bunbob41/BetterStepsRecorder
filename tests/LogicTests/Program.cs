@@ -1,3 +1,4 @@
+using System.IO;
 using BetterSteps.Capture;
 
 // Pure-logic checks for the parts of keyboard capture that need no global input:
@@ -93,6 +94,137 @@ Check("with a scope, everything else is dropped",
     !Scope.Allows(201, ignored, allowed));
 Check("ignore beats allow, so the recorder cannot record itself",
     !Scope.Allows(100, ignored, new HashSet<uint> { 100 }));
+
+Console.WriteLine("");
+Console.WriteLine("typing buffer and password secrecy:");
+
+var t0 = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+var box = new IntPtr(1);
+var otherBox = new IntPtr(2);
+
+// Ordinary typing.
+var st = new TypingState();
+st.BeginFocus(box, isSecret: false);
+st.Append('h', t0); st.Append('i', t0);
+var taken = st.Take();
+Check("plain typing is kept", taken is (false, "hi"));
+
+// A password field keeps nothing.
+st = new TypingState();
+st.BeginFocus(box, isSecret: true);
+foreach (var c in "hunter2") st.Append(c, t0);
+taken = st.Take();
+Check("password characters are never buffered", taken.Text.Length == 0);
+Check("password activity is reported", taken.WasSecret);
+
+// THE REGRESSION: typing, flushing on idle, then typing more in the SAME
+// password field used to come back as plain text.
+st = new TypingState();
+st.BeginFocus(box, isSecret: true);
+foreach (var c in "hunter") st.Append(c, t0);
+st.Take();                                   // idle flush emits "Entered password"
+foreach (var c in "2secret") st.Append(c, t0);
+taken = st.Take();
+Check("a flush does not un-secret the field", taken.Text.Length == 0);
+Check("continued password typing still reports as secret", taken.WasSecret);
+
+// Leaving the field and coming back to a normal one re-decides secrecy.
+st.BeginFocus(otherBox, isSecret: false);
+st.Append('o', t0); st.Append('k', t0);
+taken = st.Take();
+Check("a different, non-secret field types normally", taken is (false, "ok"));
+
+// Learning mid-buffer that a field is secret discards what was already typed.
+st = new TypingState();
+st.BeginFocus(box, isSecret: false);
+st.Append('a', t0); st.Append('b', t0);
+st.MarkSecret(t0);
+taken = st.Take();
+Check("marking secret discards anything already buffered", taken.Text.Length == 0);
+Check("marking secret reports as secret", taken.WasSecret);
+
+// Backspace in a secret field must not fall through to the plain buffer.
+st = new TypingState();
+st.BeginFocus(box, isSecret: true);
+st.Append('x', t0); st.Backspace(t0);
+taken = st.Take();
+Check("backspace in a password field keeps nothing", taken.Text.Length == 0 && taken.WasSecret);
+
+// Backspace edits ordinary text.
+st = new TypingState();
+st.BeginFocus(box, isSecret: false);
+st.Append('a', t0); st.Append('b', t0); st.Backspace(t0);
+Check("backspace edits plain text", st.Take().Text == "a");
+
+// Idle only fires when there is something to flush.
+st = new TypingState();
+st.BeginFocus(box, isSecret: false);
+Check("an empty buffer is never idle-flushed",
+    !st.IsIdle(t0.AddSeconds(60), TimeSpan.FromSeconds(1)));
+st.Append('a', t0);
+Check("a stale buffer is idle", st.IsIdle(t0.AddSeconds(60), TimeSpan.FromSeconds(1)));
+Check("a fresh buffer is not idle", !st.IsIdle(t0, TimeSpan.FromSeconds(1)));
+
+// An empty flush must not emit a spurious password step.
+st = new TypingState();
+st.BeginFocus(box, isSecret: true);
+taken = st.Take();
+Check("focusing a password field without typing reports nothing",
+    !taken.WasSecret && taken.Text.Length == 0);
+
+Console.WriteLine("");
+Console.WriteLine("screenshot writing (exercises the encode/dispose path):");
+
+// A small fixed region; enough to drive every branch of CaptureTo. The default
+// scale is the one that used to dispose the same Bitmap twice.
+var region = new System.Drawing.Rectangle(0, 0, 240, 160);
+var tempDir = Path.Combine(Path.GetTempPath(), "bsr-capture-" + Guid.NewGuid().ToString("N"));
+
+foreach (var (fmt, scale, quality) in new[]
+         {
+             ("png", 1.0, 85), ("png", 0.5, 85),
+             ("jpeg", 1.0, 85), ("jpeg", 1.0, 40), ("jpeg", 0.25, 85),
+         })
+{
+    var opts = CaptureOptions.Clamp(fmt, quality, scale);
+    var file = Path.Combine(tempDir, $"shot-{fmt}-{scale}-{quality}.{opts.Extension}");
+
+    var ok = false;
+    string detail;
+    try
+    {
+        ScreenCapture.CaptureTo(region, file, opts);
+        var info = new FileInfo(file);
+        // Confirm the bytes decode: a double-disposed bitmap or a broken encoder
+        // path would throw above, and a truncated file would fail here.
+        using var img = System.Drawing.Image.FromFile(file);
+        var expected = (int)Math.Round(region.Width * opts.Scale);
+        ok = info.Length > 0 && Math.Abs(img.Width - expected) <= 1;
+        detail = $"{info.Length} bytes, {img.Width}x{img.Height}";
+    }
+    catch (Exception ex)
+    {
+        detail = ex.GetType().Name + ": " + ex.Message;
+    }
+
+    Check($"{fmt} @ {(int)(scale * 100)}% q{quality} writes a decodable image ({detail})", ok);
+}
+
+// Repeated captures at the default scale: the disposal bug, had it not been
+// idempotent, would surface on the second call reusing the path.
+try
+{
+    var opts = CaptureOptions.Clamp("png", 85, 1.0);
+    for (var i = 0; i < 5; i++)
+        ScreenCapture.CaptureTo(region, Path.Combine(tempDir, "repeat.png"), opts);
+    Check("repeated captures at default scale do not throw", true);
+}
+catch (Exception ex)
+{
+    Check("repeated captures at default scale do not throw (" + ex.Message + ")", false);
+}
+
+try { Directory.Delete(tempDir, recursive: true); } catch { }
 
 Console.WriteLine($"\n{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;

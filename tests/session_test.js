@@ -47,6 +47,22 @@ check('flushed to disk', meta.steps.length === 3 && meta.steps[2].text === 'Appr
 // 4. unknown id is a no-op, not a crash
 check('unknown id returns null', s.replaceStep('zzz', mk('x', 'y')) === null);
 
+// 5. deleting a step must not leave its screenshot behind: a step is often
+// deleted precisely because the frame showed something it should not.
+fs.writeFileSync(path.join(dir, 'steps', 'd.png'), 'fake');
+s.addStep(mk('d', 'Clicked d'));
+check('delete removes the step', s.removeStep('d') === true);
+check('delete removes its screenshot', !fs.existsSync(path.join(dir, 'steps', 'd.png')));
+check('deleting an unknown id is a no-op', s.removeStep('nope') === false);
+
+// A screenshot still referenced by another step must survive.
+fs.writeFileSync(path.join(dir, 'steps', 'shared.png'), 'fake');
+s.addStep({ ...mk('e', 'e'), screenshot: 'steps/shared.png' });
+s.addStep({ ...mk('f', 'f'), screenshot: 'steps/shared.png' });
+s.removeStep('e');
+check('a screenshot shared with another step is kept',
+      fs.existsSync(path.join(dir, 'steps', 'shared.png')));
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

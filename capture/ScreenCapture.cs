@@ -56,15 +56,25 @@ internal static class ScreenCapture
             g.CopyFromScreen(bounds.Location, System.Drawing.Point.Empty, bounds.Size);
         }
 
-        using var image = options.Scale < 1.0 ? Downscale(shot, options.Scale) : shot;
+        // Only dispose a downscaled copy: at the default scale `image` IS `shot`,
+        // and declaring both with `using` disposed the same Bitmap twice.
+        var scaled = options.Scale < 1.0 ? Downscale(shot, options.Scale) : null;
+        var image = scaled ?? shot;
 
-        if (options.Format == "jpeg")
+        try
         {
-            SaveJpeg(image, path, options.Quality);
+            if (options.Format == "jpeg")
+            {
+                SaveJpeg(image, path, options.Quality);
+            }
+            else
+            {
+                image.Save(path, ImageFormat.Png);
+            }
         }
-        else
+        finally
         {
-            image.Save(path, ImageFormat.Png);
+            scaled?.Dispose();
         }
     }
 

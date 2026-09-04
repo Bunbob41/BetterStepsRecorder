@@ -14,6 +14,10 @@
     <Compile Include="../../capture/Keys.cs" />
     <Compile Include="../../capture/UiaNaming.cs" />
     <Compile Include="../../capture/Scope.cs" />
+    <Compile Include="../../capture/TypingState.cs" />
+    <Compile Include="../../capture/CaptureOptions.cs" />
+    <Compile Include="../../capture/Win32.cs" />
+    <Compile Include="../../capture/ScreenCapture.cs" />
     <Compile Include="../../capture/StepDescriber.cs" />
     <Compile Include="../../capture/Protocol.cs" />
   </ItemGroup>

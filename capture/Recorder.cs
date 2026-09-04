@@ -34,10 +34,7 @@ internal sealed class Recorder : IDisposable
     private string? _lastStepId;
 
     // Typing buffer, worker-thread only.
-    private readonly StringBuilder _typed = new();
-    private IntPtr _typingFocus;
-    private bool _typingSecret;
-    private DateTime _typingLastUtc;
+    private readonly TypingState _typing = new();
 
     internal volatile RecordingState State = RecordingState.Idle;
 
@@ -147,32 +144,29 @@ internal sealed class Recorder : IDisposable
 
     private void ProcessKey(RawKey k)
     {
-        // Focus moved: the previous field's contents are complete.
-        if (k.Focus != _typingFocus)
+        // Focus moved: the previous field's contents are complete, and secrecy
+        // must be decided afresh for the new one.
+        if (k.Focus != _typing.Focus)
         {
             FlushTyping();
-            _typingFocus = k.Focus;
             // Resolve once per field, not per keystroke: UI Automation is a
             // cross-process COM call and would be ruinous on every character.
-            _typingSecret = UiaResolver.IsPasswordField(k.Focus);
+            _typing.BeginFocus(k.Focus, UiaResolver.IsPasswordField(k.Focus));
         }
 
         switch (k.Kind)
         {
             case KeyKind.Secret:
-                _typingSecret = true;
-                _typingLastUtc = k.Utc;
+                _typing.MarkSecret(k.Utc);
                 break;
 
             case KeyKind.Text:
-                // A password field's characters are counted, never kept.
-                if (!_typingSecret) _typed.Append(k.Char);
-                _typingLastUtc = k.Utc;
+                // A password field's characters are noted, never kept.
+                _typing.Append(k.Char, k.Utc);
                 break;
 
             case KeyKind.Named when k.Label == "Backspace":
-                if (_typed.Length > 0) _typed.Length--;
-                _typingLastUtc = k.Utc;
+                _typing.Backspace(k.Utc);
                 break;
 
             case KeyKind.Named:
@@ -189,30 +183,24 @@ internal sealed class Recorder : IDisposable
 
     private void FlushTypingIfIdle()
     {
-        if (_typed.Length == 0 && !_typingSecret) return;
-        if (DateTime.UtcNow - _typingLastUtc < TypingIdle) return;
-        FlushTyping();
+        if (_typing.IsIdle(DateTime.UtcNow, TypingIdle)) FlushTyping();
     }
 
     private void FlushTyping()
     {
-        var hadSecret = _typingSecret;
-        var text = _typed.ToString();
+        var (wasSecret, text) = _typing.Take();
 
-        _typed.Clear();
-        _typingSecret = false;
+        if (!wasSecret && string.IsNullOrEmpty(text)) return;
 
-        if (!hadSecret && string.IsNullOrEmpty(text)) return;
-
-        if (hadSecret)
+        if (wasSecret)
         {
             // Deliberately says nothing about length or content.
-            EmitKeyStep("password", "Entered password", _typingFocus, DateTime.UtcNow);
+            EmitKeyStep("password", "Entered password", _typing.Focus, DateTime.UtcNow);
             return;
         }
 
         var safe = Redactor.Apply(text);
-        EmitKeyStep("keyText", $"Typed \"{safe}\"", _typingFocus, DateTime.UtcNow, safe);
+        EmitKeyStep("keyText", $"Typed \"{safe}\"", _typing.Focus, DateTime.UtcNow, safe);
     }
 
     private void EmitKeyStep(string action, string description, IntPtr focus,

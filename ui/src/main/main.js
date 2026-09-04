@@ -312,6 +312,11 @@ ipcMain.handle('export:run', async (_e, { format, title }) => {
 
     } else if (format === 'pdf') {
       await exportPdf(safeTitle, out);
+
+    } else {
+      // Without this, an unrecognised format wrote nothing and still reported
+      // success, pointing the user at a file that was never created.
+      throw new Error(`Unsupported export format: ${format}`);
     }
 
     log.info(`exported ${format} to ${out}`);
@@ -369,6 +374,11 @@ ipcMain.handle('step:rerecord', async (_e, { id }) => {
     imageQuality: settings.values.imageQuality,
     imageScale: settings.values.imageScale,
     recordKeyboard: settings.values.recordKeyboard,
+    // The scope applies here too. Without it, re-recording one step of a
+    // recording deliberately scoped to a single application would capture a
+    // click in any application at all.
+    allowPids: scopePids,
+    hotkeys: ['Ctrl+Shift+F9', 'Ctrl+Shift+F10'],
   });
   sidecar.pause();
   sidecar.armOnce(id);
@@ -377,17 +387,24 @@ ipcMain.handle('step:rerecord', async (_e, { id }) => {
   win.minimize();
 
   const captured = await new Promise((resolve) => {
+    // Both paths must detach the listener. Leaving it attached on timeout
+    // accumulated a dead closure per abandoned re-record.
+    const finish = (value) => {
+      clearTimeout(timer);
+      sidecar.off('step', onStep);
+      resolve(value);
+    };
+
     const timer = setTimeout(() => {
       sidecar.pause();
-      resolve(null);
+      finish(null);
     }, 120000);
 
     const onStep = (step) => {
       if (step.replaces !== id) return;
-      clearTimeout(timer);
-      sidecar.off('step', onStep);
-      resolve(step);
+      finish(step);
     };
+
     sidecar.on('step', onStep);
   });
 
