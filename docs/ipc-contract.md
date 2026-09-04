@@ -124,3 +124,17 @@ The UI adds two things the capture engine knows nothing about:
   step number.
 - **`excluded: true`** suppresses a step from every export without destroying
   it, and its screenshot is not copied alongside a Markdown export either.
+
+
+## Threading: hooks and the message pump
+
+A low-level hook's callbacks are dispatched to the message queue of the thread
+that INSTALLED it, and that thread must pump messages. The mouse hook is
+installed on the main thread, which runs the GetMessage loop. The keyboard hook
+is installed on demand, so its installation is POSTED to that same thread
+(WM_APP+1 / WM_APP+2) rather than performed on the stdin reader.
+
+Installing it directly from the stdin thread is not an error and reports
+success - the hook simply never fires. That is exactly what happened, and it is
+why keyboard capture appeared to do nothing while every log line claimed it was
+on.

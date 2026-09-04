@@ -11,6 +11,15 @@ internal static class Program
     private static KeyboardHook? _keyboard;
     private static uint _mainThreadId;
 
+    // A low-level hook's callbacks are dispatched to the message queue of the
+    // thread that INSTALLED it. The stdin reader never pumps messages, so a
+    // keyboard hook installed from there is silently inert - which is exactly
+    // what happened. Installation is therefore posted to the pumping thread.
+    private const uint WM_APP_KEYS_ON  = 0x8000 + 1;
+    private const uint WM_APP_KEYS_OFF = 0x8000 + 2;
+
+    private static HashSet<string> _pendingChords = new(StringComparer.OrdinalIgnoreCase);
+
     [STAThread]
     private static int Main()
     {
@@ -49,6 +58,14 @@ internal static class Program
         // This loop is not optional decoration; without it nothing is ever recorded.
         while (Win32.GetMessage(out var msg, IntPtr.Zero, 0, 0) > 0)
         {
+            // Thread messages carry no window, so they are handled here rather
+            // than dispatched.
+            if (msg.hwnd == IntPtr.Zero)
+            {
+                if (msg.message == WM_APP_KEYS_ON) { SetKeyboardHook(true); continue; }
+                if (msg.message == WM_APP_KEYS_OFF) { SetKeyboardHook(false); continue; }
+            }
+
             Win32.TranslateMessage(ref msg);
             Win32.DispatchMessage(ref msg);
         }
@@ -66,6 +83,7 @@ internal static class Program
             var hook = new KeyboardHook(_recorder!);
             if (hook.Install())
             {
+                hook.SuppressedChords = _pendingChords;
                 _keyboard = hook;
                 Protocol.Log("info", "keyboard capture on");
             }
@@ -73,6 +91,11 @@ internal static class Program
             {
                 Protocol.Error("HOOK_FAILED", "SetWindowsHookEx(WH_KEYBOARD_LL) failed.");
             }
+        }
+        else if (enabled && _keyboard is not null)
+        {
+            // Already installed; just refresh what it must ignore.
+            _keyboard.SuppressedChords = _pendingChords;
         }
         else if (!enabled && _keyboard is not null)
         {
@@ -138,16 +161,19 @@ internal static class Program
                         // indefensible to a security team, and to antivirus.
                         var wantKeys = !root.TryGetProperty("recordKeyboard", out var rk)
                                        || rk.ValueKind != JsonValueKind.False;
-                        SetKeyboardHook(wantKeys);
 
-                        if (_keyboard is not null && root.TryGetProperty("hotkeys", out var hk)
-                            && hk.ValueKind == JsonValueKind.Array)
-                        {
-                            _keyboard.SuppressedChords = new HashSet<string>(
+                        _pendingChords = root.TryGetProperty("hotkeys", out var hk)
+                                         && hk.ValueKind == JsonValueKind.Array
+                            ? new HashSet<string>(
                                 hk.EnumerateArray().Select(x => x.GetString() ?? "")
                                   .Where(x => x.Length > 0),
-                                StringComparer.OrdinalIgnoreCase);
-                        }
+                                StringComparer.OrdinalIgnoreCase)
+                            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                        // Must run on the thread that pumps messages, or the
+                        // hook is installed and never fires.
+                        Win32.PostThreadMessage(_mainThreadId,
+                            wantKeys ? WM_APP_KEYS_ON : WM_APP_KEYS_OFF, IntPtr.Zero, IntPtr.Zero);
                         Protocol.Log("info", $"recording to {dir}");
                         break;
 
