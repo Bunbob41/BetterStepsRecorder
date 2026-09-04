@@ -11,3 +11,7 @@ out/
 # Recording sessions and scratch
 scratch/
 *.bsr/
+
+# Packaging output
+dist/
+capture/bin/packed/

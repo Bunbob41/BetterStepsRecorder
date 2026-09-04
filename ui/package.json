@@ -1,13 +1,57 @@
 {
   "name": "bettersteps-ui",
   "version": "0.1.0",
-  "description": "Step recorder UI shell",
+  "description": "Record what you do on screen and turn it into a guide",
   "main": "src/main/main.js",
   "private": true,
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build:capture": "dotnet publish ../capture -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o ../capture/bin/packed",
+    "dist": "npm run build:capture && electron-builder",
+    "dist:dir": "npm run build:capture && electron-builder --dir"
   },
   "devDependencies": {
-    "electron": "^34.0.0"
+    "electron": "^34.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "productName": "Steps Recorder",
+  "author": "Better World Solutions",
+  "build": {
+    "appId": "com.betterworldsolutions.stepsrecorder",
+    "productName": "Steps Recorder",
+    "directories": {
+      "output": "../dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../capture/bin/packed/bettersteps-capture.exe",
+        "to": "capture/bettersteps-capture.exe"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "StepsRecorder-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Steps Recorder"
+    }
   }
 }

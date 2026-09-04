@@ -44,6 +44,7 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: '#16171b',
     title: 'Steps Recorder',
+    icon: path.join(__dirname, '..', '..', 'build', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
