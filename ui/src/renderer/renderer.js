@@ -15,6 +15,10 @@ const el = {
   qualityField: $('quality-field'),
   scale: $('set-scale'), scaleVal: $('set-scale-val'), setClose: $('set-close'),
   keyboard: $('set-keyboard'),
+  blur: $('btn-blur'), wrap: $('shot-wrap'), selection: $('selection'),
+  exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
+  expTitle: $('exp-title'), expFormat: $('exp-format'),
+  expGo: $('exp-go'), expCancel: $('exp-cancel'),
 };
 
 let steps = [];
@@ -85,12 +89,13 @@ async function select(id) {
     `${step.point.x}, ${step.point.y}`,
     step.monitor ? `${Math.round(step.monitor.scale * 100)}% scaling` : null,
     step.rerecordedAt ? 're-recorded' : null,
+    step.redacted ? 'redacted' : null,
   ].filter(Boolean).join('   ·   ');
 
   el.indicator.style.display = 'none';
   const url = await window.bsr.shotUrl(step.screenshot);
   // Cache-bust: a re-recorded step swaps the file behind the same <img>.
-  el.shot.src = url ? `${url}#${step.rerecordedAt || ''}` : '';
+  el.shot.src = url ? `${url}#${step.rerecordedAt || ''}-${step.editedAt || ''}` : '';
   el.shot.onload = () => placeIndicator(step);
 }
 
@@ -233,6 +238,128 @@ window.bsr.onReplaced(({ index, step }) => {
   steps[index] = step;
   renderList();
   if (selectedId === step.id) select(step.id);
+});
+
+
+// ---- blur ---------------------------------------------------------------------
+// Destructive by design: the pixels are replaced in the file on disk. An overlay
+// that merely covered them would leave the real data in the session folder, and
+// a redacted guide whose sources still contain the data is worse than none.
+
+let blurArming = false;
+let dragStart = null;
+
+el.blur.addEventListener('click', () => {
+  blurArming = !blurArming;
+  el.blur.classList.toggle('active', blurArming);
+  el.wrap.classList.toggle('arming', blurArming);
+  el.selection.hidden = true;
+});
+
+el.wrap.addEventListener('mousedown', (e) => {
+  if (!blurArming || !selectedId) return;
+  e.preventDefault();
+  const r = el.shot.getBoundingClientRect();
+  dragStart = { x: e.clientX - r.left, y: e.clientY - r.top };
+  Object.assign(el.selection.style, { left: `${dragStart.x}px`, top: `${dragStart.y}px`,
+                                      width: '0px', height: '0px' });
+  el.selection.hidden = false;
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!dragStart) return;
+  const r = el.shot.getBoundingClientRect();
+  const x = Math.max(0, Math.min(e.clientX - r.left, r.width));
+  const y = Math.max(0, Math.min(e.clientY - r.top, r.height));
+  Object.assign(el.selection.style, {
+    left: `${Math.min(x, dragStart.x)}px`,
+    top: `${Math.min(y, dragStart.y)}px`,
+    width: `${Math.abs(x - dragStart.x)}px`,
+    height: `${Math.abs(y - dragStart.y)}px`,
+  });
+});
+
+window.addEventListener('mouseup', async (e) => {
+  if (!dragStart) return;
+
+  const r = el.shot.getBoundingClientRect();
+  const x = Math.max(0, Math.min(e.clientX - r.left, r.width));
+  const y = Math.max(0, Math.min(e.clientY - r.top, r.height));
+  const sel = {
+    left: Math.min(x, dragStart.x), top: Math.min(y, dragStart.y),
+    width: Math.abs(x - dragStart.x), height: Math.abs(y - dragStart.y),
+  };
+  dragStart = null;
+  el.selection.hidden = true;
+
+  // Ignore a stray click that was not really a drag.
+  if (sel.width < 6 || sel.height < 6) return;
+
+  await applyBlur(sel, r.width);
+});
+
+async function applyBlur(sel, displayedWidth) {
+  const step = steps.find((s) => s.id === selectedId);
+  if (!step) return;
+
+  const dataUrl = await window.bsr.shotData(step.screenshot);
+  if (!dataUrl) { alert('Could not read the screenshot.'); return; }
+
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve; img.onerror = reject; img.src = dataUrl;
+  });
+
+  // The selection is in displayed CSS pixels; the file is in physical pixels.
+  const ratio = img.naturalWidth / displayedWidth;
+  const x = Math.round(sel.left * ratio);
+  const y = Math.round(sel.top * ratio);
+  const w = Math.round(sel.width * ratio);
+  const h = Math.round(sel.height * ratio);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+
+  // Pixelate first, then blur the pixelated block. Blur alone can leave enough
+  // structure to read short text back; downsampling actually discards it.
+  const sw = Math.max(1, Math.round(w / 16));
+  const sh = Math.max(1, Math.round(h / 16));
+  const small = document.createElement('canvas');
+  small.width = sw; small.height = sh;
+  small.getContext('2d').drawImage(img, x, y, w, h, 0, 0, sw, sh);
+
+  ctx.save();
+  ctx.filter = 'blur(3px)';
+  ctx.drawImage(small, 0, 0, sw, sh, x, y, w, h);
+  ctx.restore();
+
+  const out = canvas.toDataURL('image/png');
+  const r = await window.bsr.redactStep(step.id, out);
+  if (!r.ok) { alert(r.error); return; }
+
+  steps[steps.indexOf(step)] = r.step;
+  select(step.id);
+}
+
+// ---- export -------------------------------------------------------------------
+
+el.exportBtn.addEventListener('click', () => {
+  if (!steps.length) { alert('Record something first.'); return; }
+  if (!el.expTitle.value) el.expTitle.value = 'Recorded steps';
+  el.exportDlg.showModal();
+});
+
+el.expCancel.addEventListener('click', () => el.exportDlg.close());
+
+el.expGo.addEventListener('click', async () => {
+  el.exportDlg.close();
+  const r = await window.bsr.exportSteps(el.expFormat.value, el.expTitle.value);
+  if (r.cancelled) return;
+  if (!r.ok) { alert(r.error); return; }
+  el.saveState.textContent = `Exported to ${r.file}`;
 });
 
 // ---- settings ----------------------------------------------------------------

@@ -216,3 +216,23 @@ dialog h2 { margin: 0 0 16px; font-size: 15px; }
 .checkfield input { accent-color: var(--accent); width: 15px; height: 15px; }
 .checkfield > span { color: var(--text); font-size: 13px; }
 .checkfield small { grid-column: 2; }
+
+.selection {
+  position: absolute;
+  border: 2px dashed var(--accent);
+  background: rgba(76,141,255,.18);
+  pointer-events: none;
+}
+.selection[hidden] { display: none; }
+.shot-wrap.arming { cursor: crosshair; }
+.shot-wrap.arming img { user-select: none; }
+
+#btn-blur.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.note {
+  color: var(--muted); font-size: 12px; line-height: 1.5;
+  margin: 0 0 18px; padding: 10px 12px;
+  background: var(--panel-2); border-radius: 6px;
+}
+.redacted-flag { color: #d6a02a; }
+.dialog-actions button + button { margin-left: 8px; }

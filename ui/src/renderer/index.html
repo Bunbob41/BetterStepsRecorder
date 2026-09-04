@@ -15,6 +15,7 @@
       <button id="btn-pause" disabled>Pause</button>
       <button id="btn-stop" disabled>Stop</button>
       <button id="btn-open">Open…</button>
+      <button id="btn-export">Export…</button>
       <button id="btn-settings">Settings</button>
     </div>
     <div class="status">
@@ -42,12 +43,14 @@
                aria-label="Step description" />
         <div class="meta">
           <span id="detail-meta"></span>
+          <button id="btn-blur">Blur area</button>
           <button id="btn-rerecord">Re-record step</button>
           <button id="btn-delete" class="danger">Delete step</button>
         </div>
         <div id="shot-wrap" class="shot-wrap">
           <img id="shot" alt="" />
           <div id="indicator" class="indicator"></div>
+          <div id="selection" class="selection" hidden></div>
         </div>
       </div>
     </section>
@@ -66,6 +69,29 @@
     <span id="save-state" class="save-state">No recording yet</span>
     <button id="btn-reveal" disabled>Show in Explorer</button>
   </footer>
+
+  <dialog id="exportdlg">
+    <h2>Export steps</h2>
+    <label class="field">
+      <span>Title</span>
+      <input id="exp-title" type="text" placeholder="How to raise an invoice" />
+    </label>
+    <label class="field">
+      <span>Format</span>
+      <select id="exp-format">
+        <option value="html">HTML — one portable file, images embedded</option>
+        <option value="pdf">PDF — for printing or sending on</option>
+        <option value="md">Markdown — for a wiki or repo, images alongside</option>
+      </select>
+    </label>
+    <p class="note">Descriptions are rewritten as instructions
+       ("Click Save" rather than "Clicked the Save button"). Wording you edited
+       yourself is left exactly as written.</p>
+    <div class="dialog-actions">
+      <button id="exp-cancel">Cancel</button>
+      <button id="exp-go" class="primary">Export</button>
+    </div>
+  </dialog>
 
   <dialog id="settings">
     <h2>Settings</h2>

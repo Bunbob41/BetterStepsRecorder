@@ -7,6 +7,7 @@ const { Sidecar } = require('./sidecar');
 const { Session } = require('./session');
 const { Settings } = require('./settings');
 const log = require('./log');
+const { buildHtml, buildMarkdown, copyImages } = require('./export');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
 
@@ -183,6 +184,130 @@ ipcMain.handle('session:open', async () => {
   session = Session.load(r.filePaths[0]);
   return { ok: true, dir: session.dir, steps: session.steps };
 });
+
+/**
+ * Overwrites a step's screenshot with a redacted version produced by the
+ * renderer. Deliberately destructive: an overlay that merely hides the pixels
+ * would leave the customer's name sitting in the session folder, and a
+ * "redacted" guide whose source images still contain the data is a lie.
+ */
+// The renderer edits pixels on a canvas. Reading back from a canvas painted
+// with a bsr:// image would taint it and make toDataURL throw, so editing
+// loads the bytes as a data URL instead.
+ipcMain.handle('shot:data', (_e, { screenshot }) => {
+  if (!session || !screenshot) return null;
+  const abs = path.join(session.dir, screenshot);
+  if (!fs.existsSync(abs)) return null;
+  const mime = /\.jpe?g$/i.test(abs) ? 'image/jpeg' : 'image/png';
+  return `data:${mime};base64,${fs.readFileSync(abs).toString('base64')}`;
+});
+
+ipcMain.handle('step:redact', (_e, { id, dataUrl }) => {
+  if (!session) return { ok: false, error: 'No recording is open.' };
+
+  const step = session.steps.find((s) => s.id === id);
+  if (!step || !step.screenshot) return { ok: false, error: 'Step not found.' };
+
+  const match = /^data:image\/png;base64,(.+)$/.exec(dataUrl || '');
+  if (!match) return { ok: false, error: 'Expected a PNG data URL.' };
+
+  const file = path.join(session.dir, step.screenshot);
+  const bytes = Buffer.from(match[1], 'base64');
+
+  // Write beside the original and rename over it, so an interrupted write
+  // cannot leave a truncated screenshot where a real one used to be.
+  const temp = file + '.tmp';
+  fs.writeFileSync(temp, bytes);
+  fs.renameSync(temp, file);
+
+  const updated = session.updateStep(id, {
+    redacted: true,
+    editedAt: new Date().toISOString(),
+  });
+
+  log.info(`redacted step ${id}`);
+  return { ok: true, step: updated };
+});
+
+ipcMain.handle('export:run', async (_e, { format, title }) => {
+  if (!session || !session.steps.length) {
+    return { ok: false, error: 'Nothing to export yet.' };
+  }
+
+  const safeTitle = (title || 'Recorded steps').trim() || 'Recorded steps';
+  const slug = safeTitle.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+
+  const filters = {
+    html: [{ name: 'Web page', extensions: ['html'] }],
+    md: [{ name: 'Markdown', extensions: ['md'] }],
+    pdf: [{ name: 'PDF', extensions: ['pdf'] }],
+  }[format];
+
+  const chosen = await dialog.showSaveDialog(win, {
+    title: 'Export steps',
+    defaultPath: path.join(settings.values.saveRoot, `${slug}.${format}`),
+    filters,
+  });
+  if (chosen.canceled || !chosen.filePath) return { ok: false, cancelled: true };
+
+  const out = chosen.filePath;
+
+  try {
+    if (format === 'html') {
+      // Images are embedded, so the export is a single portable file rather
+      // than a document that breaks the moment it is emailed on its own.
+      fs.writeFileSync(out, buildHtml(session, { title: safeTitle, embedImages: true }), 'utf8');
+
+    } else if (format === 'md') {
+      const imageDir = `${path.basename(out, '.md')}-images`;
+      const copied = copyImages(session, path.join(path.dirname(out), imageDir));
+      fs.writeFileSync(out, buildMarkdown(session, { title: safeTitle, imageDir }), 'utf8');
+      log.info(`markdown export copied ${copied} images`);
+
+    } else if (format === 'pdf') {
+      await exportPdf(safeTitle, out);
+    }
+
+    log.info(`exported ${format} to ${out}`);
+    return { ok: true, file: out };
+
+  } catch (err) {
+    log.error(err);
+    return { ok: false, error: err.message };
+  }
+});
+
+/**
+ * Renders the same HTML in an offscreen window and prints it. Reusing the HTML
+ * exporter keeps one layout to maintain rather than a separate PDF renderer.
+ */
+async function exportPdf(title, outFile) {
+  const html = buildHtml(session, { title, embedImages: true });
+  const temp = path.join(app.getPath('temp'), `bsr-export-${Date.now()}.html`);
+  fs.writeFileSync(temp, html, 'utf8');
+
+  const printer = new BrowserWindow({
+    show: false,
+    webPreferences: { offscreen: true, javascript: false },
+  });
+
+  try {
+    await printer.loadFile(temp);
+    // Images are data URIs, so layout is settled once load resolves; this
+    // small delay covers font substitution before the page is measured.
+    await new Promise((r) => setTimeout(r, 300));
+
+    const pdf = await printer.webContents.printToPDF({
+      printBackground: true,
+      margins: { marginType: 'custom', top: 0.5, bottom: 0.5, left: 0.5, right: 0.5 },
+      pageSize: 'A4',
+    });
+    fs.writeFileSync(outFile, pdf);
+  } finally {
+    printer.destroy();
+    try { fs.unlinkSync(temp); } catch { /* temp file, not worth failing over */ }
+  }
+}
 
 ipcMain.handle('step:rerecord', async (_e, { id }) => {
   if (!session) return { ok: false, error: 'No recording is open.' };

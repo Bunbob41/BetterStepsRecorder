@@ -76,3 +76,19 @@ log          { "level": "info|warn", "message": "" }
   The UI divides by monitor.scale only for display.
 - Unknown `type` values are ignored, not fatal. Forward compatible.
 - Sidecar exits 0 on `stop`, non-zero on unrecoverable hook failure.
+
+
+## Markup and export (UI-side, not the engine)
+
+Blur is destructive. The renderer pixelates then blurs the selected region on a
+canvas and the main process overwrites the screenshot file. An overlay would
+leave the original pixels in the session folder, and a redacted guide whose
+source images still contain the data is worse than no redaction at all. The
+step is stamped `redacted: true`.
+
+Editing loads the screenshot as a data URL rather than over bsr://, because a
+canvas painted from another scheme is tainted and cannot be read back.
+
+Export rewrites descriptions into the imperative ("Click Save" rather than
+"Clicked the Save button"). The engine records what happened; a procedure tells
+the reader what to do. Wording the user edited is emitted verbatim.

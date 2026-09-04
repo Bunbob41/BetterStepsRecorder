@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('bsr', {
   reorderStep: (from, to) => ipcRenderer.invoke('step:reorder', { from, to }),
   shotUrl: (screenshot) => ipcRenderer.invoke('shot:url', { screenshot }),
   revealSession: () => ipcRenderer.invoke('session:reveal'),
+  exportSteps: (format, title) => ipcRenderer.invoke('export:run', { format, title }),
+  redactStep: (id, dataUrl) => ipcRenderer.invoke('step:redact', { id, dataUrl }),
+  shotData: (screenshot) => ipcRenderer.invoke('shot:data', { screenshot }),
 
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
