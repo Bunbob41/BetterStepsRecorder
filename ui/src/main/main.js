@@ -11,6 +11,8 @@ const { buildHtml, buildMarkdown, copyImages } = require('./export');
 const templating = require('./template');
 const docx = require('./docx');
 const templatesLib = require('./templates-lib');
+const shortcuts = require('./shortcuts');
+const bounds = require('./bounds');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
 
@@ -53,10 +55,8 @@ function closeSession() {
   send('undo:depth', { depth: 0 });
 }
 
-// Chosen to avoid colliding with anything common. Ctrl+Shift+F9/F10 are not
-// used by Office, browsers or the shell.
-const HOTKEY_PAUSE = 'Control+Shift+F9';
-const HOTKEY_STOP = 'Control+Shift+F10';
+// The bound accelerators, kept so they can be released before rebinding.
+let boundHotkeys = { pause: null, stop: null };
 
 // Screenshots live outside the app directory, so a custom protocol serves them
 // instead of loosening webSecurity for the whole renderer.
@@ -86,11 +86,39 @@ function defaultBounds() {
   };
 }
 
+/** The smallest the editor is usable at - relaxed on displays too small for it. */
+const MIN_SIZE = { width: 940, height: 600 };
+
+/**
+ * Keeps a window inside the work area of the display it is actually on.
+ *
+ * defaultBounds() sizes from the primary display, but Windows may open the
+ * window on another one - and a second monitor can be shorter, or have its
+ * taskbar somewhere else. The window then runs past the work area and the
+ * bottom of the interface, the status bar, sits behind the taskbar where it
+ * cannot be read or clicked.
+ */
+function fitToDisplay(target) {
+  if (!target || target.isDestroyed()) return;
+
+  const current = target.getBounds();
+  const { workArea } = screen.getDisplayMatching(current);
+  const fitted = bounds.fit(current, workArea, MIN_SIZE);
+
+  // Relax the minimum first: setBounds cannot go below it, so a window on a
+  // display shorter than MIN_SIZE would be clamped straight back to too tall.
+  target.setMinimumSize(fitted.minWidth, fitted.minHeight);
+  if (bounds.differs(current, fitted)) {
+    target.setBounds({ x: fitted.x, y: fitted.y,
+                       width: fitted.width, height: fitted.height });
+  }
+}
+
 function createWindow() {
   win = new BrowserWindow({
     ...defaultBounds(),
-    minWidth: 940,
-    minHeight: 600,
+    minWidth: MIN_SIZE.width,
+    minHeight: MIN_SIZE.height,
     backgroundColor: '#16171b',
     title: 'Steps Recorder',
     icon: path.join(__dirname, '..', '..', 'build', 'icon.ico'),
@@ -104,6 +132,13 @@ function createWindow() {
 
   win.removeMenu();
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+
+  // The display it opens on is not necessarily the one it was sized for.
+  win.once('ready-to-show', () => fitToDisplay(win));
+
+  // A monitor unplugged mid-session can leave the window off-screen entirely.
+  screen.on('display-removed', () => fitToDisplay(win));
+  screen.on('display-metrics-changed', () => fitToDisplay(win));
 }
 
 function wireSidecar() {
@@ -155,10 +190,11 @@ app.whenReady().then(() => {
   });
 
   log.init(app.getPath('userData'));
-  registerHotkeys();
   settings = new Settings(app.getPath('userData'),
                           { documentsDir: app.getPath('documents') });
   log.info(`settings: ${JSON.stringify(settings.values)}`);
+  // After settings: the chords come from them.
+  registerHotkeys();
   wireSidecar();
   createWindow();
 });
@@ -169,7 +205,11 @@ app.whenReady().then(() => {
  * window mid-flow puts the hunt into the guide they are recording.
  */
 function registerHotkeys() {
-  const paused = globalShortcut.register(HOTKEY_PAUSE, () => {
+  // Release whatever is currently held, or a rebind leaves the old chord live.
+  globalShortcut.unregisterAll();
+  const wanted = shortcuts.resolve(settings ? settings.values : {});
+
+  const paused = globalShortcut.register(wanted.pause, () => {
     if (!sidecar || !sidecar.running) return;
     recordingPaused = !recordingPaused;
     if (recordingPaused) sidecar.pause(); else sidecar.resume();
@@ -177,7 +217,7 @@ function registerHotkeys() {
     send('hotkey', { action: recordingPaused ? 'paused' : 'resumed' });
   });
 
-  const stopped = globalShortcut.register(HOTKEY_STOP, () => {
+  const stopped = globalShortcut.register(wanted.stop, () => {
     // Restore first and unconditionally. Gating this on the engine still
     // running is how the window got stranded as a strip with no way back.
     leaveCompact();
@@ -188,10 +228,26 @@ function registerHotkeys() {
     send('hotkey', { action: 'stopped' });
   });
 
+  boundHotkeys = { pause: paused ? wanted.pause : null,
+                   stop: stopped ? wanted.stop : null };
+
   if (!paused || !stopped) {
     // Another application already owns the combination; the buttons still work.
     log.warn(`hotkey registration failed (pause=${paused}, stop=${stopped})`);
   }
+  send('hotkeys', hotkeyState());
+  return { paused, stopped, wanted };
+}
+
+/** What the interface should show: what was asked for, and what actually took. */
+function hotkeyState() {
+  const wanted = shortcuts.resolve(settings ? settings.values : {});
+  return {
+    pause: wanted.pause,
+    stop: wanted.stop,
+    pauseActive: boundHotkeys.pause === wanted.pause,
+    stopActive: boundHotkeys.stop === wanted.stop,
+  };
 }
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
@@ -238,9 +294,12 @@ function enterCompact() {
 function leaveCompact() {
   if (!win || !fullBounds) return;
   win.setAlwaysOnTop(false);
-  win.setMinimumSize(940, 600);
+  win.setMinimumSize(MIN_SIZE.width, MIN_SIZE.height);
   win.setBounds(fullBounds);
   fullBounds = null;
+  // A recording can outlast a monitor: the bounds saved on the way in may now
+  // be on a display that is no longer there.
+  fitToDisplay(win);
   send('mode', { compact: false });
 
   // The layout is correct after this resize but the compositor is not: the
@@ -326,7 +385,7 @@ ipcMain.handle('recording:start', async (_e, intent = {}) => {
     recordKeyboard: settings.values.recordKeyboard,
     allowPids: scopePids,
     // So pressing the stop hotkey is not itself the final recorded step.
-    hotkeys: ['Ctrl+Shift+F9', 'Ctrl+Shift+F10'],
+    hotkeys: shortcuts.engineChords(settings.values),
   });
 
   if (!started) {
@@ -703,7 +762,7 @@ ipcMain.handle('step:rerecord', async (_e, { id }) => {
     // recording deliberately scoped to a single application would capture a
     // click in any application at all.
     allowPids: scopePids,
-    hotkeys: ['Ctrl+Shift+F9', 'Ctrl+Shift+F10'],
+    hotkeys: shortcuts.engineChords(settings.values),
   });
   sidecar.pause();
   sidecar.armOnce(id);
@@ -847,6 +906,49 @@ ipcMain.handle('scope:set', (_e, { pids, label }) => {
 });
 
 ipcMain.handle('scope:get', () => ({ pids: scopePids, label: scopeLabel }));
+
+ipcMain.handle('shortcuts:get', () => ({
+  ...hotkeyState(),
+  defaults: shortcuts.DEFAULTS,
+}));
+
+ipcMain.handle('shortcuts:set', (_e, { which, accelerator }) => {
+  const key = which === 'stop' ? 'hotkeyStop' : 'hotkeyPause';
+
+  // Blank restores the default rather than leaving the action unreachable.
+  if (!accelerator) {
+    settings.update({ [key]: '' });
+    return { ok: true, ...registerHotkeys(), state: hotkeyState() };
+  }
+
+  if (!shortcuts.isValid(accelerator)) {
+    return { ok: false, error: 'That needs a modifier — Ctrl, Alt or Shift — '
+                             + 'or a function key on its own.' };
+  }
+
+  const other = which === 'stop' ? 'hotkeyPause' : 'hotkeyStop';
+  const resolved = shortcuts.resolve(settings.values);
+  if (accelerator === (which === 'stop' ? resolved.pause : resolved.stop)) {
+    return { ok: false, error: 'Pause and stop cannot share a shortcut.' };
+  }
+
+  const previous = settings.values[key];
+  settings.update({ [key]: accelerator });
+  const result = registerHotkeys();
+
+  const took = which === 'stop' ? result.stopped : result.paused;
+  if (!took) {
+    // Another application already owns it. Put the old one back rather than
+    // leaving the user with a shortcut that silently does nothing.
+    settings.update({ [key]: previous });
+    registerHotkeys();
+    return { ok: false, error: 'Another application is already using that '
+                             + 'combination. Kept the previous one.' };
+  }
+
+  log.info(`hotkey ${which} rebound to ${accelerator}`);
+  return { ok: true, state: hotkeyState() };
+});
 
 ipcMain.handle('settings:get', () => settings.values);
 

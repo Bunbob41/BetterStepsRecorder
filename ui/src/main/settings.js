@@ -29,6 +29,8 @@ const DEFAULTS = {
   brandLogo: '',      // absolute path to an image embedded in exports
   brandFooter: '',    // e.g. a classification or document reference
   templatePath: '',   // an organisation's own SOP format to render into
+  hotkeyPause: '',    // blank means the built-in default
+  hotkeyStop: '',
 };
 
 class Settings {
@@ -67,7 +69,8 @@ class Settings {
     v.imageScale = Math.min(1, Math.max(0.25, Number(v.imageScale) || 1));
     v.recordKeyboard = v.recordKeyboard !== false;
     if (!['window', 'monitor', 'screen'].includes(v.imageFrame)) v.imageFrame = 'window';
-    for (const k of ['brandName', 'brandLogo', 'brandFooter', 'templatePath']) {
+    for (const k of ['brandName', 'brandLogo', 'brandFooter', 'templatePath',
+                     'hotkeyPause', 'hotkeyStop']) {
       v[k] = typeof v[k] === 'string' ? v[k].slice(0, 400) : '';
     }
     if (typeof v.saveRoot !== 'string' || !v.saveRoot.trim()) v.saveRoot = this.defaults.saveRoot;

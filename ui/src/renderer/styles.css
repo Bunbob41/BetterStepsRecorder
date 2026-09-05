@@ -1,7 +1,8 @@
 :root {
-  --bg: #16171b;
-  --panel: #1d1f25;
-  --panel-2: #24272f;
+  --bg: #131519;        /* the canvas: the deepest surface */
+  --panel: #1b1e24;     /* chrome: toolbar and status bar */
+  --sidebar: #191c22;   /* the step list, a step above the canvas */
+  --panel-2: #24272f;   /* controls sitting on chrome */
   --line: #33373f;
   --text: #e6e8ec;
   --muted: #9aa1ad;
@@ -11,6 +12,14 @@
 }
 
 * { box-sizing: border-box; }
+
+/* Chromium's default focus ring is orange, which reads as a warning against
+   this palette. Keyboard focus should look deliberate, so use the accent -
+   and only for :focus-visible, so clicking a button does not ring it. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 body {
   margin: 0;
@@ -35,7 +44,12 @@ body {
 .toolbar button { white-space: nowrap; }
 
 .brand { font-weight: 600; letter-spacing: .2px; }
-.controls { display: flex; gap: 8px; }
+.controls { display: flex; align-items: center; gap: 8px; }
+.group { display: flex; gap: 8px; }
+.divider {
+  width: 1px; align-self: stretch; margin: 4px 4px;
+  background: var(--line);
+}
 
 button {
   background: var(--panel-2);
@@ -47,7 +61,13 @@ button {
   cursor: pointer;
 }
 button:hover:not(:disabled) { background: #2c303a; }
-button:disabled { opacity: .4; cursor: default; }
+/* Dimming alone reads as low-contrast text rather than "not available now":
+   a reviewer looking at a screenshot could not tell Pause and Stop were
+   already disabled. Flatten them as well so the state is unmistakable. */
+button:disabled {
+  opacity: .55; cursor: default;
+  background: transparent; border-color: transparent; color: var(--muted);
+}
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 button.primary:hover:not(:disabled) { background: #3d7ded; }
 button.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
@@ -61,7 +81,7 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 main { flex: 1; display: grid; grid-template-columns: 320px 1fr; min-height: 0; }
 
 .steps {
-  background: var(--panel);
+  background: var(--sidebar);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
@@ -288,7 +308,7 @@ button.tiny {
 .compactbar {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  grid-template-areas: "dot state count" "actions actions actions";
+  grid-template-areas: "dot state count" "dot elapsed count" "actions actions actions";
   align-items: center;
   gap: 8px 10px;
   padding: 12px 14px;
@@ -296,7 +316,8 @@ button.tiny {
 .compactbar[hidden] { display: none; }
 #c-dot { grid-area: dot; }
 .c-state { grid-area: state; font-weight: 600; }
-.c-count { grid-area: count; color: var(--muted); font-size: 12px; }
+.c-count { grid-area: count; color: var(--muted); font-size: 12px; align-self: start; }
+.c-elapsed { grid-area: elapsed; }
 .c-actions { grid-area: actions; display: flex; gap: 8px; }
 .c-actions button { flex: 1; padding: 7px 0; }
 
@@ -312,7 +333,8 @@ body.compact { overflow: hidden; }
   flex: 1 1 120px; min-width: 90px; max-width: 300px;
   user-select: text;
 }
-.session-name:hover { border-color: var(--line); }
+.session-name::placeholder { color: var(--muted); opacity: .8; }
+.session-name:hover { border-color: var(--line); background: var(--panel-2); }
 .session-name:focus { outline: none; background: var(--panel-2); border-color: var(--accent); }
 
 .detail-empty { margin: 0 auto; width: 100%; max-width: 620px; text-align: left; }
@@ -378,3 +400,38 @@ button.linky {
   font: inherit; font-size: 11px; cursor: pointer; text-decoration: underline;
 }
 #su-template-field[hidden] { display: none; }
+
+/* Keycaps. Shortcuts scan far faster as keys than as prose. */
+kbd {
+  display: inline-block;
+  font: 500 11px/1 "Segoe UI", system-ui, sans-serif;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 3px 6px;
+  margin: 0 1px;
+  white-space: nowrap;
+}
+.hint kbd { font-size: 10px; padding: 2px 5px; }
+.hint { display: inline-flex; align-items: center; gap: 5px; }
+.hint .sep { color: var(--line); margin: 0 4px; }
+
+/* The shortcuts sheet. */
+.subhead { font-size: 12px; text-transform: uppercase; letter-spacing: .8px;
+           color: var(--muted); margin: 18px 0 8px; }
+.keyrow {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 12px;
+  align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line);
+}
+.keyrow:last-of-type { border-bottom: 0; }
+.k-what { font-size: 13px; }
+.k-keys { color: var(--muted); font-size: 12px; }
+.k-set { padding: 3px 10px; font-size: 12px; }
+.keyrow.listening .k-keys { color: var(--accent); }
+.k-error { color: var(--danger); font-size: 12px; margin: 8px 0 0; }
+.k-error[hidden] { display: none; }
+
+/* Elapsed time while recording, in the strip where it can be seen. */
+.c-elapsed { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }

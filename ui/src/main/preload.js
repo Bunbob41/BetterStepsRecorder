@@ -37,6 +37,10 @@ contextBridge.exposeInMainWorld('bsr', {
   setScope: (pids, label) => ipcRenderer.invoke('scope:set', { pids, label }),
   getScope: () => ipcRenderer.invoke('scope:get'),
 
+  getShortcuts: () => ipcRenderer.invoke('shortcuts:get'),
+  setShortcut: (which, accelerator) =>
+    ipcRenderer.invoke('shortcuts:set', { which, accelerator }),
+
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
   chooseFolder: () => ipcRenderer.invoke('settings:chooseFolder'),
@@ -52,5 +56,6 @@ contextBridge.exposeInMainWorld('bsr', {
   onExit:  (fn) => ipcRenderer.on('sidecar:exit',  (_e, m) => fn(m)),
   onHotkey: (fn) => ipcRenderer.on('hotkey', (_e, m) => fn(m)),
   onMode: (fn) => ipcRenderer.on('mode', (_e, m) => fn(m)),
+  onHotkeys: (fn) => ipcRenderer.on('hotkeys', (_e, m) => fn(m)),
   onUndoDepth: (fn) => ipcRenderer.on('undo:depth', (_e, m) => fn(m)),
 });

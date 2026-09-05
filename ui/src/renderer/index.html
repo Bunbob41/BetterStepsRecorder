@@ -12,6 +12,7 @@
     <span id="c-dot" class="dot rec"></span>
     <span id="c-state" class="c-state">Recording</span>
     <span id="c-count" class="c-count">0 steps</span>
+    <span id="c-elapsed" class="c-elapsed"></span>
     <div class="c-actions">
       <button id="c-pause">Pause</button>
       <button id="c-stop" class="danger">Stop</button>
@@ -22,13 +23,18 @@
     <input id="session-name" class="session-name" type="text"
            placeholder="Untitled recording" aria-label="Recording name" />
     <div class="controls">
-      <button id="btn-scope">Capture: Everything</button>
-      <button id="btn-record" class="primary">Start recording</button>
-      <button id="btn-pause" disabled>Pause</button>
-      <button id="btn-stop" disabled>Stop</button>
-      <button id="btn-open">Open…</button>
-      <button id="btn-export">Export…</button>
-      <button id="btn-settings">Settings</button>
+      <div class="group" role="group" aria-label="Recording">
+        <button id="btn-scope">Capture: Everything</button>
+        <button id="btn-record" class="primary">Start recording</button>
+        <button id="btn-pause" disabled>Pause</button>
+        <button id="btn-stop" disabled>Stop</button>
+      </div>
+      <span class="divider" aria-hidden="true"></span>
+      <div class="group" role="group" aria-label="Document">
+        <button id="btn-open">Open…</button>
+        <button id="btn-export">Export…</button>
+        <button id="btn-settings">Settings</button>
+      </div>
     </div>
     <div class="status">
       <span id="dot" class="dot idle"></span>
@@ -44,10 +50,7 @@
         <button id="btn-note" class="tiny" title="Add a written step">+ Note</button>
         <span id="count" class="count">0</span>
       </div>
-      <p id="empty" class="empty">
-        Press <strong>Start recording</strong>, then use your computer normally.
-        Every click is captured with a screenshot.
-      </p>
+      <p id="empty" class="empty">No steps yet.</p>
       <ol id="step-list"></ol>
     </aside>
 
@@ -57,8 +60,9 @@
           <h2>Recent recordings</h2>
           <div id="library-list" class="library-list"></div>
           <p id="library-empty" class="library-none" hidden>
-            No recordings yet. Press <strong>Start recording</strong> and use your
-            computer normally.
+            Nothing recorded yet. Press <strong>Start recording</strong>, say what
+            you are making, then use your computer normally — every click, drag and
+            typed value is captured with a screenshot.
           </p>
         </div>
       </div>
@@ -92,9 +96,53 @@
 
   <footer class="savebar">
     <span id="save-state" class="save-state">No recording yet</span>
-    <span class="hint" id="hotkey-hint">Ctrl+Shift+F9 pause · Ctrl+Shift+F10 stop</span>
+    <span class="hint" id="hotkey-hint"></span>
+    <button id="btn-shortcuts" class="linky">All shortcuts</button>
     <button id="btn-reveal" disabled>Show in Explorer</button>
   </footer>
+
+  <dialog id="keysdlg">
+    <h2>Keyboard shortcuts</h2>
+
+    <h3 class="subhead">Anywhere on the machine</h3>
+    <p class="note">These work while you are in the application you are recording,
+       which is the whole point of them.</p>
+
+    <div class="keyrow">
+      <span class="k-what">Pause and resume</span>
+      <span class="k-keys" id="k-pause"></span>
+      <button class="k-set" data-which="pause" type="button">Change</button>
+    </div>
+    <div class="keyrow">
+      <span class="k-what">Stop recording</span>
+      <span class="k-keys" id="k-stop"></span>
+      <button class="k-set" data-which="stop" type="button">Change</button>
+    </div>
+    <p class="k-error" id="k-error" hidden></p>
+
+    <h3 class="subhead">In this window</h3>
+    <div class="keyrow static">
+      <span class="k-what">Move between steps</span>
+      <span class="k-keys"><kbd>↑</kbd><kbd>↓</kbd></span>
+    </div>
+    <div class="keyrow static">
+      <span class="k-what">Select several steps</span>
+      <span class="k-keys"><kbd>Ctrl</kbd>+click, <kbd>Shift</kbd>+click</span>
+    </div>
+    <div class="keyrow static">
+      <span class="k-what">Delete the selection</span>
+      <span class="k-keys"><kbd>Delete</kbd></span>
+    </div>
+    <div class="keyrow static">
+      <span class="k-what">Undo a delete or a blur</span>
+      <span class="k-keys"><kbd>Ctrl</kbd><kbd>Z</kbd></span>
+    </div>
+
+    <div class="dialog-actions">
+      <button id="k-reset" type="button">Reset to defaults</button>
+      <button id="k-close" class="primary" type="button">Done</button>
+    </div>
+  </dialog>
 
   <dialog id="setupdlg">
     <h2>What are you about to record?</h2>

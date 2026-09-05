@@ -35,6 +35,10 @@ const el = {
   libraryEmpty: $('library-empty'),
   compactBar: $('compactbar'), cDot: $('c-dot'), cState: $('c-state'),
   cCount: $('c-count'), cPause: $('c-pause'), cStop: $('c-stop'),
+  cElapsed: $('c-elapsed'),
+  keysDlg: $('keysdlg'), kPause: $('k-pause'), kStop: $('k-stop'),
+  kError: $('k-error'), kReset: $('k-reset'), kClose: $('k-close'),
+  shortcutsBtn: $('btn-shortcuts'), hotkeyHint: $('hotkey-hint'),
 };
 
 let steps = [];
@@ -54,6 +58,7 @@ function setState(next) {
     next === 'recording' ? 'Recording' : next === 'paused' ? 'Paused' : 'Idle';
 
   el.record.disabled = next !== 'idle';
+  if (next === 'idle') stopElapsed();
   // Safety net: idle and compact is a dead end, so never allow the pair.
   if (next === 'idle' && document.body.classList.contains('compact')) {
     window.bsr.restoreWindow();
@@ -67,6 +72,9 @@ function setState(next) {
 
 function renderList() {
   el.count.textContent = String(steps.length);
+  // Adding a note to nothing, or checking nothing, are not actions.
+  el.note.disabled = steps.length === 0;
+  el.check.disabled = steps.length === 0;
   el.del.textContent = marked.size > 1 ? `Delete ${marked.size} steps` : 'Delete step';
   const recorded = steps.filter((s) => s.action !== 'note').length;
   el.cCount.textContent = `${recorded} step${recorded === 1 ? '' : 's'}`;
@@ -233,6 +241,169 @@ function placeIndicator(step) {
 
 // ---- actions ----------------------------------------------------------------
 
+
+// ---- shortcuts -----------------------------------------------------------------
+// The two global ones are rebindable, because a chord that is perfect on one
+// machine is already taken on another. A rebind has to reach three places: the
+// registration, the stored setting, and the capture engine, which suppresses
+// them so pressing stop is not recorded as the final step.
+
+function keycaps(accelerator) {
+  const frag = document.createDocumentFragment();
+  for (const part of String(accelerator || '').split('+').filter(Boolean)) {
+    const k = document.createElement('kbd');
+    k.textContent = { Control: 'Ctrl', Super: 'Win' }[part] || part;
+    frag.append(k);
+  }
+  return frag;
+}
+
+function paintShortcuts(state) {
+  el.kPause.replaceChildren(keycaps(state.pause));
+  el.kStop.replaceChildren(keycaps(state.stop));
+
+  // A chord that failed to register is one another application owns. Saying so
+  // beats leaving the user with a shortcut that silently does nothing.
+  for (const [node, active] of [[el.kPause, state.pauseActive],
+                                [el.kStop, state.stopActive]]) {
+    if (!active) {
+      const warn = document.createElement('span');
+      warn.textContent = ' in use elsewhere';
+      warn.style.color = 'var(--rec)';
+      node.append(warn);
+    }
+  }
+
+  el.hotkeyHint.replaceChildren(keycaps(state.pause));
+  el.hotkeyHint.append(' pause');
+  const sep = document.createElement('span');
+  sep.className = 'sep';
+  sep.textContent = '\u00b7';
+  el.hotkeyHint.append(sep, keycaps(state.stop), ' stop');
+}
+
+async function refreshShortcuts() {
+  paintShortcuts(await window.bsr.getShortcuts());
+}
+
+el.shortcutsBtn.addEventListener('click', async () => {
+  await refreshShortcuts();
+  el.kError.hidden = true;
+  el.keysDlg.showModal();
+});
+
+el.kClose.addEventListener('click', () => el.keysDlg.close());
+
+el.kReset.addEventListener('click', async () => {
+  await window.bsr.setShortcut('pause', '');
+  const r = await window.bsr.setShortcut('stop', '');
+  if (r.state) paintShortcuts(r.state);
+  el.kError.hidden = true;
+});
+
+let listeningFor = null;
+
+for (const btn of document.querySelectorAll('.k-set')) {
+  btn.addEventListener('click', () => {
+    const row = btn.closest('.keyrow');
+    listeningFor = { which: btn.dataset.which, row, btn, label: btn.textContent };
+    row.classList.add('listening');
+    btn.textContent = 'Press keys\u2026';
+    row.querySelector('.k-keys').textContent = 'waiting for a key combination';
+    el.kError.hidden = true;
+  });
+}
+
+// Captured at the window, ahead of the app's own key handling, so binding to
+// something like Ctrl+Z does not also undo an edit on the way past.
+window.addEventListener('keydown', async (e) => {
+  if (!listeningFor) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (e.key === 'Escape') {
+    const { row, btn, label } = listeningFor;
+    row.classList.remove('listening');
+    btn.textContent = label;
+    listeningFor = null;
+    await refreshShortcuts();
+    return;
+  }
+
+  const accelerator = acceleratorFrom(e);
+  if (!accelerator) return;          // a lone modifier: keep waiting
+
+  const { which, row, btn, label } = listeningFor;
+  row.classList.remove('listening');
+  btn.textContent = label;
+  listeningFor = null;
+
+  const r = await window.bsr.setShortcut(which, accelerator);
+  if (!r.ok) {
+    el.kError.textContent = r.error;
+    el.kError.hidden = false;
+    await refreshShortcuts();
+    return;
+  }
+  el.kError.hidden = true;
+  paintShortcuts(r.state);
+}, true);
+
+/**
+ * Mirrors the rule in the main process: a bare letter would swallow that key
+ * across the whole machine, so a modifier is required unless it is a function key.
+ */
+function acceleratorFrom(e) {
+  if (['Control', 'Alt', 'Shift', 'Meta', 'OS'].includes(e.key)) return null;
+
+  const mods = [];
+  if (e.ctrlKey) mods.push('Control');
+  if (e.altKey) mods.push('Alt');
+  if (e.shiftKey) mods.push('Shift');
+  if (e.metaKey) mods.push('Super');
+
+  let main = '';
+  if (/^F\d{1,2}$/.test(e.key)) main = e.key;
+  else if (e.key === ' ' || e.code === 'Space') main = 'Space';
+  else if (e.key.length === 1) main = e.key.toUpperCase();
+  else if (['Home', 'End', 'PageUp', 'PageDown', 'Insert', 'Delete',
+            'Backspace', 'Tab', 'Enter'].includes(e.key)) main = e.key;
+  else return null;
+
+  if (!mods.length && !/^F\d{1,2}$/.test(main)) return null;
+  return [...mods, main].join('+');
+}
+
+window.bsr.onHotkeys(paintShortcuts);
+
+// ---- elapsed time --------------------------------------------------------------
+// In the strip rather than the header: while recording, the strip is the only
+// part of this window on screen.
+
+let recordingStarted = null;
+let elapsedTimer = null;
+
+function stopElapsed() {
+  clearInterval(elapsedTimer);
+  elapsedTimer = null;
+  recordingStarted = null;
+  el.cElapsed.textContent = '';
+}
+
+function startElapsed() {
+  recordingStarted = Date.now();
+  clearInterval(elapsedTimer);
+  const tick = () => {
+    if (!recordingStarted) return;
+    const secs = Math.floor((Date.now() - recordingStarted) / 1000);
+    const mm = String(Math.floor(secs / 60)).padStart(2, '0');
+    const ss = String(secs % 60).padStart(2, '0');
+    el.cElapsed.textContent = mm + ':' + ss;
+  };
+  tick();
+  elapsedTimer = setInterval(tick, 1000);
+}
+
 // ---- setting out ---------------------------------------------------------------
 // What a recording is FOR is decided before it starts, not at export. It changes
 // how the steps are worded on the way out, and which template they land in — and
@@ -321,6 +492,7 @@ el.suGo.addEventListener('click', async () => {
   el.scopeBtn.textContent = `Capture: ${r.scope}`;
   renderList();
   setState('recording');
+  startElapsed();
 });
 
 el.pause.addEventListener('click', async () => {
@@ -1014,6 +1186,7 @@ el.scale.addEventListener('change', async () => {
 setState('idle');
 renderList();
 window.bsr.getSettings().then(paintSettings);
+refreshShortcuts();
 renderLibrary();
 window.bsr.getScope().then((s) => {
   scopeChoice = s;
