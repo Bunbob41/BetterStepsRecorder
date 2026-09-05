@@ -474,6 +474,30 @@ Three deliberate choices:
   files into a bundle that programs cannot be run from directly, so the engine
   sits alongside as an extra resource.
 
+### Knowing which build you have
+
+Open **Settings** and look at the bottom left:
+
+```
+0.1.0 · 5dc2be5 · 5 Sep 2026, 3:41 pm · engine 3:41 pm
+```
+
+Four things, and the first is the least useful. The version number stays at
+`0.1.0` for a long time - it did not change once across a day of fixes - so on
+its own it cannot tell you whether the build you are running includes something
+that was fixed this morning. The **commit** and the **build time** can.
+
+A `+` after the commit means the code had uncommitted edits when it was built,
+so the commit does not fully describe it.
+
+The **engine** is listed separately because the two halves of the app are built
+separately, and it is possible to end up with a new interface and an old
+recorder. That combination looks exactly like a fix that did not work, so if the
+engine is older than the app the line says so in red.
+
+The same line is written to the log each time the app starts, so it travels with
+a bug report.
+
 **It is not code-signed.** Windows SmartScreen will show a warning on first run,
 and endpoint protection may object to a program that hooks input and takes
 screenshots. That is stated plainly in the README rather than left for a new

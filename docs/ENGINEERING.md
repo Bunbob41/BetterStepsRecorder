@@ -124,6 +124,34 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-20 · A build is identified by version, commit and build time
+`(this change)` · [ui/src/main/build-info.js](../ui/src/main/build-info.js),
+[scripts/stamp-build.js](../scripts/stamp-build.js)
+
+The application could not say which build it was. Two installers that behaved
+quite differently - one of which put the recording strip into every screenshot -
+were distinguishable only by comparing file timestamps on disk by hand.
+
+**The version number does not answer it.** It sat at `0.1.0` across every commit
+in a day, so an About box reading "0.1.0" would have been no help at all. The
+identity is the three together, and the commit carries a trailing `+` when the
+tree was dirty, because the commit alone does not then describe what was built.
+
+**The engine is reported separately** because the two halves compile
+independently and drift. A rebuilt interface talking to a stale engine looks
+exactly like a fix that did not work. Its build time comes from its own file,
+and from the engine itself in the `ready` message once it has started, so a
+stale one is caught even if the file was touched. More than a minute of skew is
+called out in red.
+
+Shown at the bottom of Settings and written to the log at startup - the latter
+in plain ASCII, since a log is opened with whatever tool is to hand and a middot
+written as UTF-8 returns as mojibake in anything assuming the system codepage.
+
+The stamp is generated at build time and gitignored: it describes a build, not a
+source tree. Without one the app asks git directly and reports `development`
+rather than claiming to be a release.
+
 ### D-19 · A framed window is asked to draw itself, not copied off the screen
 `(this change)` · [capture/ScreenCapture.cs](../capture/ScreenCapture.cs)
 
@@ -480,7 +508,7 @@ machine in use.
 
 | Suite | Runs | Covers |
 |---|---|---|
-| `tests/*_test.js` (9) | `node tests/<file>` | export rendering, templates, .docx, sessions, shortcut conversion, window fitting, screenshot sizing, renderer wiring |
+| `tests/*_test.js` (10) | `node tests/<file>` | export rendering, templates, .docx, sessions, shortcut conversion, window fitting, screenshot sizing, build identity, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
 | `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |
 | `tests/smoke.py` | `python tests/<file>` | engine protocol |

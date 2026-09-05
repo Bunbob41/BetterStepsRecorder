@@ -19,3 +19,6 @@ capture/bin/packed/
 # Python
 __pycache__/
 *.pyc
+
+# Generated at build time by scripts/stamp-build.js
+ui/build-info.json

@@ -463,3 +463,15 @@ kbd {
 
 /* The strip must not appear over the recording strip. */
 body.compact .notice { display: none; }
+
+/* Which build is running. Small and out of the way, but present: the version
+   number alone does not distinguish two builds of the same version, which is
+   exactly the question asked when something is or is not fixed. */
+.build {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  user-select: text;          /* so it can be copied into a bug report */
+}
+.build .stale { color: var(--rec); }

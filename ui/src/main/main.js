@@ -10,6 +10,7 @@ const log = require('./log');
 const { buildHtml, buildMarkdown, copyImages, exportable } = require('./export');
 const screenshots = require('./screenshots');
 const { toJpeg } = require('./transcode');
+const buildInfo = require('./build-info');
 const templating = require('./template');
 const docx = require('./docx');
 const templatesLib = require('./templates-lib');
@@ -146,7 +147,12 @@ function createWindow() {
 function wireSidecar() {
   sidecar = new Sidecar();
 
-  sidecar.on('ready', (m) => send('sidecar:ready', m));
+  sidecar.on('ready', (m) => {
+    // Kept so Settings can show what the engine actually is, not what the
+    // interface assumes it is.
+    engineBuild = m && m.built ? m.built : null;
+    send('sidecar:ready', m);
+  });
   sidecar.on('log', (m) => send('sidecar:log', m));
   sidecar.on('error', (m) => { leaveCompact(); send('sidecar:error', m); });
 
@@ -198,6 +204,7 @@ app.whenReady().then(() => {
   // After settings: the chords come from them.
   registerHotkeys();
   wireSidecar();
+  log.info(buildInfo.summarise(currentBuild()));
   createWindow();
 });
 
@@ -273,6 +280,7 @@ process.on('exit', () => { if (sidecar) sidecar.kill(); });
 
 const COMPACT = { width: 360, height: 132 };
 let fullBounds = null;
+let engineBuild = null;
 
 function enterCompact() {
   if (!win || fullBounds) return;
@@ -439,6 +447,24 @@ function finishRecording() {
 ipcMain.handle('recording:stop', () => {
   finishRecording();
   return { ok: true, steps: session ? session.steps.length : 0 };
+});
+
+/**
+ * Which build is running. Reported in Settings and in the log, because the
+ * version number alone does not distinguish two builds of the same version -
+ * and that is the usual question when something is or is not fixed.
+ */
+function currentBuild() {
+  return buildInfo.describe({
+    version: app.getVersion(),
+    projectRoot: PROJECT_ROOT,
+    engineExe: Sidecar.resolveExe(PROJECT_ROOT),
+  });
+}
+
+ipcMain.handle('app:build', () => {
+  const info = currentBuild();
+  return { ...info, engineReported: engineBuild };
 });
 
 ipcMain.handle('session:get', () => ({

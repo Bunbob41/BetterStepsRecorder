@@ -49,6 +49,9 @@ internal static class Program
             id = Guid.NewGuid().ToString(),
             pid = Environment.ProcessId,
             dpiAware = dpiOk,
+            // So a stale engine cannot hide behind a freshly built interface:
+            // the two are compiled separately and drift apart in development.
+            built = BuildTime(),
         });
 
         var stdin = new Thread(ReadCommands) { IsBackground = true, Name = "stdin" };
@@ -102,6 +105,22 @@ internal static class Program
             _keyboard.Dispose();
             _keyboard = null;
             Protocol.Log("info", "keyboard capture off");
+        }
+    }
+
+    /// <summary>When this engine was built, taken from its own file on disk.</summary>
+    private static string BuildTime()
+    {
+        try
+        {
+            var exe = Environment.ProcessPath;
+            return exe is null
+                ? "unknown"
+                : File.GetLastWriteTimeUtc(exe).ToString("o");
+        }
+        catch
+        {
+            return "unknown";
         }
     }
 

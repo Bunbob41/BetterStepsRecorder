@@ -7,8 +7,9 @@
   "scripts": {
     "start": "electron .",
     "build:capture": "dotnet publish ../capture -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o ../capture/bin/packed",
-    "dist": "npm run build:capture && electron-builder",
-    "dist:dir": "npm run build:capture && electron-builder --dir"
+    "dist": "npm run stamp && npm run build:capture && electron-builder",
+    "dist:dir": "npm run stamp && npm run build:capture && electron-builder --dir",
+    "stamp": "node ../scripts/stamp-build.js"
   },
   "devDependencies": {
     "electron": "^34.0.0",
@@ -35,6 +36,10 @@
       {
         "from": "../templates",
         "to": "templates"
+      },
+      {
+        "from": "build-info.json",
+        "to": "build-info.json"
       }
     ],
     "win": {

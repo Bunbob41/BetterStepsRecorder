@@ -59,4 +59,5 @@ contextBridge.exposeInMainWorld('bsr', {
   onHotkeys: (fn) => ipcRenderer.on('hotkeys', (_e, m) => fn(m)),
   onUndoDepth: (fn) => ipcRenderer.on('undo:depth', (_e, m) => fn(m)),
   onNotice: (fn) => ipcRenderer.on('notice', (_e, m) => fn(m)),
+  getBuild: () => ipcRenderer.invoke('app:build'),
 });

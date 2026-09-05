@@ -36,6 +36,7 @@ const el = {
   compactBar: $('compactbar'), cDot: $('c-dot'), cState: $('c-state'),
   cCount: $('c-count'), cPause: $('c-pause'), cStop: $('c-stop'),
   cElapsed: $('c-elapsed'),
+  build: $('build'),
   notice: $('notice'), noticeText: $('notice-text'),
   noticeSettings: $('notice-settings'), noticeClose: $('notice-close'),
   keysDlg: $('keysdlg'), kPause: $('k-pause'), kStop: $('k-stop'),
@@ -392,6 +393,7 @@ el.noticeSettings.addEventListener('click', async () => {
   el.notice.hidden = true;
   // Exactly what the Settings button does, so the link cannot drift from it.
   paintSettings(await window.bsr.getSettings());
+  paintBuild();
   el.dialog.showModal();
 });
 
@@ -1137,8 +1139,35 @@ function paintSettings(v) {
   el.qualityField.style.display = v.imageFormat === 'jpeg' ? 'flex' : 'none';
 }
 
+/**
+ * Which build this is. The version number is not enough on its own - it stayed
+ * at 0.1.0 across a day of changes - so the commit and the build time are shown
+ * with it, and the capture engine separately, since the two halves are built
+ * independently and a stale engine looks exactly like a fix that did not work.
+ */
+async function paintBuild() {
+  let b;
+  try { b = await window.bsr.getBuild(); } catch { return; }
+  if (!b) return;
+
+  const when = b.built ? new Date(b.built).toLocaleString() : b.source;
+  el.build.textContent = `${b.version} · ${b.commit} · ${when}`;
+
+  const engine = b.engineReported || b.engineBuilt;
+  if (engine) {
+    el.build.append(` · engine ${new Date(engine).toLocaleString()}`);
+  }
+  if (b.engineStale) {
+    const warn = document.createElement('span');
+    warn.className = 'stale';
+    warn.textContent = ' (engine older than the app)';
+    el.build.append(warn);
+  }
+}
+
 el.settingsBtn.addEventListener('click', async () => {
   paintSettings(await window.bsr.getSettings());
+  paintBuild();
   el.dialog.showModal();
 });
 
