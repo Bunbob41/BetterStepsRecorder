@@ -15,9 +15,9 @@
     "electron-builder": "^26.15.3"
   },
   "productName": "Steps Recorder",
-  "author": "Better World Solutions",
+  "author": "Bunbob41",
   "build": {
-    "appId": "com.betterworldsolutions.stepsrecorder",
+    "appId": "com.bunbob41.stepsrecorder",
     "productName": "Steps Recorder",
     "directories": {
       "output": "../dist",
