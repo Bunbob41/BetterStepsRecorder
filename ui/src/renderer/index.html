@@ -120,6 +120,7 @@
         <option value="html">HTML — one portable file, images embedded</option>
         <option value="pdf">PDF — for printing or sending on</option>
         <option value="md">Markdown — for a wiki or repo, images alongside</option>
+        <option value="template">Your SOP template — set it in Settings</option>
       </select>
     </label>
     <p class="note">Descriptions are rewritten as instructions
@@ -202,6 +203,17 @@
     <label class="field">
       <span>Footer</span>
       <input id="set-footer" type="text" placeholder="e.g. Internal use only" />
+    </label>
+
+    <label class="field">
+      <span>SOP template</span>
+      <div class="row">
+        <input id="set-template" type="text" readonly placeholder="None" />
+        <button id="set-template-pick">Choose…</button>
+        <button id="set-template-clear">Clear</button>
+      </div>
+      <small id="template-info">Render recordings into your organisation's own
+             SOP format. The template file is only ever read, never changed.</small>
     </label>
 
     <div class="dialog-actions">

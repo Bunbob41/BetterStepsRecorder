@@ -138,3 +138,28 @@ Installing it directly from the stdin thread is not an error and reports
 success - the hook simply never fires. That is exactly what happened, and it is
 why keyboard capture appeared to do nothing while every log line claimed it was
 on.
+
+
+## Templates
+
+An organisation's own SOP format can be rendered instead of ours. The template
+file is read and never written: it is a spine, and anything the engine does not
+recognise is left exactly as found rather than dropped, so a mistyped hook shows
+up as an untouched comment and is reported rather than silently removed.
+
+    <!-- PARSER_HOOK: INJECT_TITLE -->        one value, replaced in place
+    <!-- PARSER_HOOK: START_DYNAMIC_STEPS_LOOP -->
+    **{{number_prefix}}{{description}}**      the row, repeated per step
+    {{image_block}}
+    <!-- PARSER_HOOK: END_DYNAMIC_STEPS_LOOP -->
+
+HTML comments rather than bare placeholders at the top level, so the template
+stays a valid readable document in Word or a wiki before anything is injected.
+The loop body must contain {{placeholders}} or the engine falls back to a
+built-in row - which is a warning sign, since the point of the feature is that
+the organisation controls how a step looks.
+
+INJECT_REDACTION_SUMMARY reports what actually happened to THIS recording -
+password steps, masked values, blurred screenshots, excluded steps - rather than
+asserting a blanket guarantee. A compliance section that claims more than the
+tool did is worse than one that claims nothing.

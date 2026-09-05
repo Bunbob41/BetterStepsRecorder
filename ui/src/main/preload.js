@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('bsr', {
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
   chooseFolder: () => ipcRenderer.invoke('settings:chooseFolder'),
   chooseLogo: () => ipcRenderer.invoke('settings:chooseLogo'),
+  chooseTemplate: () => ipcRenderer.invoke('settings:chooseTemplate'),
 
   onStep:  (fn) => ipcRenderer.on('session:step',  (_e, m) => fn(m)),
   onSaved: (fn) => ipcRenderer.on('session:saved', (_e, m) => fn(m)),

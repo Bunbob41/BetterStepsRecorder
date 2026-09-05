@@ -24,6 +24,10 @@ A modern replacement for the deprecated Windows PSR.exe.
   step 17 without touching the other forty.
 - **Exports** to HTML (one portable file), PDF, or Markdown, rewritten as
   instructions: *Click Save* rather than *Clicked the Save button*.
+- **Renders into your own SOP format.** Point it at your organisation's template
+  and the output is their document - their headings, numbering, revision table
+  and approval block - with the recording injected into the marked slots. The
+  template file is only ever read. See `templates/corporate-sop.md`.
 
 ## Install
 

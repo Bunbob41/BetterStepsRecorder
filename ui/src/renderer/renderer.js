@@ -17,6 +17,8 @@ const el = {
   keyboard: $('set-keyboard'),
   brand: $('set-brand'), logo: $('set-logo'), logoPick: $('set-logo-pick'),
   logoClear: $('set-logo-clear'), footer: $('set-footer'),
+  template: $('set-template'), templatePick: $('set-template-pick'),
+  templateClear: $('set-template-clear'), templateInfo: $('template-info'),
   blur: $('btn-blur'), wrap: $('shot-wrap'), selection: $('selection'),
   exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
   expTitle: $('exp-title'), expFormat: $('exp-format'),
@@ -142,23 +144,26 @@ async function select(id) {
   el.blur.hidden = isNote;
   el.rerecord.hidden = isNote;
   el.text.placeholder = isNote ? 'Describe what the reader should do' : '';
-  el.meta.textContent = [
-    `Step ${steps.indexOf(step) + 1}`,
-    step.action,
-    step.window?.title ? `"${step.window.title}"` : null,
-    `${step.point.x}, ${step.point.y}`,
-    step.monitor ? `${Math.round(step.monitor.scale * 100)}% scaling` : null,
-    step.rerecordedAt ? 're-recorded' : null,
-    step.redacted ? 'redacted' : null,
-  ].filter(Boolean).join('   ·   ');
-
   el.indicator.style.display = 'none';
 
+  // Notes are handled before anything reads step geometry. A note has no
+  // `point`, and reading it threw part-way through this function, which left
+  // the PREVIOUS step's screenshot and details on screen.
   if (isNote) {
     el.shot.removeAttribute('src');
     el.meta.textContent = 'Written step — appears in the guide without a screenshot';
     return;
   }
+
+  el.meta.textContent = [
+    `Step ${steps.indexOf(step) + 1}`,
+    step.action,
+    step.window?.title ? `"${step.window.title}"` : null,
+    step.point ? `${step.point.x}, ${step.point.y}` : null,
+    step.monitor ? `${Math.round(step.monitor.scale * 100)}% scaling` : null,
+    step.rerecordedAt ? 're-recorded' : null,
+    step.redacted ? 'redacted' : null,
+  ].filter(Boolean).join('   ·   ');
 
   const url = await window.bsr.shotUrl(step.screenshot);
   // Cache-bust: a re-recorded step swaps the file behind the same <img>.
@@ -744,6 +749,7 @@ el.expGo.addEventListener('click', async () => {
   if (r.cancelled) return;
   if (!r.ok) { alert(r.error); return; }
   el.saveState.textContent = `Exported to ${r.file}`;
+  if (r.warning) alert(r.warning);
 });
 
 // ---- settings ----------------------------------------------------------------
@@ -754,6 +760,7 @@ function paintSettings(v) {
   el.brand.value = v.brandName || '';
   el.logo.value = v.brandLogo || '';
   el.footer.value = v.brandFooter || '';
+  el.template.value = v.templatePath || '';
   el.format.value = v.imageFormat;
   el.quality.value = v.imageQuality;
   el.qualityVal.textContent = String(v.imageQuality);
@@ -799,6 +806,24 @@ el.footer.addEventListener('change', async () => {
 el.logoPick.addEventListener('click', async () => {
   const r = await window.bsr.chooseLogo();
   if (r.ok) paintSettings(r.values);
+});
+
+el.templatePick.addEventListener('click', async () => {
+  const r = await window.bsr.chooseTemplate();
+  if (!r.ok) { if (r.error) alert(r.error); return; }
+  paintSettings(r.values);
+
+  // Say what the template declares, so a typo in a hook name is visible now
+  // rather than as a gap in a finished document.
+  const i = r.inspection || {};
+  const bits = [`${(i.hooks || []).length} hooks`];
+  if ((i.loops || []).length) bits.push(`${i.loops.length} repeating block(s)`);
+  if ((i.unpaired || []).length) bits.push(`unpaired: ${i.unpaired.join(', ')}`);
+  el.templateInfo.textContent = bits.join(' · ');
+});
+
+el.templateClear.addEventListener('click', async () => {
+  paintSettings(await window.bsr.setSettings({ templatePath: '' }));
 });
 
 el.logoClear.addEventListener('click', async () => {

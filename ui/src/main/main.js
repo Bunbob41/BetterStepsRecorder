@@ -8,6 +8,7 @@ const { Session } = require('./session');
 const { Settings } = require('./settings');
 const log = require('./log');
 const { buildHtml, buildMarkdown, copyImages } = require('./export');
+const templating = require('./template');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
 
@@ -493,7 +494,12 @@ ipcMain.handle('export:run', async (_e, { format, title }) => {
     html: [{ name: 'Web page', extensions: ['html'] }],
     md: [{ name: 'Markdown', extensions: ['md'] }],
     pdf: [{ name: 'PDF', extensions: ['pdf'] }],
+    template: [{ name: 'Document', extensions: ['md', 'html', 'txt'] }],
   }[format];
+
+  if (format === 'template' && !settings.values.templatePath) {
+    return { ok: false, error: 'Choose a template in Settings first.' };
+  }
 
   const chosen = await dialog.showSaveDialog(win, {
     title: 'Export steps',
@@ -518,6 +524,35 @@ ipcMain.handle('export:run', async (_e, { format, title }) => {
 
     } else if (format === 'pdf') {
       await exportPdf(safeTitle, out, brand);
+
+    } else if (format === 'template') {
+      const tpl = settings.values.templatePath;
+      if (!fs.existsSync(tpl)) {
+        return { ok: false, error: `The template is no longer at ${tpl}` };
+      }
+
+      // Read, never written: the organisation's format is the one thing this
+      // feature must not alter.
+      const source = fs.readFileSync(tpl, 'utf8');
+      const imageDir = `${path.basename(out, path.extname(out))}-images`;
+      const { text, report } = templating.render(source, session, {
+        title: safeTitle, imageDir, brand,
+      });
+
+      const copied = templating.copyImages(session, path.join(path.dirname(out), imageDir));
+      fs.writeFileSync(out, text, 'utf8');
+      log.info(`template export: ${report.filled.length} hooks filled, `
+               + `${report.unknown.length} unrecognised, ${copied} images`);
+
+      return {
+        ok: true,
+        file: out,
+        // Surfaced rather than swallowed: a mistyped hook silently produces a
+        // document with a gap in it, which nobody notices until an auditor does.
+        warning: report.unknown.length
+          ? `Unrecognised hooks left untouched: ${report.unknown.join(', ')}`
+          : null,
+      };
 
     } else {
       // Without this, an unrecognised format wrote nothing and still reported
@@ -685,6 +720,30 @@ ipcMain.handle('scope:get', () => ({ pids: scopePids, label: scopeLabel }));
 ipcMain.handle('settings:get', () => settings.values);
 
 ipcMain.handle('settings:set', (_e, patch) => settings.update(patch));
+
+ipcMain.handle('settings:chooseTemplate', async () => {
+  const r = await dialog.showOpenDialog(win, {
+    title: 'Choose an SOP template',
+    filters: [{ name: 'Templates', extensions: ['md', 'html', 'txt'] }],
+    properties: ['openFile'],
+  });
+  if (r.canceled || !r.filePaths[0]) return { ok: false };
+
+  // Report what the template declares, so a broken one is caught when it is
+  // chosen rather than at export time.
+  let inspection = null;
+  try {
+    inspection = templating.inspect(fs.readFileSync(r.filePaths[0], 'utf8'));
+  } catch (err) {
+    return { ok: false, error: `Could not read that template: ${err.message}` };
+  }
+
+  return {
+    ok: true,
+    values: settings.update({ templatePath: r.filePaths[0] }),
+    inspection,
+  };
+});
 
 ipcMain.handle('settings:chooseLogo', async () => {
   const r = await dialog.showOpenDialog(win, {
