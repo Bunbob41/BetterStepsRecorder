@@ -46,6 +46,25 @@ class Session {
     return token;
   }
 
+  /**
+   * Deletes one stashed file. Called when its undo entry falls off the end of
+   * the history: a pre-blur original is exactly the pixels the user redacted,
+   * so it must not outlive the ability to restore it.
+   */
+  discard(token) {
+    if (!token) return;
+    try { fs.unlinkSync(path.join(this.trashDir, token)); } catch { /* already gone */ }
+  }
+
+  /**
+   * Removes the trash entirely. Undo covers a slip while the session is open;
+   * once it closes, keeping unredacted originals beside a redacted guide is
+   * precisely the thing blur exists to prevent.
+   */
+  purgeTrash() {
+    try { fs.rmSync(this.trashDir, { recursive: true, force: true }); } catch { /* fine */ }
+  }
+
   /** Puts a stashed screenshot back at its original path. */
   restore(token, relative) {
     if (!token || !relative) return false;
@@ -160,7 +179,8 @@ class Session {
     // Delete the screenshot too. A step is often deleted precisely because the
     // frame showed something it should not, and leaving the file behind means
     // zipping or syncing the session folder still carries it. It is stashed
-    // first so an undo can restore it; the trash goes when the session closes.
+    // first so an undo can restore it; purgeTrash() clears it when the session
+    // closes or is replaced.
     let token = null;
     if (doomed.screenshot && !this.steps.some((s) => s.screenshot === doomed.screenshot)) {
       token = this.stash(doomed.screenshot);

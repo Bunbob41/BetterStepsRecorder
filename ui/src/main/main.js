@@ -28,8 +28,26 @@ const UNDO_LIMIT = 25;
 
 function pushUndo(entry) {
   undoStack.push(entry);
-  if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  while (undoStack.length > UNDO_LIMIT) {
+    // Once an entry can no longer be undone, its stashed original is just a
+    // copy of redacted pixels sitting on disk. Drop the file with the entry.
+    const dropped = undoStack.shift();
+    for (const t of tokensOf(dropped)) if (session) session.discard(t);
+  }
   send('undo:depth', { depth: undoStack.length });
+}
+
+function tokensOf(entry) {
+  if (!entry) return [];
+  if (entry.type === 'deleteMany') return entry.removals.map((r) => r.token).filter(Boolean);
+  return entry.token ? [entry.token] : [];
+}
+
+/** Closes the current session: history goes, and so do the stashed originals. */
+function closeSession() {
+  if (session) session.purgeTrash();
+  undoStack = [];
+  send('undo:depth', { depth: 0 });
 }
 
 // Chosen to avoid colliding with anything common. Ctrl+Shift+F9/F10 are not
@@ -90,7 +108,7 @@ function wireSidecar() {
 
   sidecar.on('ready', (m) => send('sidecar:ready', m));
   sidecar.on('log', (m) => send('sidecar:log', m));
-  sidecar.on('error', (m) => send('sidecar:error', m));
+  sidecar.on('error', (m) => { leaveCompact(); send('sidecar:error', m); });
 
   sidecar.on('step', (step) => {
     if (!session) return;
@@ -109,7 +127,12 @@ function wireSidecar() {
     send('session:saved', { dir: session.dir, count: session.steps.length });
   });
 
-  sidecar.on('exit', (code) => send('sidecar:exit', { code }));
+  sidecar.on('exit', (code) => {
+    // Without this, an engine killed by antivirus or a crash leaves the window
+    // as a floating strip with every other control hidden and no way back.
+    leaveCompact();
+    send('sidecar:exit', { code });
+  });
 }
 
 process.on('uncaughtException', (err) => log.error(err));
@@ -151,9 +174,11 @@ function registerHotkeys() {
   });
 
   const stopped = globalShortcut.register(HOTKEY_STOP, () => {
+    // Restore first and unconditionally. Gating this on the engine still
+    // running is how the window got stranded as a strip with no way back.
+    leaveCompact();
     if (!sidecar || !sidecar.running) return;
     recordingPaused = false;
-    leaveCompact();
     sidecar.stop();
     log.info('hotkey: stopped');
     send('hotkey', { action: 'stopped' });
@@ -173,7 +198,10 @@ app.on('window-all-closed', () => {
 });
 
 // A global mouse hook must never outlive the UI.
-app.on('before-quit', () => { if (sidecar) sidecar.stop(); });
+app.on('before-quit', () => {
+  if (sidecar) sidecar.stop();
+  closeSession();
+});
 process.on('exit', () => { if (sidecar) sidecar.kill(); });
 
 // ---- recording mode ---------------------------------------------------------
@@ -189,7 +217,9 @@ function enterCompact() {
   if (!win || fullBounds) return;
   fullBounds = win.getBounds();
 
-  const { workArea } = screen.getPrimaryDisplay();
+  // The display the window is on, not the primary one: otherwise the strip
+  // teleports across and lands on top of the application being recorded.
+  const { workArea } = screen.getDisplayMatching(fullBounds);
   win.setMinimumSize(280, 110);
   win.setBounds({
     ...COMPACT,
@@ -198,6 +228,7 @@ function enterCompact() {
   });
   win.setAlwaysOnTop(true, 'floating');
   send('mode', { compact: true });
+  win.webContents.invalidate();
 }
 
 function leaveCompact() {
@@ -207,6 +238,14 @@ function leaveCompact() {
   win.setBounds(fullBounds);
   fullBounds = null;
   send('mode', { compact: false });
+
+  // The layout is correct after this resize but the compositor is not: the
+  // screenshot's layer keeps painting at its pre-resize offset, over the
+  // toolbar, swallowing clicks meant for the buttons underneath. Verified by
+  // reading getBoundingClientRect, which reported the right position while the
+  // screen showed the wrong one. invalidate() forces a full repaint.
+  win.webContents.invalidate();
+
 }
 
 // ---- renderer API -----------------------------------------------------------
@@ -244,15 +283,15 @@ ipcMain.handle('recording:start', async () => {
   const dir = path.join(settings.values.saveRoot,
     `session-${new Date().toISOString().replace(/[:.]/g, '-')}`);
   log.info(`creating session at ${dir}`);
+  closeSession();
   session = new Session(dir);
   session.rename(new Date().toLocaleString());
-  undoStack = [];
 
-  await ensureSidecar();
+  const booted = await ensureSidecar();
+  if (!booted.ok) return booted;
 
   // Our own process, so clicking Stop does not become the last recorded step.
-  enterCompact();
-  sidecar.startSession(dir, [process.pid], {
+  const started = sidecar.startSession(dir, [process.pid], {
     imageFormat: settings.values.imageFormat,
     imageQuality: settings.values.imageQuality,
     imageScale: settings.values.imageScale,
@@ -262,9 +301,22 @@ ipcMain.handle('recording:start', async () => {
     // So pressing the stop hotkey is not itself the final recorded step.
     hotkeys: ['Ctrl+Shift+F9', 'Ctrl+Shift+F10'],
   });
+
+  if (!started) {
+    return { ok: false, error: 'The capture engine did not accept the recording.' };
+  }
+
+  // Only once recording is genuinely under way: shrinking for a start that
+  // failed leaves the user in a strip with nothing recording.
+  enterCompact();
   send('session:saved', { dir, count: 0 });
   return { ok: true, dir, scope: scopeLabel, name: session.name };
 });
+
+// The renderer calls this whenever it believes recording has ended. Compact
+// mode is a property of the UI, so it must not be exitable only through paths
+// that happen to know about the capture engine.
+ipcMain.handle('ui:restore', () => { leaveCompact(); return { ok: true }; });
 
 ipcMain.handle('recording:pause',  () => { recordingPaused = true;  sidecar.pause();  return { ok: true }; });
 ipcMain.handle('recording:resume', () => { recordingPaused = false; sidecar.resume(); return { ok: true }; });
@@ -295,6 +347,25 @@ ipcMain.handle('step:remove', (_e, { id }) => {
   return true;
 });
 
+/**
+ * Removes several steps as a single undoable action. Deleting twenty steps and
+ * pressing Ctrl+Z twenty times to get them back is not undo, and a selection
+ * larger than UNDO_LIMIT would have been partly unrecoverable.
+ */
+ipcMain.handle('step:removeMany', (_e, { ids }) => {
+  if (!session || !Array.isArray(ids) || !ids.length) return { ok: false };
+
+  const removals = [];
+  for (const id of ids) {
+    const removed = session.removeStep(id);
+    if (removed) removals.push(removed);
+  }
+  if (!removals.length) return { ok: false };
+
+  pushUndo({ type: 'deleteMany', removals });
+  return { ok: true, removed: removals.length, steps: session.steps };
+});
+
 ipcMain.handle('edit:undo', () => {
   if (!session || !undoStack.length) return { ok: false, empty: true };
   const entry = undoStack.pop();
@@ -304,6 +375,15 @@ ipcMain.handle('edit:undo', () => {
     if (entry.token) session.restore(entry.token, entry.step.screenshot);
     session.insertAt(entry.index, entry.step);
     return { ok: true, action: 'delete', steps: session.steps };
+  }
+
+  if (entry.type === 'deleteMany') {
+    // Reverse order, so each index means what it meant when that step was cut.
+    for (const r of [...entry.removals].reverse()) {
+      if (r.token) session.restore(r.token, r.step.screenshot);
+      session.insertAt(r.index, r.step);
+    }
+    return { ok: true, action: 'deleteMany', steps: session.steps };
   }
 
   if (entry.type === 'redact') {
@@ -367,13 +447,24 @@ ipcMain.handle('step:redact', (_e, { id, dataUrl }) => {
   // design; that is only defensible if a slip is recoverable while the session
   // is open.
   const token = session.stash(step.screenshot);
-  pushUndo({ type: 'redact', step: { ...step }, token, wasRedacted: step.redacted === true });
 
   // Write beside the original and rename over it, so an interrupted write
-  // cannot leave a truncated screenshot where a real one used to be.
+  // cannot leave a truncated screenshot where a real one used to be. A locked
+  // or read-only file must come back as an error, not as a rejected promise
+  // the renderer swallows in a mouse handler.
   const temp = file + '.tmp';
-  fs.writeFileSync(temp, bytes);
-  fs.renameSync(temp, file);
+  try {
+    fs.writeFileSync(temp, bytes);
+    fs.renameSync(temp, file);
+  } catch (err) {
+    session.discard(token);
+    try { fs.unlinkSync(temp); } catch { /* may not exist */ }
+    log.error(err);
+    return { ok: false, error: `Could not update the screenshot: ${err.message}` };
+  }
+
+  // Recorded only now: a redaction that failed must not occupy an undo slot.
+  pushUndo({ type: 'redact', step: { ...step }, token, wasRedacted: step.redacted === true });
 
   const updated = session.updateStep(id, {
     redacted: true,
@@ -381,6 +472,7 @@ ipcMain.handle('step:redact', (_e, { id, dataUrl }) => {
   });
 
   log.info(`redacted step ${id}`);
+
   return { ok: true, step: updated };
 });
 
@@ -567,8 +659,8 @@ ipcMain.handle('library:open', (_e, { dir }) => {
   if (!dir || !fs.existsSync(path.join(dir, 'session.json'))) {
     return { ok: false, error: 'That recording is no longer there.' };
   }
+  closeSession();
   session = Session.load(dir);
-  undoStack = [];
   return { ok: true, dir: session.dir, name: session.name, steps: session.steps };
 });
 

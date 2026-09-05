@@ -15,3 +15,7 @@ scratch/
 # Packaging output
 dist/
 capture/bin/packed/
+
+# Python
+__pycache__/
+*.pyc

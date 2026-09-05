@@ -47,6 +47,10 @@ function setState(next) {
     next === 'recording' ? 'Recording' : next === 'paused' ? 'Paused' : 'Idle';
 
   el.record.disabled = next !== 'idle';
+  // Safety net: idle and compact is a dead end, so never allow the pair.
+  if (next === 'idle' && document.body.classList.contains('compact')) {
+    window.bsr.restoreWindow();
+  }
   el.pause.disabled = next === 'idle';
   el.stop.disabled = next === 'idle';
   el.pause.textContent = next === 'paused' ? 'Resume' : 'Pause';
@@ -225,13 +229,13 @@ el.open.addEventListener('click', async () => {
 
 async function deleteSelection() {
   const ids = marked.size ? [...marked] : (selectedId ? [selectedId] : []);
-  // Deleting several at once should read as one action in the list.
   if (!ids.length) return;
 
-  // Deleted newest-last so each undo entry restores to the right index.
-  for (const id of ids) await window.bsr.removeStep(id);
+  // One call, so the whole selection is a single undoable action.
+  const r = await window.bsr.removeSteps(ids);
+  if (!r.ok) return;
 
-  steps = steps.filter((s) => !ids.includes(s.id));
+  steps = r.steps;
   marked.clear();
   selectedId = null;
   el.detailBody.hidden = true;
@@ -249,6 +253,10 @@ el.del.addEventListener('click', deleteSelection);
 document.addEventListener('keydown', async (e) => {
   const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
 
+  // A modal is a modal: undoing behind Settings or Export changes the recording
+  // where the user cannot see it happen.
+  if (document.querySelector('dialog[open]')) return;
+
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) {
     e.preventDefault();
     const r = await window.bsr.undo();
@@ -260,7 +268,7 @@ document.addEventListener('keydown', async (e) => {
     return;
   }
 
-  if (typing || document.querySelector('dialog[open]')) return;
+  if (typing) return;
 
   if (e.key === 'Delete') { e.preventDefault(); deleteSelection(); return; }
 
@@ -589,10 +597,20 @@ window.bsr.onUndoDepth(({ depth }) => {
 window.bsr.onMode(({ compact }) => {
   document.body.classList.toggle('compact', compact);
   el.compactBar.hidden = !compact;
+
+  // The repaint after the resize is forced in the main process; the DOM here
+  // was never wrong.
 });
 
-el.cPause.addEventListener('click', () => el.pause.click());
-el.cStop.addEventListener('click', () => el.stop.click());
+el.cPause.addEventListener('click', () => { if (!el.pause.disabled) el.pause.click(); });
+
+el.cStop.addEventListener('click', async () => {
+  // Not el.stop.click(): the toolbar button is disabled while idle, so
+  // delegating to it left the strip with a Stop that did nothing.
+  await window.bsr.stopRecording();
+  setState('idle');
+  renderLibrary();
+});
 
 window.bsr.onHotkey(({ action }) => {
   if (action === 'paused') setState('paused');
@@ -611,7 +629,7 @@ let dragStart = null;
 el.blur.addEventListener('click', () => {
   blurArming = !blurArming;
   el.blur.classList.toggle('active', blurArming);
-  el.wrap.classList.toggle('arming', blurArming);
+  el.wrap.classList.toggle('selecting', blurArming);
   el.selection.hidden = true;
 });
 
@@ -696,7 +714,14 @@ async function applyBlur(sel, displayedWidth) {
   ctx.restore();
 
   const out = canvas.toDataURL('image/png');
-  const r = await window.bsr.redactStep(step.id, out);
+
+  let r;
+  try {
+    r = await window.bsr.redactStep(step.id, out);
+  } catch (err) {
+    alert(`Could not blur that area: ${err.message}`);
+    return;
+  }
   if (!r.ok) { alert(r.error); return; }
 
   steps[steps.indexOf(step)] = r.step;

@@ -137,6 +137,42 @@ check('a long name is trimmed', u.rename('x'.repeat(500)).length === 120);
 
 fs.rmSync(u.dir, { recursive: true, force: true });
 
+
+// 11. the trash must not outlive the ability to undo. A stashed file is the
+// pre-blur original: exactly the pixels the user redacted.
+const t = new Session(path.join(os.tmpdir(), 'bsr-trash-' + Date.now()));
+fs.mkdirSync(path.join(t.dir, 'steps'), { recursive: true });
+fs.writeFileSync(path.join(t.dir, 'steps', 'a.png'), 'secret');
+t.addStep(mk('a', 'Clicked a'));
+
+const stashed = t.stash('steps/a.png');
+check('stash copies the file aside', fs.existsSync(path.join(t.dir, '.trash', stashed)));
+check('the original is untouched by stashing',
+      fs.readFileSync(path.join(t.dir, 'steps', 'a.png'), 'utf8') === 'secret');
+
+t.discard(stashed);
+check('discard removes one stashed file', !fs.existsSync(path.join(t.dir, '.trash', stashed)));
+t.discard('does-not-exist');
+check('discarding an unknown token does not throw', true);
+
+const s2 = t.stash('steps/a.png');
+const s3 = t.stash('steps/a.png');
+check('two stashes of the same file do not collide', s2 !== s3);
+check('both exist', fs.existsSync(path.join(t.dir, '.trash', s2))
+                  && fs.existsSync(path.join(t.dir, '.trash', s3)));
+
+t.purgeTrash();
+check('purgeTrash removes the whole trash folder', !fs.existsSync(t.trashDir));
+check('purging leaves the recording intact',
+      fs.existsSync(path.join(t.dir, 'steps', 'a.png')) && t.steps.length === 1);
+t.purgeTrash();
+check('purging an already-clean session does not throw', true);
+
+// after purging, a restore must fail rather than half-succeed
+check('restore after purge reports failure', t.restore(s2, 'steps/a.png') === false);
+
+fs.rmSync(t.dir, { recursive: true, force: true });
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

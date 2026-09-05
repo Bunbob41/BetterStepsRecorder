@@ -187,13 +187,16 @@ dialog h2 { margin: 0 0 16px; font-size: 15px; }
 .field input[type=range] { accent-color: var(--accent); }
 .dialog-actions { display: flex; justify-content: flex-end; }
 
-.arming {
+/* Scoped to the id. As a bare class this also matched .shot-wrap.arming, which
+   the blur tool sets - turning the screenshot wrapper into a full-screen fixed
+   overlay across the toolbar that swallowed every click. */
+#arming {
   position: fixed; inset: 0;
   background: rgba(0,0,0,.7);
   display: grid; place-items: center;
   z-index: 10;
 }
-.arming[hidden] { display: none; }
+#arming[hidden] { display: none; }
 .arming-card {
   background: var(--panel);
   border: 1px solid var(--accent);
@@ -226,8 +229,8 @@ dialog h2 { margin: 0 0 16px; font-size: 15px; }
   pointer-events: none;
 }
 .selection[hidden] { display: none; }
-.shot-wrap.arming { cursor: crosshair; }
-.shot-wrap.arming img { user-select: none; }
+.shot-wrap.selecting { cursor: crosshair; }
+.shot-wrap.selecting img { user-select: none; }
 
 #btn-blur.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 

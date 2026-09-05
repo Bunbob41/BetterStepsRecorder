@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('bsr', {
   pauseRecording: () => ipcRenderer.invoke('recording:pause'),
   resumeRecording: () => ipcRenderer.invoke('recording:resume'),
   stopRecording: () => ipcRenderer.invoke('recording:stop'),
+  restoreWindow: () => ipcRenderer.invoke('ui:restore'),
 
   getSession: () => ipcRenderer.invoke('session:get'),
   openSession: () => ipcRenderer.invoke('session:open'),
@@ -14,6 +15,7 @@ contextBridge.exposeInMainWorld('bsr', {
   updateStep: (id, patch) => ipcRenderer.invoke('step:update', { id, patch }),
   addNote: (text, afterId) => ipcRenderer.invoke('step:addNote', { text, afterId }),
   removeStep: (id) => ipcRenderer.invoke('step:remove', { id }),
+  removeSteps: (ids) => ipcRenderer.invoke('step:removeMany', { ids }),
   rerecordStep: (id) => ipcRenderer.invoke('step:rerecord', { id }),
   reorderStep: (from, to) => ipcRenderer.invoke('step:reorder', { from, to }),
   shotUrl: (screenshot) => ipcRenderer.invoke('shot:url', { screenshot }),
