@@ -156,7 +156,8 @@ app.whenReady().then(() => {
 
   log.init(app.getPath('userData'));
   registerHotkeys();
-  settings = new Settings(app.getPath('userData'));
+  settings = new Settings(app.getPath('userData'),
+                          { documentsDir: app.getPath('documents') });
   log.info(`settings: ${JSON.stringify(settings.values)}`);
   wireSidecar();
   createWindow();

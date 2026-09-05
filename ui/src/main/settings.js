@@ -2,6 +2,22 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 
+/**
+ * `documentsDir` is passed in rather than derived from the home directory.
+ * Windows redirects Documents when OneDrive's Known Folder Move is on - a very
+ * common setup - and `%USERPROFILE%\Documents` may then not exist at all, so
+ * recordings would be written somewhere the user never looks, or fail the
+ * writability check outright. Electron's app.getPath('documents') resolves the
+ * real folder.
+ */
+function defaults(documentsDir) {
+  return {
+    ...DEFAULTS,
+    saveRoot: path.join(documentsDir || path.join(os.homedir(), 'Documents'),
+                        'StepRecordings'),
+  };
+}
+
 const DEFAULTS = {
   saveRoot: path.join(os.homedir(), 'Documents', 'StepRecordings'),
   imageFormat: 'png',   // png | jpeg
@@ -16,9 +32,10 @@ const DEFAULTS = {
 };
 
 class Settings {
-  constructor(userDataDir) {
+  constructor(userDataDir, { documentsDir = '' } = {}) {
     this.file = path.join(userDataDir, 'settings.json');
-    this.values = { ...DEFAULTS };
+    this.defaults = defaults(documentsDir);
+    this.values = { ...this.defaults };
     this.load();
   }
 
@@ -27,9 +44,9 @@ class Settings {
       const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
       // Merge over defaults so a settings file written by an older version
       // never leaves a new key undefined.
-      this.values = { ...DEFAULTS, ...raw };
+      this.values = { ...this.defaults, ...raw };
     } catch {
-      this.values = { ...DEFAULTS };
+      this.values = { ...this.defaults };
     }
     this.#clamp();
     return this.values;
@@ -53,7 +70,7 @@ class Settings {
     for (const k of ['brandName', 'brandLogo', 'brandFooter', 'templatePath']) {
       v[k] = typeof v[k] === 'string' ? v[k].slice(0, 400) : '';
     }
-    if (typeof v.saveRoot !== 'string' || !v.saveRoot.trim()) v.saveRoot = DEFAULTS.saveRoot;
+    if (typeof v.saveRoot !== 'string' || !v.saveRoot.trim()) v.saveRoot = this.defaults.saveRoot;
   }
 
   /** True if the configured save location is actually writable right now. */
@@ -70,4 +87,4 @@ class Settings {
   }
 }
 
-module.exports = { Settings, DEFAULTS };
+module.exports = { Settings, DEFAULTS, defaults };

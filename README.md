@@ -38,12 +38,18 @@ A modern replacement for the deprecated Windows PSR.exe.
 ## Install
 
 Download `StepsRecorder-Setup-<version>.exe` and run it. Installs per-user, so
-no administrator prompt.
+no administrator prompt, and nothing else is required — no .NET, no Node. It
+runs on Windows 10 (1607 or later) and Windows 11, x64.
 
-> The binary is not code-signed yet. Windows SmartScreen will warn on first run
-> ("More info" → "Run anyway"), and some endpoint protection may flag it: a tool
-> that hooks input and takes screenshots looks, structurally, like a keylogger.
-> The source is here to audit.
+> **Windows will warn you the first time.** The binary is not code-signed yet,
+> so SmartScreen shows "Windows protected your PC" — choose **More info** then
+> **Run anyway**. Some endpoint protection may also object: a tool that hooks
+> input, takes screenshots and writes them to disk looks, structurally, like a
+> keylogger. That is a fair thing for antivirus to be suspicious of, which is
+> why the source is here to audit.
+
+Recordings go to `Documents\StepRecordings` by default, and nothing leaves the
+machine — there is no account, no telemetry and no network use of any kind.
 
 ## Using it
 
