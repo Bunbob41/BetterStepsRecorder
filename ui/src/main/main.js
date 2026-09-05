@@ -9,6 +9,7 @@ const { Settings } = require('./settings');
 const log = require('./log');
 const { buildHtml, buildMarkdown, copyImages } = require('./export');
 const templating = require('./template');
+const docx = require('./docx');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
 
@@ -494,7 +495,9 @@ ipcMain.handle('export:run', async (_e, { format, title }) => {
     html: [{ name: 'Web page', extensions: ['html'] }],
     md: [{ name: 'Markdown', extensions: ['md'] }],
     pdf: [{ name: 'PDF', extensions: ['pdf'] }],
-    template: [{ name: 'Document', extensions: ['md', 'html', 'txt'] }],
+    template: settings.values.templatePath.toLowerCase().endsWith('.docx')
+      ? [{ name: 'Word document', extensions: ['docx'] }]
+      : [{ name: 'Document', extensions: ['md', 'html', 'txt'] }],
   }[format];
 
   if (format === 'template' && !settings.values.templatePath) {
@@ -529,6 +532,27 @@ ipcMain.handle('export:run', async (_e, { format, title }) => {
       const tpl = settings.values.templatePath;
       if (!fs.existsSync(tpl)) {
         return { ok: false, error: `The template is no longer at ${tpl}` };
+      }
+
+      // Word templates go through their own renderer: a .docx is a zip of XML
+      // parts, and Word splits a typed placeholder across runs, so it cannot be
+      // filled by string replacement the way a Markdown file can.
+      if (tpl.toLowerCase().endsWith('.docx')) {
+        const { buffer, missing } = await docx.render(tpl, session, {
+          title: safeTitle,
+          brand,
+          redactionSummary: templating.redactionSummary(session.steps),
+        });
+        fs.writeFileSync(out, buffer);
+        log.info(`docx export: ${(buffer.length / 1024).toFixed(0)}KB, `
+                 + `${missing.length} missing images`);
+        return {
+          ok: true,
+          file: out,
+          warning: missing.length
+            ? `${missing.length} screenshot(s) were missing and left out`
+            : null,
+        };
       }
 
       // Read, never written: the organisation's format is the one thing this
@@ -724,7 +748,7 @@ ipcMain.handle('settings:set', (_e, patch) => settings.update(patch));
 ipcMain.handle('settings:chooseTemplate', async () => {
   const r = await dialog.showOpenDialog(win, {
     title: 'Choose an SOP template',
-    filters: [{ name: 'Templates', extensions: ['md', 'html', 'txt'] }],
+    filters: [{ name: 'Templates', extensions: ['docx', 'md', 'html', 'txt'] }],
     properties: ['openFile'],
   });
   if (r.canceled || !r.filePaths[0]) return { ok: false };
@@ -733,7 +757,9 @@ ipcMain.handle('settings:chooseTemplate', async () => {
   // chosen rather than at export time.
   let inspection = null;
   try {
-    inspection = templating.inspect(fs.readFileSync(r.filePaths[0], 'utf8'));
+    inspection = r.filePaths[0].toLowerCase().endsWith('.docx')
+      ? await docx.inspect(r.filePaths[0])
+      : templating.inspect(fs.readFileSync(r.filePaths[0], 'utf8'));
   } catch (err) {
     return { ok: false, error: `Could not read that template: ${err.message}` };
   }

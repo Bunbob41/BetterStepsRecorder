@@ -163,3 +163,23 @@ INJECT_REDACTION_SUMMARY reports what actually happened to THIS recording -
 password steps, masked values, blurred screenshots, excluded steps - rather than
 asserting a blanket guarantee. A compliance section that claims more than the
 tool did is worse than one that claims nothing.
+
+
+### Word templates
+
+A .docx template uses ordinary typed placeholders, because Word cannot hold an
+HTML comment:
+
+    {{title}}                              a value
+    {{FOR s IN steps}} ... {{END-FOR s}}   a repeated block
+    {{IMAGE shot($s)}}                     that step's screenshot, embedded
+
+Word habitually splits a typed placeholder across several runs - a spell-check
+mark is enough - so the runs must be normalised before matching. That is the
+whole reason this path uses docx-templates rather than string replacement on
+document.xml, which is what makes naive .docx filling fail on real templates
+that people have edited.
+
+Screenshots are embedded into the package, sized from their intrinsic
+dimensions so they are not stretched. A screenshot that has gone missing is
+reported and left out rather than aborting the export.

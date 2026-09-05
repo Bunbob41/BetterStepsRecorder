@@ -17,6 +17,7 @@ const el = {
   keyboard: $('set-keyboard'),
   brand: $('set-brand'), logo: $('set-logo'), logoPick: $('set-logo-pick'),
   logoClear: $('set-logo-clear'), footer: $('set-footer'),
+  optTemplate: $('opt-template'),
   template: $('set-template'), templatePick: $('set-template-pick'),
   templateClear: $('set-template-clear'), templateInfo: $('template-info'),
   blur: $('btn-blur'), wrap: $('shot-wrap'), selection: $('selection'),
@@ -761,6 +762,10 @@ function paintSettings(v) {
   el.logo.value = v.brandLogo || '';
   el.footer.value = v.brandFooter || '';
   el.template.value = v.templatePath || '';
+  const tpl = (v.templatePath || '').split(/[\/]/).pop();
+  el.optTemplate.textContent = tpl
+    ? `Your SOP template — ${tpl}`
+    : 'Your SOP template — set it in Settings';
   el.format.value = v.imageFormat;
   el.quality.value = v.imageQuality;
   el.qualityVal.textContent = String(v.imageQuality);

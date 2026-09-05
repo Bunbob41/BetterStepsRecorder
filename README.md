@@ -27,7 +27,9 @@ A modern replacement for the deprecated Windows PSR.exe.
 - **Renders into your own SOP format.** Point it at your organisation's template
   and the output is their document - their headings, numbering, revision table
   and approval block - with the recording injected into the marked slots. The
-  template file is only ever read. See `templates/corporate-sop.md`.
+  template file is only ever read. Markdown, HTML or **Word**: point it at a
+  .docx and the recording is injected into that document, screenshots embedded.
+  See `templates/corporate-sop.md` and `templates/corporate-sop.docx`.
 
 ## Install
 

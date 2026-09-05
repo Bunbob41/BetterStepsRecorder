@@ -53,5 +53,8 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Steps Recorder"
     }
+  },
+  "dependencies": {
+    "docx-templates": "^4.15.0"
   }
 }
