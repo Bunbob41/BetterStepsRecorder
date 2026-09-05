@@ -1,0 +1,462 @@
+# Field Guide
+
+This explains what Steps Recorder is, what every piece of it does and why it
+exists, without assuming you write code. If you read only this document you
+should still be able to hold a sensible conversation about how the whole thing
+works.
+
+The companion document, [ENGINEERING.md](ENGINEERING.md), is the technical
+master record. This one is the map.
+
+---
+
+## 1. What the product is
+
+You press record. You do a task on your computer — clicking, typing, dragging.
+Every action is captured with a screenshot, and named in words: *Clicked the
+"Save" button in "Billing"*. You press stop, tidy the result, and export it as a
+document somebody else can follow.
+
+It replaces `PSR.exe`, the Problem Steps Recorder that shipped with Windows for
+years and was removed. PSR was crude but genuinely useful, and nothing replaced
+it.
+
+---
+
+## 2. The one structural idea: it is two programs, not one
+
+This is the single most important thing to understand, because almost every
+other design decision follows from it.
+
+```mermaid
+flowchart LR
+    subgraph you["What you see"]
+        UI["<b>The window</b><br/>Electron app<br/>JavaScript, HTML, CSS"]
+    end
+
+    subgraph hidden["What you never see"]
+        ENG["<b>The capture engine</b><br/>Console program<br/>C# / .NET"]
+    end
+
+    disk[("<b>The recording</b><br/>a folder on disk<br/>session.json + screenshots")]
+
+    UI -->|"commands:<br/>start, pause, stop"| ENG
+    ENG -->|"one step at a time,<br/>as they happen"| UI
+    ENG -->|writes screenshots| disk
+    UI -->|writes step details| disk
+
+    OS["<b>Windows itself</b><br/>mouse, keyboard,<br/>other applications"]
+    OS -.->|"input hooks<br/>see everything"| ENG
+```
+
+**Why two programs?** Because neither one could do the whole job.
+
+The window is built with **Electron**, which is essentially the Google Chrome
+browser wrapped up so it can be shipped as a desktop application. That gives us
+a fast, modern interface for free. But a browser is deliberately sealed off from
+the rest of the computer — that is the entire point of a browser. It cannot
+watch your mouse when you are in another application, cannot read the name of a
+button inside Microsoft Word, and cannot take a screenshot of Excel.
+
+The capture engine is a small **C#** program with no window at all. C# can reach
+directly into Windows itself, which is exactly what capturing requires.
+
+So the window is the part you talk to, and the engine is the part that watches.
+They are separate processes: the engine is launched by the window when the app
+starts, and shut down when it closes.
+
+### How the two halves talk
+
+They exchange **one line of text at a time**, in a format called JSON — the same
+sort of structured text a website uses to send data. The window writes a line
+saying "start recording"; the engine writes back a line for every step it
+captures.
+
+It is deliberately dull. Text lines over a pipe are easy to log, easy to read
+when something goes wrong, and impossible to get subtly wrong in the way a
+shared block of memory can be. The exact list of messages is written down in
+[ipc-contract.md](ipc-contract.md).
+
+---
+
+## 3. The jargon, defined once
+
+You will meet these terms repeatedly. None of them are complicated.
+
+| Term | What it actually means |
+|---|---|
+| **Electron** | Chrome, packaged as a desktop app. Our window is a web page. |
+| **Chromium** | The open-source browser engine inside Chrome and Electron. |
+| **Node.js** | JavaScript running outside a browser, with access to files and processes. Electron contains both. |
+| **.NET / C#** | Microsoft's programming platform and language. The capture engine's world. |
+| **Win32** | The decades-old core interface to Windows. Low-level, unglamorous, and the only way to do several things we need. |
+| **UI Automation (UIA)** | A Windows service that lets one program ask another *what is this button called?* Built for screen readers. It is how we name what you clicked. |
+| **Hook** | A standing request to Windows: *tell me about every mouse click / key press on this machine*. |
+| **DPI scaling** | Windows enlarging everything on a high-resolution screen, typically to 125% or 150%. A constant source of "the screenshot is the wrong size" bugs. |
+| **IPC** | Inter-Process Communication. Two programs talking. Ours is JSON over a pipe. |
+| **NSIS** | The system that builds the `Setup.exe` installer. |
+| **Sidecar** | Our nickname for the capture engine — a helper process running alongside the main one. |
+
+---
+
+## 4. What happens when you record
+
+```mermaid
+sequenceDiagram
+    participant You
+    participant Window as The window (Electron)
+    participant Engine as Capture engine (C#)
+    participant Windows as Windows
+    participant Disk as The session folder
+
+    You->>Window: Press Record
+    Window->>You: "What is this recording for?"
+    Note over Window,You: procedure, training guide,<br/>or evidence record — this<br/>changes how it is written later
+    Window->>Engine: start (scope, format, hotkeys to ignore)
+    Engine->>Windows: install mouse and keyboard hooks
+    Window->>Window: shrink to a small floating strip
+
+    loop every action you take
+        Windows-->>Engine: a click happened at x,y
+        Engine->>Engine: is this in scope? if not, discard now
+        Engine->>Windows: what window and control is there?
+        Windows-->>Engine: "Save button, Billing window"
+        Engine->>Disk: write the screenshot
+        Engine-->>Window: a step happened, here is what it was
+        Window->>Window: add it to the list, live
+    end
+
+    You->>Window: Press Stop (or Ctrl+Shift+F10 anywhere)
+    Window->>Engine: stop
+    Window->>Window: return to full size
+```
+
+Four details in that diagram are worth pulling out, because each solves a real
+problem.
+
+**The window shrinks while recording.** While you record, you are working inside
+the application you are documenting. A large editor window is the last thing
+that should be on screen. It becomes a small strip showing the state, the step
+count, an elapsed timer, and pause/stop. PSR did this, and it is the reason PSR
+felt usable despite everything else about it.
+
+**Out-of-scope actions are discarded before a screenshot is taken.** If you
+scope a recording to one application, clicks elsewhere are dropped by the engine
+immediately — they are never captured, rather than captured and then filtered
+out. That distinction is the whole value: a screenshot of your email that we
+delete afterwards still existed.
+
+**The stop shortcut is hidden from the recording.** The window tells the engine
+which key combinations it has claimed, and the engine ignores them. Otherwise
+the final step of every recording you ever make is *"Pressed Ctrl+Shift+F10"*.
+
+**Steps are written to disk as they happen.** PSR saved everything only at the
+end, so a crash lost the lot. Here the folder is always current.
+
+---
+
+## 5. How it knows what you clicked
+
+This is the feature that makes the output readable, so it is worth understanding.
+
+```mermaid
+flowchart TD
+    tap["You click at 412, 308"]
+    tap --> win["Which window is at that point?<br/><i>Win32 asks Windows</i>"]
+    win --> uia["Which control is at that point?<br/><i>UI Automation asks the application</i>"]
+    uia --> good{"Did the application<br/>answer usefully?"}
+    good -->|yes| named["<b>Clicked the &quot;Save&quot; button in &quot;Billing&quot;</b>"]
+    good -->|"no, or too slow"| plain["<b>Clicked in &quot;Billing&quot;</b><br/>still useful, never blocks"]
+
+    style named fill:#1f6feb,color:#fff
+    style plain fill:#5c636e,color:#fff
+```
+
+UI Automation is asking *another running program* a question, and that program
+might be busy or hung. So every lookup runs on a separate thread with a hard
+400-millisecond deadline. If the answer does not arrive, the step is recorded
+without the name. **Naming is a bonus, never a dependency** — a recording must
+never be lost because Word was thinking.
+
+### The trap that had to be fixed
+
+Some applications, when asked "what is this text box called?", answer with *what
+is typed in it*. A text box containing a password could therefore report its own
+contents as its name — and that would print the password into the step
+description, right after we had carefully suppressed it from the typing.
+
+The fix is not to ignore names for text boxes, because well-behaved applications
+give genuinely useful ones. Instead the name is compared against the field's
+current value. A real label and the text somebody typed do not coincide by
+accident, so when the name tracks the value it is treated as content and dropped.
+
+---
+
+## 6. What is recorded when you type
+
+Recording every keystroke individually would produce a useless document. Typing
+is therefore **gathered per field** and emitted as one step: *Typed "ACME Corp"
+into the Customer Name field*. After 1.5 seconds of quiet, or when you move to a
+different field, that step is written.
+
+Three protections apply:
+
+- **Password fields record nothing but the fact.** You get *Entered password*.
+  The characters never enter the recording at any point.
+- **Card numbers and national insurance / social security shapes are masked**
+  even in ordinary fields, because people paste them into the wrong boxes.
+- **Keyboard capture can be turned off entirely** in Settings, in which case the
+  hook is never installed at all rather than installed and ignored.
+
+> A bug worth knowing about, because it shaped the design: whether a field is a
+> password field was originally remembered alongside the typed text. Flushing
+> the text after a pause also cleared that flag — so typing a password, pausing,
+> and continuing in the same box leaked the rest of it. Secrecy is now a
+> property of the field that survives a flush, and is re-decided only when focus
+> moves.
+
+---
+
+## 7. What a recording is, on disk
+
+A recording is just a folder. Nothing is hidden in a database, and nothing
+leaves your machine.
+
+```
+StepRecordings/
+└── 2026-09-05 13-19-13/
+    ├── session.json      every step: what, where, when, the words
+    └── steps/
+        ├── 0001.png
+        ├── 0002.png
+        └── ...
+```
+
+Folders are named by timestamp and never renamed. The recording's *name* is a
+label stored inside `session.json`. This is deliberate: renaming a recording
+must not move files around underneath a session you have open.
+
+---
+
+## 8. Turning a recording into a document
+
+```mermaid
+flowchart LR
+    session[("The recording")]
+
+    session --> voice{"What was this<br/>recording for?"}
+    voice -->|"procedure or<br/>training guide"| imp["Rewritten as instructions<br/><i>Click Save</i>"]
+    voice -->|"evidence record"| past["Left in the past tense<br/><i>Clicked the Save button</i>"]
+
+    imp --> fmt
+    past --> fmt
+
+    fmt{"Export as"}
+    fmt --> html["<b>HTML</b><br/>one file, images inside"]
+    fmt --> pdf["<b>PDF</b><br/>same layout, printed"]
+    fmt --> md["<b>Markdown</b><br/>for a wiki or repo"]
+    fmt --> tpl["<b>Your own template</b><br/>Word, Markdown or HTML"]
+```
+
+**The tense change is the interesting part.** The engine records what happened,
+in the past tense, because that is the truth of it. A procedure is written in
+the imperative, because the reader has not done it yet. So *Clicked the Save
+button* becomes *Click Save* on the way out.
+
+But not always — and this is why the app asks what a recording is *for* before
+it starts rather than at export time. An **evidence record** stays in the past
+tense, because it states what was done. Rewriting it into instructions would
+misrepresent what the document is. And if you rewrote a step's wording yourself,
+your words are emitted exactly as you wrote them. Your prose is not ours to
+correct.
+
+### Your own template
+
+This is the feature that decides whether an organisation can actually adopt the
+tool. A company's SOPs are usually a Word file with a controlled letterhead, a
+revision table and a signature block, from a template nobody is allowed to
+recreate — only fill in.
+
+So: you point the app at that file, and the output *is* their document, with the
+recording injected into marked slots.
+
+```mermaid
+flowchart TD
+    t["Your template file<br/><i>read, never written</i>"]
+    t --> scan["Find the marked slots"]
+    scan --> v["Single values<br/>{{title}}, {{date}}"]
+    scan --> loop["Repeating blocks<br/>{{FOR s IN steps}} … {{END-FOR s}}"]
+    scan --> img["Image slots<br/>{{IMAGE shot(s)}}"]
+    v --> out["A new document<br/><i>your original is untouched</i>"]
+    loop --> out
+    img --> out
+    scan --> unknown["Anything not recognised is<br/><b>left exactly as found</b><br/>and reported"]
+    unknown --> out
+```
+
+Two rules matter here:
+
+- **The template is only ever read.** Your master file is never modified.
+- **A slot we do not recognise is left alone and reported**, rather than quietly
+  removed. A typo in a placeholder shows up as an untouched marker you can see —
+  not as a silent gap somebody discovers during an audit.
+
+There is one subtlety with Word. Word habitually splits typed text across
+several internal fragments — a spell-check mark is enough to do it — so
+`{{title}}` may not exist as a single piece of text inside the file. Handling
+that properly is why the app uses an established library (`docx-templates`)
+rather than simple find-and-replace. Naive replacement works on a file generated
+by a script and fails on the real template somebody has actually edited, which
+is the only kind that matters.
+
+---
+
+## 9. Keeping a guide true: the Check button
+
+Writing a guide is a one-off. Keeping it true is the work. A vendor moves one
+dialog and a forty-step procedure is quietly wrong — and nobody finds out until
+somebody follows it. That is why guides decay until people stop trusting them.
+
+Every step already records the identity of the control that was clicked. So the
+app can open the application again and ask: *are these controls still here?*
+
+```mermaid
+flowchart TD
+    press["Press Check"] --> running{"Is the application<br/>running?"}
+    running -->|no| unknown["<b>Cannot tell.</b><br/>Not the same as 'fine'"]
+    running -->|yes| walk["Walk the application's controls<br/>once, and index them"]
+    walk --> capped{"Was the walk<br/>cut short?"}
+    capped -->|"yes — hit the<br/>6000 element cap"| inconclusive["<b>Inconclusive.</b><br/>Failing to find something<br/>is not proof it is gone"]
+    capped -->|no| compare["Compare every step<br/>against the index"]
+    compare --> ok["Still matches"]
+    compare --> rot["<b>No longer found</b><br/>— marked in the list"]
+    rot --> fix["Re-record just that step"]
+
+    style rot fill:#e5534b,color:#fff
+    style unknown fill:#5c636e,color:#fff
+    style inconclusive fill:#5c636e,color:#fff
+```
+
+Two design points, both about honesty:
+
+- **The tree is walked once and indexed**, rather than searched once per step.
+  Searching a large application takes seconds; forty of those would take minutes
+  and look like the app had hung. Indexed, the whole guide is answered in well
+  under a second.
+- **The three "don't know" answers are kept distinct from "fine".** *Not
+  running*, *inconclusive* and *still matches* mean different things, and
+  results are stamped with when they were taken — because "this control was
+  missing when checked" is a different claim from "this step is wrong".
+
+---
+
+## 10. Privacy, concretely
+
+Nothing leaves the machine. There is no account, no server, no telemetry. Beyond
+that:
+
+| Risk | What the app does |
+|---|---|
+| Recording your mail or chat by accident | Scope to one application; out-of-scope events are dropped before capture |
+| Passwords in the recording | Password fields yield only *Entered password* |
+| Card / SSN numbers in ordinary fields | Masked by shape |
+| A field's contents leaking via its name | Name is dropped when it tracks the value |
+| Sensitive things visible in a screenshot | Blur — and it **overwrites the pixels in the file** |
+| Blurred originals lingering | Undo copies are purged when the session closes |
+| Excluded steps leaking | Their screenshots are not copied alongside an export either |
+
+**Blur is destructive on purpose.** An overlay that merely covers pixels leaves
+the customer's name sitting in the folder, and a "redacted" guide whose source
+images still contain the data is worse than none. It pixelates first and then
+blurs, because blur alone can leave enough structure to read short text back —
+downsampling actually discards it.
+
+---
+
+## 11. How it is packaged and installed
+
+```mermaid
+flowchart TD
+    subgraph build["Building a release"]
+        cs["C# engine"] -->|"published self-contained,<br/>compressed 166MB → 72MB"| exe["one .exe<br/>needs no .NET installed"]
+        js["Electron app"] --> pack["electron-builder"]
+        exe --> pack
+        tpl["templates/"] --> pack
+        pack --> setup["<b>StepsRecorder-Setup-0.1.0.exe</b><br/>≈143 MB"]
+    end
+
+    setup --> install["Installs per-user<br/><i>no administrator prompt</i>"]
+    install --> start["Start menu and desktop shortcut"]
+```
+
+Three deliberate choices:
+
+- **Self-contained.** The engine carries the whole .NET runtime, so the machine
+  you send it to needs nothing installed. The cost is size, and a one-off
+  extraction on first launch — which the app already waits out, because it waits
+  for the engine to report ready.
+- **Per-user install, no administrator prompt.** The people who write SOPs work
+  in managed environments where needing admin rights ends the conversation.
+- **The engine ships beside the app, not inside it.** Electron packs its own
+  files into a bundle that programs cannot be run from directly, so the engine
+  sits alongside as an extra resource.
+
+**It is not code-signed.** Windows SmartScreen will show a warning on first run,
+and endpoint protection may object to a program that hooks input and takes
+screenshots. That is stated plainly in the README rather than left for a new
+user to discover. Signing requires buying a certificate.
+
+---
+
+## 12. Where everything lives
+
+```
+stepsrecorderproject/
+├── capture/            The C# engine — the part that watches
+│   ├── Program.cs          reads commands, owns the message loop
+│   ├── Recorder.cs         turns raw events into steps
+│   ├── MouseHook.cs        }  standing requests to Windows
+│   ├── KeyboardHook.cs     }
+│   ├── TypingState.cs      gathers typing per field; owns password secrecy
+│   ├── UiaResolver.cs      asks applications what you clicked
+│   ├── ScreenCapture.cs    takes the screenshot, DPI-correct
+│   ├── Scope.cs            in or out of scope — a pure decision, tested alone
+│   └── Verifier.cs         the Check feature
+│
+├── ui/src/main/        Electron's privileged half (Node.js)
+│   ├── main.js             windows, menus, all the wiring
+│   ├── sidecar.js          owns the engine process and the JSON framing
+│   ├── session.js          a recording on disk
+│   ├── settings.js         preferences
+│   ├── shortcuts.js        the three forms a hotkey must exist in
+│   ├── bounds.js           fitting the window to the screen it is on
+│   ├── export.js           HTML, PDF, Markdown
+│   ├── template.js         Markdown/HTML templates
+│   ├── docx.js             Word templates
+│   └── templates-lib.js    which templates are available
+│
+├── ui/src/renderer/    The page you actually see
+│   ├── index.html
+│   ├── renderer.js
+│   └── styles.css
+│
+├── templates/          The SOP templates that ship with the app
+├── tests/              See ENGINEERING.md — some of these take over the machine
+└── docs/               This guide, the engineering record, the IPC contract
+```
+
+---
+
+## 13. If you want to run it from source
+
+```bash
+cd ui && npm install && npm start
+```
+
+To build the installer (needs the .NET SDK):
+
+```bash
+cd ui && npm run dist
+```
+
+The result appears in `dist/`.

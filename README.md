@@ -101,6 +101,14 @@ They are separate processes rather than a native addon: a low-level hook needs
 its own message pump, and this avoids node-gyp and Electron ABI coupling
 entirely. The protocol is documented in [docs/ipc-contract.md](docs/ipc-contract.md).
 
+## Documentation
+
+- **[docs/FIELD-GUIDE.md](docs/FIELD-GUIDE.md)** — how the whole system works,
+  in plain language and diagrams. Start here.
+- **[docs/ENGINEERING.md](docs/ENGINEERING.md)** — the technical master record:
+  invariants, the changelog of design decisions and their reasons, known debt.
+- **[docs/ipc-contract.md](docs/ipc-contract.md)** — the message protocol.
+
 ## Tests
 
 ```
