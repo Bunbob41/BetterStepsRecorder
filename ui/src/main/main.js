@@ -726,6 +726,54 @@ ipcMain.handle('library:open', (_e, { dir }) => {
 ipcMain.handle('session:rename', (_e, { name }) =>
   session ? { ok: true, name: session.rename(name) } : { ok: false });
 
+/**
+ * Checks an open recording against the applications running right now.
+ *
+ * Creating a guide is a one-off; keeping it true is the work. Every step
+ * already carries the automation id and name of what was clicked, so the
+ * current application can be asked whether those controls are still there.
+ */
+ipcMain.handle('session:verify', async () => {
+  if (!session || !session.steps.length) {
+    return { ok: false, error: 'Open a recording first.' };
+  }
+
+  const booted = await ensureSidecar();
+  if (!booted.ok) return booted;
+
+  const checkable = session.steps.filter((s) => s.action !== 'note');
+  const items = checkable.map((s) => ({
+    id: s.id,
+    process: (s.window && s.window.process) || '',
+    windowTitle: (s.window && s.window.title) || '',
+    automationId: (s.target && s.target.automationId) || '',
+    name: (s.target && s.target.name) || '',
+    controlType: (s.target && s.target.controlType) || '',
+  }));
+
+  const results = await sidecar.verify(items);
+  if (!results) return { ok: false, error: 'The capture engine did not answer.' };
+
+  const at = new Date().toISOString();
+  const byId = new Map(results.map((r) => [r.id, r]));
+  for (const step of session.steps) {
+    const r = byId.get(step.id);
+    if (!r) continue;
+    // A point-in-time claim, so it is stamped: "checked, and at that moment
+    // this control was gone" is a different statement from "this step is bad".
+    step.verify = { status: r.status, matchedBy: r.matchedBy || null, at };
+  }
+  session.flush();
+
+  const tally = results.reduce((acc, r) => {
+    acc[r.status] = (acc[r.status] || 0) + 1;
+    return acc;
+  }, {});
+  log.info(`verify: ${JSON.stringify(tally)}`);
+
+  return { ok: true, checked: results.length, tally, steps: session.steps, at };
+});
+
 ipcMain.handle('windows:list', async () => {
   const booted = await ensureSidecar();
   if (!booted.ok) return { ok: false, error: booted.error };

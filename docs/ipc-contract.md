@@ -29,6 +29,11 @@ armOnce      { "replaceId": "<step id>" }              capture exactly one event
 pause        {}                                        stop recording, keep hooks
 resume       {}                                        resume recording
 stop         {}                                        unhook, flush, exit cleanly
+verify       { "items": [ { id, process, windowTitle, automationId,
+                            name, controlType } ] }
+             asks whether those controls still exist in what is running now.
+             Answered asynchronously with a `verified` message; the walk is
+             done on its own thread so it cannot stall stop or pause.
 listWindows  { "excludePids": [1234] }                 enumerate top-level
              windows for the scope picker. Answered with a `windows` message
              carrying { hwnd, pid, title, process }. Electron cannot see other
@@ -42,6 +47,8 @@ step         { see below }                             one recorded user action
 error        { "code": "HOOK_FAILED", "message": "" }
 pong         {}
 windows      { "items": [ { hwnd, pid, title, process } ] }
+verified     { "items": [ { id, status, matchedBy, window } ] }
+             status: match | missing | appNotRunning | noTarget | inconclusive
 log          { "level": "info|warn", "message": "" }
 
 ## step payload
@@ -183,3 +190,28 @@ that people have edited.
 Screenshots are embedded into the package, sized from their intrinsic
 dimensions so they are not stretched. A screenshot that has gone missing is
 reported and left out rather than aborting the export.
+
+
+## Staleness
+
+A guide is written once and then rots: a vendor moves a dialog and a forty-step
+procedure is quietly wrong until somebody follows it. Every step already carries
+the automation id, control type and name of what was clicked, so the running
+application can be asked whether those controls are still there.
+
+The engine walks each window's tree ONCE and indexes it, rather than searching
+per step. A descendant search across a large application takes seconds, so forty
+searches would look like a hang; one indexed walk answers the whole guide.
+
+The statuses are deliberately distinct:
+
+- `match` - the control is still there. Reported with what matched it, since an
+  automation id is much stronger evidence than a name.
+- `missing` - the application is running and the control is not in it. This is
+  the one worth acting on.
+- `appNotRunning` - nothing can be said. NOT the same as "fine".
+- `inconclusive` - the walk hit its element cap, so absence cannot be proven.
+- `noTarget` - the step never captured anything identifying.
+
+Results are stamped with the time they were taken, because "this control was
+gone when checked" is a different claim from "this step is wrong".

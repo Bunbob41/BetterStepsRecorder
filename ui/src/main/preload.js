@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('bsr', {
   undo: () => ipcRenderer.invoke('edit:undo'),
   undoDepth: () => ipcRenderer.invoke('edit:undoDepth'),
 
+  verifySession: () => ipcRenderer.invoke('session:verify'),
   listWindows: () => ipcRenderer.invoke('windows:list'),
   setScope: (pids, label) => ipcRenderer.invoke('scope:set', { pids, label }),
   getScope: () => ipcRenderer.invoke('scope:get'),

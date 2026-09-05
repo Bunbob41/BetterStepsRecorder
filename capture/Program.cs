@@ -197,6 +197,46 @@ internal static class Program
                         _recorder!.State = RecordingState.Recording;
                         break;
 
+                    case "verify":
+                        // Runs off the reader thread: a tree walk across a
+                        // large application takes seconds, and blocking here
+                        // would stall every other command including stop.
+                        var payload = root.TryGetProperty("items", out var vi)
+                                      && vi.ValueKind == JsonValueKind.Array
+                            ? vi.EnumerateArray().Select(x => new Verifier.Item(
+                                x.TryGetProperty("id", out var xi) ? xi.GetString() ?? "" : "",
+                                x.TryGetProperty("process", out var xp) ? xp.GetString() : null,
+                                x.TryGetProperty("windowTitle", out var xw) ? xw.GetString() : null,
+                                x.TryGetProperty("automationId", out var xa) ? xa.GetString() : null,
+                                x.TryGetProperty("name", out var xn) ? xn.GetString() : null,
+                                x.TryGetProperty("controlType", out var xc) ? xc.GetString() : null))
+                              .ToList()
+                            : new List<Verifier.Item>();
+
+                        var verifyId = root.TryGetProperty("id", out var vid)
+                                       ? vid.GetString() : null;
+
+                        new Thread(() =>
+                        {
+                            try
+                            {
+                                var results = Verifier.Verify(payload);
+                                Protocol.Emit(new
+                                {
+                                    v = 1,
+                                    type = "verified",
+                                    id = verifyId ?? Guid.NewGuid().ToString(),
+                                    items = results,
+                                });
+                            }
+                            catch (Exception ex)
+                            {
+                                Protocol.Error("VERIFY_FAILED", ex.Message);
+                            }
+                        })
+                        { IsBackground = true, Name = "verify" }.Start();
+                        break;
+
                     case "listWindows":
                         var exclude = new HashSet<uint> { (uint)Environment.ProcessId };
                         if (root.TryGetProperty("excludePids", out var xp)

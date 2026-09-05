@@ -7,8 +7,11 @@ using System.Drawing;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
+        // "--v2" stands in for a vendor shipping a new version: the same
+        // application, with a control renamed underneath an existing guide.
+        var v2 = args.Contains("--v2");
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.EnableVisualStyles();
 
@@ -21,10 +24,10 @@ internal static class Program
 
         var plain = new TextBox
         {
-            Name = "txtPlain",
+            Name = v2 ? "txtClientName" : "txtPlain",
             Location = new Point(40, 60),
             Size = new Size(400, 30),
-            AccessibleName = "Customer Name",
+            AccessibleName = v2 ? "Client Name" : "Customer Name",
         };
 
         var secret = new TextBox

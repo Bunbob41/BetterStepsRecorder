@@ -26,7 +26,8 @@ const el = {
   expGo: $('exp-go'), expCancel: $('exp-cancel'),
   scopeBtn: $('btn-scope'), scopeDlg: $('scopedlg'), scopeList: $('scope-list'),
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
-  note: $('btn-note'), exclude: $('chk-exclude'), frame: $('set-frame'),
+  note: $('btn-note'), check: $('btn-check'),
+  exclude: $('chk-exclude'), frame: $('set-frame'),
   sessionName: $('session-name'), libraryList: $('library-list'),
   libraryEmpty: $('library-empty'),
   compactBar: $('compactbar'), cDot: $('c-dot'), cState: $('c-state'),
@@ -95,12 +96,29 @@ function renderList() {
     title.className = 'title';
     title.textContent = s.text || s.action;
 
+    const v = s.verify;
+    const stale = v && (v.status === 'missing');
+    if (stale) li.classList.add('stale');
+
     const sub = document.createElement('div');
     sub.className = 'sub';
     sub.textContent = isNote
       ? (s.excluded ? 'note · excluded' : 'note')
       : [s.window?.process, s.action, s.excluded ? 'excluded' : null]
           .filter(Boolean).join(' · ');
+
+    if (v && !isNote) {
+      const flag = document.createElement('span');
+      flag.className = 'flag' + (v.status === 'match' ? ' ok' : '');
+      flag.textContent = {
+        missing: ' · no longer found',
+        match: '',
+        appNotRunning: ' · app not running',
+        inconclusive: ' · could not check',
+        noTarget: '',
+      }[v.status] || '';
+      if (flag.textContent) sub.append(flag);
+    }
 
     label.append(title, sub);
     li.append(n, label);
@@ -164,6 +182,7 @@ async function select(id) {
     step.monitor ? `${Math.round(step.monitor.scale * 100)}% scaling` : null,
     step.rerecordedAt ? 're-recorded' : null,
     step.redacted ? 'redacted' : null,
+    step.verify ? verifyLabel(step.verify) : null,
   ].filter(Boolean).join('   ·   ');
 
   const url = await window.bsr.shotUrl(step.screenshot);
@@ -181,6 +200,17 @@ async function select(id) {
  * offset inside the image, then scale by however much the <img> is displayed at.
  * Doing this in CSS pixels instead is what makes indicators drift on scaled displays.
  */
+function verifyLabel(v) {
+  const when = v.at ? new Date(v.at).toLocaleString() : '';
+  return {
+    missing: `control no longer found (checked ${when})`,
+    match: `still matches (checked ${when})`,
+    appNotRunning: 'not checked — app was not running',
+    inconclusive: 'could not check reliably',
+    noTarget: null,
+  }[v.status] || null;
+}
+
 function placeIndicator(step) {
   // The frame actually captured. With monitor or full-screen framing the
   // screenshot is bigger than the window, so window-relative maths is wrong.
@@ -370,6 +400,47 @@ window.bsr.onReplaced(({ index, step }) => {
 
 
 
+
+// ---- staleness ----------------------------------------------------------------
+// Creating a guide is a one-off; keeping it true is the work. Every step already
+// carries the automation id of what was clicked, so the running application can
+// be asked whether those controls are still there.
+
+el.check.addEventListener('click', async () => {
+  if (!steps.length) { alert('Open a recording first.'); return; }
+
+  const original = el.check.textContent;
+  el.check.textContent = 'Checking…';
+  el.check.disabled = true;
+  try {
+    const r = await window.bsr.verifySession();
+    if (!r.ok) { alert(r.error); return; }
+
+    steps = r.steps;
+    renderList();
+
+    const t = r.tally || {};
+    const stale = t.missing || 0;
+    const notRunning = t.appNotRunning || 0;
+    const parts = [];
+    parts.push(stale
+      ? `${stale} of ${r.checked} steps no longer match`
+      : `all ${r.checked} checked steps still match`);
+    if (notRunning) parts.push(`${notRunning} could not be checked (app not running)`);
+    el.saveState.textContent = parts.join(' · ');
+
+    // Deliberately not an alert: a routine result should not freeze the window,
+    // and the marked rows already say which steps are affected. The remedy is
+    // named in the status line instead.
+    if (stale) {
+      el.saveState.textContent = parts.join(' · ')
+        + ' — select one and use "Re-record step"';
+    }
+  } finally {
+    el.check.textContent = original;
+    el.check.disabled = false;
+  }
+});
 
 // ---- library ------------------------------------------------------------------
 // The empty state used to say "select a step" over nothing at all. Opening onto

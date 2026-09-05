@@ -89,6 +89,33 @@ class Sidecar extends EventEmitter {
     return this.send({ type: 'start', sessionDir, ignorePids, ...image });
   }
 
+  /**
+   * Asks whether the controls a recording refers to still exist. Generous
+   * timeout: a tree walk across a large application is slow, and the engine
+   * caps itself at 20 seconds.
+   */
+  verify(items, timeoutMs = 30000) {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.off('verified', onDone);
+        resolve(null);            // null means "could not check", not "all fine"
+      }, timeoutMs);
+
+      const onDone = (msg) => {
+        clearTimeout(timer);
+        this.off('verified', onDone);
+        resolve(msg.items || []);
+      };
+
+      this.on('verified', onDone);
+      if (!this.send({ type: 'verify', items })) {
+        clearTimeout(timer);
+        this.off('verified', onDone);
+        resolve(null);
+      }
+    });
+  }
+
   /** Top-level windows the user could scope a recording to. */
   listWindows(excludePids = [], timeoutMs = 4000) {
     return new Promise((resolve) => {

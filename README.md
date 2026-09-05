@@ -22,6 +22,10 @@ A modern replacement for the deprecated Windows PSR.exe.
   redacted guide's source images do not still contain the data.
 - **Re-records a single step.** Guides rot when an application changes; refresh
   step 17 without touching the other forty.
+- **Tells you which steps have rotted.** Press **Check** and it asks the running
+  application whether the controls each step refers to still exist, and marks
+  the ones that do not - so maintaining a guide is a few minutes rather than a
+  re-recording.
 - **Exports** to HTML (one portable file), PDF, or Markdown, rewritten as
   instructions: *Click Save* rather than *Clicked the Save button*.
 - **Renders into your own SOP format.** Point it at your organisation's template

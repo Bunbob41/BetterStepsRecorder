@@ -86,7 +86,7 @@ LAYOUT = (1564, 875)
 BTN = {
     "scope": (491, 71), "start": (657, 71), "pause": (773, 71), "stop": (852, 71),
     "open": (936, 71), "export": (1032, 71), "settings": (1132, 71),
-    "note": (328, 132), "name": (200, 72),
+    "note": (330, 132), "check": (247, 132), "name": (200, 72),
 }
 # Detail pane controls, when a step is selected.
 DETAIL = {"exclude": (855, 200), "blur": (1161, 200),

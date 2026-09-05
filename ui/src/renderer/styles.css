@@ -335,3 +335,15 @@ body.compact { overflow: hidden; }
 .subhead { font-size: 12px; text-transform: uppercase; letter-spacing: .8px;
            color: var(--muted); margin: 0 0 14px; }
 dialog { max-height: 86vh; overflow-y: auto; }
+
+button.tiny + button.tiny { margin-left: 0; }
+.steps-head button.tiny:first-of-type { margin-left: auto; }
+.steps-head button.tiny + button.tiny { margin-left: 6px; }
+
+/* Staleness. Amber for "this no longer matches", not red: the step is not
+   broken, the application moved underneath it. */
+.step.stale { box-shadow: inset 3px 0 0 #d6a02a; }
+.step .flag { color: #d6a02a; }
+.step .flag.ok { color: #57c06b; }
+.check-summary { color: var(--muted); font-size: 12px; margin-left: 16px; }
+.check-summary .stale-count { color: #d6a02a; }
