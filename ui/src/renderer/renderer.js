@@ -36,6 +36,8 @@ const el = {
   compactBar: $('compactbar'), cDot: $('c-dot'), cState: $('c-state'),
   cCount: $('c-count'), cPause: $('c-pause'), cStop: $('c-stop'),
   cElapsed: $('c-elapsed'),
+  notice: $('notice'), noticeText: $('notice-text'),
+  noticeSettings: $('notice-settings'), noticeClose: $('notice-close'),
   keysDlg: $('keysdlg'), kPause: $('k-pause'), kStop: $('k-stop'),
   kError: $('k-error'), kReset: $('k-reset'), kClose: $('k-close'),
   shortcutsBtn: $('btn-shortcuts'), hotkeyHint: $('hotkey-hint'),
@@ -376,6 +378,23 @@ function acceleratorFrom(e) {
 
 window.bsr.onHotkeys(paintShortcuts);
 
+// ---- advisory notices ----------------------------------------------------------
+// Shown after a recording ends, dismissed by the user, and never modal.
+
+window.bsr.onNotice(({ message }) => {
+  el.noticeText.textContent = message;
+  el.notice.hidden = false;
+});
+
+el.noticeClose.addEventListener('click', () => { el.notice.hidden = true; });
+
+el.noticeSettings.addEventListener('click', async () => {
+  el.notice.hidden = true;
+  // Exactly what the Settings button does, so the link cannot drift from it.
+  paintSettings(await window.bsr.getSettings());
+  el.dialog.showModal();
+});
+
 // ---- elapsed time --------------------------------------------------------------
 // In the strip rather than the header: while recording, the strip is the only
 // part of this window on screen.
@@ -490,6 +509,7 @@ el.suGo.addEventListener('click', async () => {
   selectedId = null;
   el.sessionName.value = r.name || '';
   el.scopeBtn.textContent = `Capture: ${r.scope}`;
+  el.notice.hidden = true;
   renderList();
   setState('recording');
   startElapsed();

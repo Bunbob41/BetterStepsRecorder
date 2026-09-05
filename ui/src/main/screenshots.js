@@ -97,6 +97,45 @@ function describe(prep) {
        + `(${mb(prep.before)} to ${mb(prep.after)}).`;
 }
 
+/**
+ * Whether this recording's screenshots are unusually large, and what to say.
+ *
+ * PNG is the right default and the app does not change it by itself: switching
+ * format part way through would alter the record without asking, and for an
+ * evidence recording that matters. But nobody would think to look for the
+ * setting, so a recording that is paying heavily for PNG says so once, after it
+ * has finished - not during, when the user is inside the application they are
+ * documenting.
+ *
+ * Judged on the average, not the total: a long recording of ordinary windows is
+ * large without anything being wrong, while a short recording of video is small
+ * and still badly served by PNG. Above about 2MB per screenshot the subject is
+ * photographic or 3D - a text-heavy window does not reach that even on a 4K
+ * display.
+ */
+function advise({ files = [], sizeOf = sizeOnDisk, format = 'png',
+                  minFiles = 5,
+                  minTotal = 100 * 1024 * 1024,
+                  minAverage = 2 * 1024 * 1024 } = {}) {
+  // Already on JPEG: the only advice worth giving has been taken.
+  if (String(format).toLowerCase() !== 'png') return null;
+  if (files.length < minFiles) return null;
+
+  const total = totalBytes(files, sizeOf);
+  const average = total / files.length;
+  if (total < minTotal || average < minAverage) return null;
+
+  const mb = (n) => (n / 1048576).toFixed(0);
+  return {
+    total,
+    average,
+    message: `This recording is ${mb(total)}MB, about ${(average / 1048576).toFixed(1)}MB `
+           + `per screenshot. Video and 3D content stores far smaller as JPEG, `
+           + `with little visible difference — you can change the screenshot `
+           + `format in Settings.`,
+  };
+}
+
 module.exports = {
-  MAX_STRING, EMBED_BUDGET, canEmbed, totalBytes, prepare, describe,
+  MAX_STRING, EMBED_BUDGET, canEmbed, totalBytes, prepare, describe, advise,
 };

@@ -435,3 +435,31 @@ kbd {
 
 /* Elapsed time while recording, in the strip where it can be seen. */
 .c-elapsed { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
+
+/* An advisory strip under the toolbar. Deliberately not a dialog: it reports
+   something worth knowing, not something that must be answered. */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-size: 12.5px;
+}
+.notice[hidden] { display: none; }
+.notice #notice-text { flex: 1; }
+.notice-x {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.notice-x:hover { color: var(--text); }
+
+/* The strip must not appear over the recording strip. */
+body.compact .notice { display: none; }

@@ -224,8 +224,7 @@ function registerHotkeys() {
     // running is how the window got stranded as a strip with no way back.
     leaveCompact();
     if (!sidecar || !sidecar.running) return;
-    recordingPaused = false;
-    sidecar.stop();
+    finishRecording();
     log.info('hotkey: stopped');
     send('hotkey', { action: 'stopped' });
   });
@@ -412,10 +411,33 @@ ipcMain.handle('ui:restore', () => { leaveCompact(); return { ok: true }; });
 ipcMain.handle('recording:pause',  () => { recordingPaused = true;  sidecar.pause();  return { ok: true }; });
 ipcMain.handle('recording:resume', () => { recordingPaused = false; sidecar.resume(); return { ok: true }; });
 
-ipcMain.handle('recording:stop', () => {
+/**
+ * Ends a recording. Both the Stop button and the global hotkey come here, so
+ * that anything which should happen at the end of a recording happens once and
+ * in one place rather than twice, slightly differently.
+ */
+function finishRecording() {
   recordingPaused = false;
   leaveCompact();
   sidecar.stop();
+
+  // Said after the recording rather than during it: mid-recording the user is
+  // inside the application they are documenting, and the window is a strip.
+  if (session) {
+    const advice = screenshots.advise({
+      files: shotFiles(session),
+      format: settings.values.imageFormat,
+    });
+    if (advice) {
+      log.info(`size notice: ${(advice.total / 1048576).toFixed(0)}MB, `
+               + `${(advice.average / 1048576).toFixed(1)}MB per shot`);
+      send('notice', { kind: 'size', message: advice.message });
+    }
+  }
+}
+
+ipcMain.handle('recording:stop', () => {
+  finishRecording();
   return { ok: true, steps: session ? session.steps.length : 0 };
 });
 

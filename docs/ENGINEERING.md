@@ -119,6 +119,34 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-18 · The capture format is advised on, never changed automatically
+`(this change)` · `advise()` in [ui/src/main/screenshots.js](../ui/src/main/screenshots.js)
+
+D-17 copes with an oversized recording at export time. This is the same problem
+addressed one step earlier: a recording of photographic content pays about 85MB
+per minute for PNG, and the Settings toggle that would fix it is one nobody
+would think to look for.
+
+**The format is not switched automatically.** Changing it part way through
+alters the record without asking, which for an evidence recording is exactly
+the wrong thing to do; and the moment it would have to happen — mid-recording —
+is the moment the user is inside the application they are documenting, with this
+window shrunk to a strip. So the app says something once, after the recording
+has stopped, in a dismissible strip rather than a dialog. Consistent with
+`20fe21c`, which removed a modal for the same reason: a routine outcome must not
+freeze the window.
+
+**Judged on the average, not the total.** A long recording of ordinary windows
+is large without anything being wrong; a short recording of video is small and
+still badly served by PNG. Above about 2MB per screenshot the subject is
+photographic or 3D — a text-heavy window does not reach that even at 4K.
+Verified against both real recordings on this machine: the game recording
+(3.89MB average) is flagged, an Explorer recording (0.49MB average, 14MB total)
+is not.
+
+Silent when the format is already JPEG, when there are fewer than five
+screenshots to judge from, or when the whole recording is under 100MB.
+
 ### D-17 · Screenshots are re-encoded when a document cannot hold them
 `(this change)` · [ui/src/main/screenshots.js](../ui/src/main/screenshots.js),
 [ui/src/main/transcode.js](../ui/src/main/transcode.js)
@@ -462,6 +490,10 @@ waits out because it waits for the engine's `ready`.
   the machine was in use. The JS and pure-Python suites all pass.
 - **No automated coverage of the installed artefact.** The installer is verified
   by hand.
+- **The size notice is advisory only.** It cannot offer to re-encode the
+  recording it is describing, because that would rewrite screenshots on disk —
+  and those are the record. A user who takes the advice gets the benefit on
+  their *next* recording, not this one.
 - **Export has no progress reporting.** Re-encoding 105 screenshots takes about
   four seconds, and a recording of several thousand would take minutes. The
   status line says "Exporting…" and nothing more; there is no percentage and no

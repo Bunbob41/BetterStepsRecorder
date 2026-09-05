@@ -84,6 +84,42 @@ console.log('\nwith no encoder available:');
   check('and the caller can see it will not embed', !s.canEmbed(p.after));
 }
 
+console.log('\nadvising on a recording that is paying for PNG:');
+{
+  const game = s.advise({ files: heavy, sizeOf: heavySize, format: 'png' });
+  check('a recording of 3D frames is flagged', game !== null);
+  check('the total is named', /432MB/.test(game.message));
+  check('and the cost per screenshot', /4\.1MB per screenshot/.test(game.message));
+  check('it points at the setting', /Settings/.test(game.message));
+}
+
+console.log('\nand staying quiet otherwise:');
+{
+  check('nothing is said when already on JPEG',
+        s.advise({ files: heavy, sizeOf: heavySize, format: 'jpg' }) === null);
+
+  // The point of judging on the average rather than the total: a long recording
+  // of ordinary windows is large without anything being wrong.
+  const long = Array.from({ length: 900 }, (_, i) => `/app/${i}.png`);
+  check('a long recording of ordinary windows is not flagged',
+        s.advise({ files: long, sizeOf: () => 150 * 1024, format: 'png' }) === null);
+
+  // A 4K screenshot of a text-heavy window is large, but nothing like 2MB.
+  check('a 4K text screenshot is not mistaken for video',
+        s.advise({ files: long, sizeOf: () => 1.1 * MB, format: 'png' }) === null);
+
+  check('a handful of frames is too small a sample to judge',
+        s.advise({ files: heavy.slice(0, 3), sizeOf: heavySize,
+                   format: 'png' }) === null);
+
+  check('and a short recording stays under the total floor',
+        s.advise({ files: heavy.slice(0, 10), sizeOf: () => 2.5 * MB,
+                   format: 'png' }) === null);
+
+  check('an empty recording says nothing', s.advise({ files: [] }) === null);
+  check('called with nothing at all, it does not throw', s.advise() === null);
+}
+
 console.log('\ntotals:');
 check('an empty recording is zero, not NaN', s.totalBytes([]) === 0);
 check('a missing file counts as nothing rather than throwing',

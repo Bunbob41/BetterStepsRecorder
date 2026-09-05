@@ -305,6 +305,17 @@ flowchart TD
 into the document. The screenshots in the session folder stay exactly as they
 were captured, because that is the record.
 
+There is a second, quieter part to this. Recording a game costs roughly **85MB a
+minute** in PNG, and you would have no way of knowing. So when a recording ends,
+if its screenshots are unusually large — above about 2MB each, which reliably
+means video or 3D rather than an application window — a strip appears under the
+toolbar saying so, with a link to the setting that would fix it.
+
+It is only ever a suggestion. The app does not change the format on your behalf:
+doing that part way through a recording would quietly alter the record, and if
+what you are making is an evidence record, that is the last thing it should do.
+Dismiss it and it goes away.
+
 ### Your own template
 
 This is the feature that decides whether an organisation can actually adopt the
