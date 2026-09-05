@@ -37,6 +37,7 @@ const el = {
   cCount: $('c-count'), cPause: $('c-pause'), cStop: $('c-stop'),
   cElapsed: $('c-elapsed'),
   build: $('build'),
+  marker: $('set-marker'), markerBold: $('set-marker-bold'),
   notice: $('notice'), noticeText: $('notice-text'),
   noticeSettings: $('notice-settings'), noticeClose: $('notice-close'),
   keysDlg: $('keysdlg'), kPause: $('k-pause'), kStop: $('k-stop'),
@@ -178,6 +179,7 @@ async function select(id) {
   el.rerecord.hidden = isNote;
   el.text.placeholder = isNote ? 'Describe what the reader should do' : '';
   el.indicator.style.display = 'none';
+  el.indicator.replaceChildren();
 
   // Notes are handled before anything reads step geometry. A note has no
   // `point`, and reading it threw part-way through this function, which left
@@ -225,20 +227,25 @@ function verifyLabel(v) {
   }[v.status] || null;
 }
 
+/** How the click should be marked, as chosen in Settings. */
+let markerOpts = { style: 'circle', bold: false };
+
 function placeIndicator(step) {
   // The frame actually captured. With monitor or full-screen framing the
   // screenshot is bigger than the window, so window-relative maths is wrong.
   const rect = (step.frame?.w ? step.frame : null) || step.window?.rect;
   if (!rect || !el.shot.naturalWidth) return;
 
-  const ratio = el.shot.clientWidth / el.shot.naturalWidth;
-  const x = (step.point.x - rect.x) * ratio;
-  const y = (step.point.y - rect.y) * ratio;
+  // As a percentage of the captured frame, exactly as the exporter computes it,
+  // so what is previewed here is what the document will show.
+  const px = ((step.point.x - rect.x) / rect.w) * 100;
+  const py = ((step.point.y - rect.y) / rect.h) * 100;
+  if (px < 0 || py < 0 || px > 100 || py > 100) return;
 
-  if (x < 0 || y < 0 || x > el.shot.clientWidth || y > el.shot.clientHeight) return;
-
-  el.indicator.style.left = `${x}px`;
-  el.indicator.style.top = `${y}px`;
+  // render(), not html(): a style attribute would be refused by the content
+  // policy this window runs under, and the marker would sit at 0,0 unstyled.
+  el.indicator.replaceChildren(
+    BsrMarker.render({ x: px, y: py }, markerOpts, '#e5484d'));
   el.indicator.style.display = 'block';
 }
 
@@ -1129,6 +1136,9 @@ function paintSettings(v) {
   el.optTemplate.textContent = tpl
     ? `Your SOP template — ${tpl}`
     : 'Your SOP template — set it in Settings';
+  el.marker.value = v.markerStyle || 'circle';
+  el.markerBold.checked = Boolean(v.markerBold);
+  markerOpts = { style: el.marker.value, bold: el.markerBold.checked };
   el.format.value = v.imageFormat;
   el.quality.value = v.imageQuality;
   el.qualityVal.textContent = String(v.imageQuality);
@@ -1185,6 +1195,18 @@ el.frame.addEventListener('change', async () => {
 el.format.addEventListener('change', async () => {
   paintSettings(await window.bsr.setSettings({ imageFormat: el.format.value }));
 });
+
+for (const control of ['marker', 'markerBold']) {
+  el[control].addEventListener('change', async () => {
+    markerOpts = { style: el.marker.value, bold: el.markerBold.checked };
+    await window.bsr.setSettings({
+      markerStyle: el.marker.value, markerBold: el.markerBold.checked,
+    });
+    // Redraw the step on screen, so the choice can be seen rather than imagined.
+    const step = steps.find((x) => x.id === selectedId);
+    if (step && step.point) placeIndicator(step);
+  });
+}
 
 el.keyboard.addEventListener('change', async () => {
   await window.bsr.setSettings({ recordKeyboard: el.keyboard.checked });

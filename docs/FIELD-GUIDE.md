@@ -297,6 +297,29 @@ misrepresent what the document is. And if you rewrote a step's wording yourself,
 your words are emitted exactly as you wrote them. Your prose is not ours to
 correct.
 
+### Marking where you clicked
+
+Every screenshot carries an indicator showing where the click landed. Settings
+offers two shapes, either of which can be made bolder:
+
+- **A circle** around the click. The original, and still the default.
+- **An arrow** pointing at it. Some readers take a red ring to mean an error, or
+  mistake it for part of the software being documented. An arrow comes from
+  outside the picture and points inward, so it reads as a note *about* the
+  screenshot rather than something *in* it.
+
+The arrow's point always lands exactly on the click. Its tail normally runs up
+and to the left, but near the top or left edge of a screenshot there is no room
+for it, so it swings round to come from the other side instead — the point stays
+where it belongs either way.
+
+Whatever you choose shows both in the preview inside the app and in what you
+export, because both are drawn by the same piece of code.
+
+> One gap worth knowing: **Word exports have no indicator**. A .docx embeds the
+> picture itself rather than layering anything on top of it, so the marker
+> cannot simply be drawn over it the way it is in a web page or PDF.
+
 ### Why screenshots are sometimes re-encoded
 
 Screenshots are saved as PNG, which is the right choice for the usual subject: a

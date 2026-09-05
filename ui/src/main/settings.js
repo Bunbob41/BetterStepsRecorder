@@ -29,6 +29,11 @@ const DEFAULTS = {
   brandLogo: '',      // absolute path to an image embedded in exports
   brandFooter: '',    // e.g. a classification or document reference
   templatePath: '',   // an organisation's own SOP format to render into
+  // How the click is marked on each screenshot. A ring reads as an error to
+  // some readers, or as part of the application being documented; an arrow
+  // is unambiguously an annotation on the picture.
+  markerStyle: 'circle',
+  markerBold: false,
   hotkeyPause: '',    // blank means the built-in default
   hotkeyStop: '',
 };

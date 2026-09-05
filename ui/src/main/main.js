@@ -684,6 +684,14 @@ function htmlImages(s, { assetDir, assetHref }) {
   };
 }
 
+/** How the click should be marked, as chosen in Settings. */
+function markerOptions() {
+  return {
+    style: settings.values.markerStyle || 'circle',
+    bold: Boolean(settings.values.markerBold),
+  };
+}
+
 async function runExport({ format, title }) {
   if (!session || !session.steps.length) {
     return { ok: false, error: 'Nothing to export yet.' };
@@ -734,6 +742,7 @@ async function runExport({ format, title }) {
       });
       fs.writeFileSync(out, buildHtml(session, {
         title: safeTitle, brand, voice: voiceFor(session), imageSrc,
+        markerOpts: markerOptions(),
       }), 'utf8');
       log.info(`exported html to ${out}`);
       return { ok: true, file: out, warning };
@@ -847,6 +856,7 @@ async function exportPdf(title, outFile, brand) {
 
   const html = buildHtml(session, {
     title, brand, voice: voiceFor(session), imageSrc,
+    markerOpts: markerOptions(),
   });
   const temp = path.join(tempDir, `${stem}.html`);
   fs.writeFileSync(temp, html, 'utf8');

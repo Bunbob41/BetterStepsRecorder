@@ -141,7 +141,11 @@ main { flex: 1; display: grid; grid-template-columns: 320px 1fr; min-height: 0; 
 .meta span { user-select: text; }
 .meta button { margin-left: auto; }
 
-.shot-wrap { position: relative; display: inline-block; align-self: flex-start; }
+/* overflow hidden: an arrow's tail is longer than a small screenshot is tall,
+   and a marker hanging outside the picture it annotates looks like a fault.
+   The tip is the click point and always inside, so only the tail is trimmed. */
+.shot-wrap { position: relative; display: inline-block; align-self: flex-start;
+             overflow: hidden; border-radius: 6px; }
 .shot-wrap img {
   max-width: 100%;
   border: 1px solid var(--line);
@@ -149,13 +153,13 @@ main { flex: 1; display: grid; grid-template-columns: 320px 1fr; min-height: 0; 
   display: block;
 }
 
+/* A transparent layer over the screenshot that the marker is placed inside, so
+   the same markup and the same CSS serve the preview and the export. It covers
+   the image, so pointer-events must stay off it: a full-size overlay that
+   accepts clicks is what once made the whole window look frozen. */
 .indicator {
   position: absolute;
-  width: 34px; height: 34px;
-  margin: -17px 0 0 -17px;
-  border: 3px solid var(--rec);
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px rgba(0,0,0,.45);
+  inset: 0;
   pointer-events: none;
   display: none;
 }

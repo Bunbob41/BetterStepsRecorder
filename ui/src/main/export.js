@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const marker = require('../renderer/marker');
 const path = require('node:path');
 
 /**
@@ -99,7 +100,8 @@ function logoTag(brand) {
  * has no Electron dependency so it can be tested with plain node.
  */
 function buildHtml(session, { title, embedImages = true, brand = null,
-                             voice = 'imperative', imageSrc = null }) {
+                             voice = 'imperative', imageSrc = null,
+                             markerOpts = {} }) {
   const steps = exportable(session);
   const generated = new Date().toLocaleString();
 
@@ -124,10 +126,8 @@ function buildHtml(session, { title, embedImages = true, brand = null,
       : embedImages ? dataUri(abs)
       : step.screenshot;
 
-    const marker = markerPosition(step);
-    const markerHtml = marker
-      ? `<span class="marker" style="left:${marker.x.toFixed(2)}%;top:${marker.y.toFixed(2)}%"></span>`
-      : '';
+    const at = markerPosition(step);
+    const markerHtml = at ? marker.html(at, markerOpts) : '';
 
     const context = [step.window && step.window.title, step.window && step.window.process]
       .filter(Boolean).map(escapeHtml).join(' — ');
@@ -187,16 +187,15 @@ function buildHtml(session, { title, embedImages = true, brand = null,
   .note .text { font-style: italic; }
   .text { margin: 2px 0 0; font-size: 17px; }
   .context { margin: 6px 0 0 44px; color: var(--muted); font-size: 13px; }
-  .shot { position: relative; margin: 14px 0 0 44px; display: inline-block; max-width: calc(100% - 44px); }
+  /* An arrow's tail can be longer than a small screenshot; clip it to the
+     picture rather than letting it hang outside. */
+  .shot { position: relative; margin: 14px 0 0 44px; display: inline-block;
+          max-width: calc(100% - 44px); overflow: hidden; border-radius: 8px; }
   .shot img {
     display: block; max-width: 100%; height: auto;
     border: 1px solid var(--line); border-radius: 8px;
   }
-  .marker {
-    position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px;
-    border: 3px solid var(--marker); border-radius: 50%;
-    box-shadow: 0 0 0 2px rgba(255,255,255,.6);
-  }
+  .bsr-marker svg { display: block; }
   footer { color: var(--muted); font-size: 13px; margin-top: 40px; }
   @media print {
     body { padding: 0; background: #fff; color: #000; }

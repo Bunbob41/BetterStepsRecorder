@@ -266,6 +266,21 @@
       </select>
     </label>
 
+    <label class="field">
+      <span>Click indicator</span>
+      <select id="set-marker">
+        <option value="circle">Circle around the click</option>
+        <option value="arrow">Arrow pointing at the click</option>
+      </select>
+    </label>
+    <label class="check">
+      <input id="set-marker-bold" type="checkbox" />
+      <span>Make it bolder</span>
+    </label>
+    <p class="hint">Shown on every screenshot in an export, and in the preview
+      above. An arrow reads as an annotation rather than as part of the
+      application you are documenting.</p>
+
     <label class="field" id="quality-field">
       <span>JPEG quality — <b id="set-quality-val">85</b></span>
       <input id="set-quality" type="range" min="40" max="100" step="5" />
@@ -329,6 +344,7 @@
     </div>
   </dialog>
 
+  <script src="marker.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

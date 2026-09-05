@@ -124,6 +124,38 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-21 · The click indicator is configurable, and defined in one place
+`(this change)` · [ui/src/renderer/marker.js](../ui/src/renderer/marker.js)
+
+Feedback was that the red ring confuses readers. It reads either as an error, or
+as part of the application being documented rather than an annotation on it. An
+arrow does not: it comes from outside the interface and points inward, which is
+unambiguously a note about the picture.
+
+Settings now offers **circle or arrow**, each optionally **bolder**. Circle stays
+the default; nothing changes for existing guides unless it is asked for.
+
+**One definition, used by both.** The preview in the window and the exported
+document had separate copies of the same 34px circle, in `styles.css` and in the
+exporter's inline CSS. That is how a preview starts quietly disagreeing with
+what it is previewing. The shape, its geometry and its stylesheet now live in one
+module, loaded as a plain script by the renderer and required by the exporter.
+
+**The arrow flips to stay inside the picture.** Its tip is the click point and
+its tail runs up-left by default, which is the natural reading direction; within
+28% of the top or left edge there is no room for the tail, so that axis flips.
+Markers are also clipped to the image, because a small screenshot is shorter
+than an arrow is long and a marker hanging outside the picture reads as a fault.
+
+Two defects found while building it, both invisible to the tests that existed:
+
+- **The arrowhead was a straight line.** Both barbs were offset along the
+  shaft's own diagonal rather than perpendicular to it, so all three points were
+  collinear and the head enclosed no area. Every string-matching assertion
+  passed. There is now a test that computes the triangle's area.
+- Markers escaped the image on short screenshots, which is what prompted the
+  clipping above.
+
 ### D-20 · A build is identified by version, commit and build time
 `(this change)` · [ui/src/main/build-info.js](../ui/src/main/build-info.js),
 [scripts/stamp-build.js](../scripts/stamp-build.js)
@@ -508,7 +540,7 @@ machine in use.
 
 | Suite | Runs | Covers |
 |---|---|---|
-| `tests/*_test.js` (10) | `node tests/<file>` | export rendering, templates, .docx, sessions, shortcut conversion, window fitting, screenshot sizing, build identity, renderer wiring |
+| `tests/*_test.js` (11) | `node tests/<file>` | export rendering, templates, .docx, sessions, shortcut conversion, window fitting, screenshot sizing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
 | `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |
 | `tests/smoke.py` | `python tests/<file>` | engine protocol |
@@ -579,6 +611,11 @@ waits out because it waits for the engine's `ready`.
 - **The compact strip's elapsed timer is visually unverified.** Its logic is
   wired and the element renders, but seeing it requires an actual recording,
   which captures the screen.
+- **The Word export draws no click indicator at all.** It embeds the screenshot
+  as-is, so the marker that HTML and PDF overlay in CSS is simply absent. Adding
+  it means compositing onto the image bytes rather than layering over them,
+  which is a different mechanism entirely. Pre-existing, and more visible now
+  that the indicator is something a user chooses.
 - **No automated coverage of the interface at all.** See §6: the suites that
   drove it were retired as more misleading than useful. The gap is real, and the
   replacement is a person following the manual checklist before a release.

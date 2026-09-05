@@ -49,11 +49,11 @@ check('no raw unescaped angle bracket from step text', !html.includes('<check>')
 check('images are embedded, not linked', html.includes('data:image/png;base64,'));
 check('no file paths leak into the document', !html.includes('steps/0001.png'));
 check('missing screenshot is skipped, not broken', !html.includes('nope.png'));
-check('marker rendered for an in-frame click', html.includes('class="marker"'));
+check('marker rendered for an in-frame click', html.includes('class="bsr-marker'));
 
 // Only step a qualifies: b's point is far outside the window rect, and c has
 // no screenshot at all.
-const markers = (html.match(/class="marker"/g) || []).length;
+const markers = (html.match(/class="bsr-marker/g) || []).length;
 check('marker omitted when the point is outside the frame', markers === 1);
 check('step count reported', html.includes('3 steps'));
 check('dark mode handled', html.includes('prefers-color-scheme: dark'));
