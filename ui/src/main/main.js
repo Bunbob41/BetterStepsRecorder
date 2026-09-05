@@ -7,7 +7,9 @@ const { Sidecar } = require('./sidecar');
 const { Session } = require('./session');
 const { Settings } = require('./settings');
 const log = require('./log');
-const { buildHtml, buildMarkdown, copyImages } = require('./export');
+const { buildHtml, buildMarkdown, copyImages, exportable } = require('./export');
+const screenshots = require('./screenshots');
+const { toJpeg } = require('./transcode');
 const templating = require('./template');
 const docx = require('./docx');
 const templatesLib = require('./templates-lib');
@@ -579,6 +581,61 @@ ipcMain.handle('export:run', async (_e, args) => {
   }
 });
 
+/** The screenshot files a document for this session would carry. */
+function shotFiles(s) {
+  return exportable(s)
+    .filter((step) => step.screenshot)
+    .map((step) => path.join(s.dir, step.screenshot))
+    .filter((f) => fs.existsSync(f));
+}
+
+function dataUriFor(file, encoded) {
+  if (encoded) {
+    return `data:${encoded.mime};base64,${encoded.data.toString('base64')}`;
+  }
+  const ext = path.extname(file).toLowerCase();
+  const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
+  return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
+}
+
+/**
+ * Prepares this session's screenshots and returns the `imageSrc` hook that
+ * buildHtml needs, embedding them when they fit and writing them beside the
+ * document when even re-encoded they do not.
+ */
+function htmlImages(s, { assetDir, assetHref }) {
+  const files = shotFiles(s);
+  const prep = screenshots.prepare(files, { transcode: toJpeg });
+
+  if (screenshots.canEmbed(prep.after)) {
+    return {
+      imageSrc: (abs) => dataUriFor(abs, prep.images && prep.images.get(abs)),
+      warning: screenshots.describe(prep),
+    };
+  }
+
+  // Past this point a single file is not physically possible: the base64 would
+  // exceed the longest string JavaScript can hold. Say so plainly rather than
+  // producing nothing, which is what used to happen.
+  fs.mkdirSync(assetDir, { recursive: true });
+  const names = new Map();
+  for (const file of files) {
+    const encoded = prep.images && prep.images.get(file);
+    const name = path.basename(file, path.extname(file))
+               + (encoded ? encoded.ext : path.extname(file));
+    fs.writeFileSync(path.join(assetDir, name),
+                     encoded ? encoded.data : fs.readFileSync(file));
+    names.set(file, name);
+  }
+
+  return {
+    imageSrc: (abs) => (names.has(abs) ? `${assetHref}/${names.get(abs)}` : null),
+    warning: `Too large to embed even re-encoded, so the screenshots were `
+           + `written to ${path.basename(assetDir)} beside the document. `
+           + `That folder has to travel with it.`,
+  };
+}
+
 async function runExport({ format, title }) {
   if (!session || !session.steps.length) {
     return { ok: false, error: 'Nothing to export yet.' };
@@ -620,10 +677,18 @@ async function runExport({ format, title }) {
   try {
     if (format === 'html') {
       // Images are embedded, so the export is a single portable file rather
-      // than a document that breaks the moment it is emailed on its own.
+      // than a document that breaks the moment it is emailed on its own -
+      // unless they are too large to embed at all, which htmlImages handles.
+      const base = path.basename(out, '.html');
+      const { imageSrc, warning } = htmlImages(session, {
+        assetDir: path.join(path.dirname(out), `${base}-images`),
+        assetHref: `${base}-images`,
+      });
       fs.writeFileSync(out, buildHtml(session, {
-        title: safeTitle, embedImages: true, brand, voice: voiceFor(session),
+        title: safeTitle, brand, voice: voiceFor(session), imageSrc,
       }), 'utf8');
+      log.info(`exported html to ${out}`);
+      return { ok: true, file: out, warning };
 
     } else if (format === 'md') {
       const imageDir = `${path.basename(out, '.md')}-images`;
@@ -634,7 +699,9 @@ async function runExport({ format, title }) {
       log.info(`markdown export copied ${copied} images`);
 
     } else if (format === 'pdf') {
-      await exportPdf(safeTitle, out, brand);
+      const warning = await exportPdf(safeTitle, out, brand);
+      log.info(`exported pdf to ${out}`);
+      return { ok: true, file: out, warning };
 
     } else if (format === 'template') {
       const tpl = templateForSession;
@@ -646,9 +713,13 @@ async function runExport({ format, title }) {
       // parts, and Word splits a typed placeholder across runs, so it cannot be
       // filled by string replacement the way a Markdown file can.
       if (tpl.toLowerCase().endsWith('.docx')) {
+        // The same screenshots, prepared the same way: every byte of them
+        // would otherwise go into the zip.
+        const prep = screenshots.prepare(shotFiles(session), { transcode: toJpeg });
         const { buffer, missing } = await docx.render(tpl, session, {
           title: safeTitle,
           brand,
+          images: prep.images,
           redactionSummary: templating.redactionSummary(session.steps),
         });
         fs.writeFileSync(out, buffer);
@@ -657,9 +728,12 @@ async function runExport({ format, title }) {
         return {
           ok: true,
           file: out,
-          warning: missing.length
-            ? `${missing.length} screenshot(s) were missing and left out`
-            : null,
+          warning: [
+            missing.length
+              ? `${missing.length} screenshot(s) were missing and left out`
+              : null,
+            screenshots.describe(prep),
+          ].filter(Boolean).join(' ') || null,
         };
       }
 
@@ -714,10 +788,19 @@ function voiceFor(s) {
 }
 
 async function exportPdf(title, outFile, brand) {
-  const html = buildHtml(session, {
-    title, embedImages: true, brand, voice: voiceFor(session),
+  // The printer loads this from a temp directory, so images that cannot be
+  // embedded go beside the temp page rather than beside the finished PDF.
+  const stem = `bsr-export-${Date.now()}`;
+  const tempDir = app.getPath('temp');
+  const { imageSrc, warning } = htmlImages(session, {
+    assetDir: path.join(tempDir, `${stem}-images`),
+    assetHref: `${stem}-images`,
   });
-  const temp = path.join(app.getPath('temp'), `bsr-export-${Date.now()}.html`);
+
+  const html = buildHtml(session, {
+    title, brand, voice: voiceFor(session), imageSrc,
+  });
+  const temp = path.join(tempDir, `${stem}.html`);
   fs.writeFileSync(temp, html, 'utf8');
 
   const printer = new BrowserWindow({
@@ -740,7 +823,12 @@ async function exportPdf(title, outFile, brand) {
   } finally {
     printer.destroy();
     try { fs.unlinkSync(temp); } catch { /* temp file, not worth failing over */ }
+    try {
+      fs.rmSync(path.join(tempDir, `${stem}-images`), { recursive: true, force: true });
+    } catch { /* likewise */ }
   }
+
+  return warning;
 }
 
 ipcMain.handle('step:rerecord', async (_e, { id }) => {

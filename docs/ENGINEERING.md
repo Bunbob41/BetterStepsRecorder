@@ -40,6 +40,7 @@ flowchart TB
             shortcuts["shortcuts.js"]
             bounds["bounds.js"]
             exporters["export.js · template.js<br/>docx.js · templates-lib.js"]
+            shots["screenshots.js · transcode.js<br/><i>fitting images into a document</i>"]
         end
 
         preload["preload.js<br/><i>contextBridge — the only opening</i>"]
@@ -117,6 +118,36 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 ## 4. Decision changelog
 
 Newest first. Each entry records what was decided, why, and what it replaced.
+
+### D-17 · Screenshots are re-encoded when a document cannot hold them
+`(this change)` · [ui/src/main/screenshots.js](../ui/src/main/screenshots.js),
+[ui/src/main/transcode.js](../ui/src/main/transcode.js)
+
+A 106 step recording of Rocket League is **412MB of PNG**. Base64 inflates that
+to 550MB, V8's maximum string length is 536,870,888 characters (512MB), and
+`buildHtml` builds one string — so the HTML export threw `RangeError: Invalid
+string length` and wrote nothing at all. The Word exporter would have put the
+same bytes into a zip.
+
+PNG is the right default and stays the default: the usual subject is an
+application window full of text, where PNG is crisp *and* small. It is exactly
+wrong for photographic or 3D content, where it faithfully stores every pixel of
+noise — 4.5MB for a single game frame that is 214KB as a JPEG nobody can
+distinguish.
+
+So the rule is **embed the originals while they fit, re-encode when they do
+not**, and never touch the files on disk: the recording is the record, the
+re-encode is only the copy going into the document. Measured on the recording
+that failed: 408MB → 22MB, a 29MB HTML with all 105 images embedded, 4 seconds.
+
+Three states rather than two, because re-encoding is not always enough — a
+recording of several thousand frames still cannot be one string. Then the images
+are written beside the document and referenced relatively, and the user is told
+the file is no longer self-contained. **The export never simply fails.**
+
+The decision (`screenshots.js`) is kept apart from the encoder
+(`transcode.js`) so the policy is testable with plain node, while the half that
+genuinely needs Electron's image decoder stays behind an injected function.
 
 ### D-16 · Window geometry is fitted to the display the window is on
 `a31207f` · [ui/src/main/bounds.js](../ui/src/main/bounds.js)
@@ -359,6 +390,7 @@ Kept because each changed how the project is built, not merely what it contains.
 | Stranded in the floating strip (`0d42f74`) | `leaveCompact` ran only from Stop; the strip's Stop delegated to a disabled button | Idle-while-compact always restores |
 | Unredacted originals kept forever (`0d42f74`) | Undo stashed pre-blur images; a comment claimed cleanup that did not exist | Comments are not evidence |
 | Export vanished silently (`62cd413`) | A `ReferenceError` rejected into an unawaited click handler | Report export failure; never close the dialog on error |
+| HTML export died with "Invalid string length" (D-17) | 412MB of PNG base64'd to 550MB, past V8's 512MB string ceiling | Size the output before building it; degrade, never fail |
 | App appeared to start maximised (`9a0120d`) | 1280×860 requested in logical px = 1600×1075 physical at 125% | Size from the work area |
 | Compact strip jumped to the primary monitor (`0d42f74`) | Positioned from `getPrimaryDisplay()` | Use the display the window is on — see D-16 |
 
@@ -430,6 +462,13 @@ waits out because it waits for the engine's `ready`.
   the machine was in use. The JS and pure-Python suites all pass.
 - **No automated coverage of the installed artefact.** The installer is verified
   by hand.
+- **Export has no progress reporting.** Re-encoding 105 screenshots takes about
+  four seconds, and a recording of several thousand would take minutes. The
+  status line says "Exporting…" and nothing more; there is no percentage and no
+  way to cancel.
+- **The Markdown export does not re-encode.** It copies the originals beside the
+  document, so a 412MB recording produces a 412MB folder. Correct, but not
+  small; it has no string limit to force the issue.
 
 ### Deferred by decision
 

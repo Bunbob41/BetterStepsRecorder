@@ -121,8 +121,14 @@ async function render(templatePath, session, opts = {}) {
         const abs = path.join(session.dir, rel);
         if (!fs.existsSync(abs)) { missing.push(rel); return null; }
 
-        const ext = path.extname(abs).toLowerCase() === '.jpg' ? 'jpg' : 'png';
-        const bytes = fs.readFileSync(abs);
+        // A prepared copy wins over the file on disk: a recording of
+        // photographic frames is hundreds of megabytes as PNG, and every byte
+        // of it would go into this zip. The originals are never altered.
+        const prepared = opts.images && opts.images.get(abs);
+        const ext = prepared
+          ? prepared.ext.replace('.', '')
+          : (path.extname(abs).toLowerCase() === '.jpg' ? 'jpg' : 'png');
+        const bytes = prepared ? prepared.data : fs.readFileSync(abs);
         const { width, height } = pngSize(bytes, ext);
         const ratio = width && height ? height / width : 0.6;
 

@@ -92,8 +92,14 @@ function logoTag(brand) {
   }
 }
 
+/**
+ * `imageSrc` decides what each step's <img src> becomes: a data URI, or a
+ * relative path when the screenshots are too large to embed. It is injected
+ * because the decision needs an image encoder, and this module deliberately
+ * has no Electron dependency so it can be tested with plain node.
+ */
 function buildHtml(session, { title, embedImages = true, brand = null,
-                             voice = 'imperative' }) {
+                             voice = 'imperative', imageSrc = null }) {
   const steps = exportable(session);
   const generated = new Date().toLocaleString();
 
@@ -113,9 +119,10 @@ function buildHtml(session, { title, embedImages = true, brand = null,
     const i = n++;
     const abs = path.join(session.dir, step.screenshot || '');
     const hasShot = step.screenshot && fs.existsSync(abs);
-    const src = hasShot
-      ? (embedImages ? dataUri(abs) : step.screenshot)
-      : null;
+    const src = !hasShot ? null
+      : imageSrc ? imageSrc(abs)
+      : embedImages ? dataUri(abs)
+      : step.screenshot;
 
     const marker = markerPosition(step);
     const markerHtml = marker

@@ -270,6 +270,41 @@ misrepresent what the document is. And if you rewrote a step's wording yourself,
 your words are emitted exactly as you wrote them. Your prose is not ours to
 correct.
 
+### Why screenshots are sometimes re-encoded
+
+Screenshots are saved as PNG, which is the right choice for the usual subject: a
+window full of text, where PNG is both sharp and small. It is the wrong choice
+for a photograph or a 3D game, where PNG dutifully stores every pixel of noise —
+one frame of a game is around 4.5MB as a PNG and around 214KB as a JPEG you
+could not tell apart.
+
+That matters at export time, because an HTML or Word file carries its images
+*inside* it. A 106-step recording of a game is 412MB of screenshots, and there
+is a hard limit in JavaScript on how much text one document can be built from —
+about 512MB. Encoding 412MB of images for embedding needs 550MB. It does not
+fit, and the export used to fail outright with *Invalid string length*.
+
+So the app now measures first:
+
+```mermaid
+flowchart TD
+    m["How much image data<br/>would this document carry?"]
+    m --> fits{"Does it fit<br/>comfortably?"}
+    fits -->|"yes — the usual case"| keep["<b>Leave the PNGs alone.</b><br/>Text stays sharp"]
+    fits -->|no| re["<b>Re-encode to JPEG</b><br/>for the document only"]
+    re --> now{"Does it fit now?"}
+    now -->|yes| embed["<b>One portable file.</b><br/>You are told what was done"]
+    now -->|"no — a very long<br/>recording"| beside["<b>Images written beside it</b><br/>and you are told the folder<br/>must travel with the document"]
+
+    style keep fill:#1f6feb,color:#fff
+    style embed fill:#1f6feb,color:#fff
+    style beside fill:#5c636e,color:#fff
+```
+
+**Your recording is never altered.** Re-encoding applies only to the copy going
+into the document. The screenshots in the session folder stay exactly as they
+were captured, because that is the record.
+
 ### Your own template
 
 This is the feature that decides whether an organisation can actually adopt the
@@ -430,6 +465,8 @@ stepsrecorderproject/
 │   ├── settings.js         preferences
 │   ├── shortcuts.js        the three forms a hotkey must exist in
 │   ├── bounds.js           fitting the window to the screen it is on
+│   ├── screenshots.js      deciding whether images must be re-encoded
+│   ├── transcode.js        doing the re-encoding
 │   ├── export.js           HTML, PDF, Markdown
 │   ├── template.js         Markdown/HTML templates
 │   ├── docx.js             Word templates

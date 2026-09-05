@@ -1084,8 +1084,11 @@ el.expCancel.addEventListener('click', () => el.exportDlg.close());
 
 el.expGo.addEventListener('click', async () => {
   el.exportDlg.close();
+  // A large recording spends several seconds re-encoding screenshots before the
+  // save dialog appears. Without this the window simply looks frozen.
+  el.saveState.textContent = 'Exporting…';
   const r = await window.bsr.exportSteps(el.expFormat.value, el.expTitle.value);
-  if (r.cancelled) return;
+  if (r.cancelled) { el.saveState.textContent = ''; return; }
   if (!r.ok) { alert(r.error); return; }
   el.saveState.textContent = `Exported to ${r.file}`;
   if (r.warning) alert(r.warning);
