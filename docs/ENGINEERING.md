@@ -475,34 +475,50 @@ Kept because each changed how the project is built, not merely what it contains.
 
 ## 6. Testing
 
-Roughly 280 checks across three harnesses. **The split matters operationally.**
+Everything below runs without touching the mouse or keyboard, in seconds, on a
+machine in use.
 
-| Suite | Runs | Safe on a machine in use? |
+| Suite | Runs | Covers |
 |---|---|---|
-| `tests/*_test.js` (8 files) | `node tests/<file>` | **Yes** — pure logic |
-| `tests/scope_test.py`, `verify_test.py` | `python tests/<file>` | **Yes** — pure logic |
-| `tests/LogicTests` (C#) | `dotnet run` | **Yes** |
-| `tests/ui_*.py`, `capture_test.py`, `keyboard_test.py`, `e2e.py`, others | via `tests/ui_drive.py` | **NO** |
+| `tests/*_test.js` (9) | `node tests/<file>` | export rendering, templates, .docx, sessions, shortcut conversion, window fitting, screenshot sizing, renderer wiring |
+| `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
+| `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |
+| `tests/smoke.py` | `python tests/<file>` | engine protocol |
+| `tests/LogicTests` (C#) | `dotnet run` | redaction, typing secrecy, naming, scope rules, capture framing |
 
-The last group **synthesizes mouse and keyboard input and takes over the
-machine.** Do not run them while the machine is in use. `ui_drive.py` reads
-coordinates from the DWM frame so they match a screenshot pixel for pixel, and
-asserts the window size before clicking — coordinates were once read at the
-default size and a toolbar change made a working feature look broken.
+`renderer_wiring_test.js` earns its place cheaply: it checks statically that
+every element the renderer resolves exists in the markup, every bridge call is
+exposed by preload, and every invoke channel has a handler. A typo in any of
+those blanks the window at load — a failure no logic test reaches.
 
-`close_window()` posts `WM_CLOSE` rather than terminating: killing a GUI process
-can leave its pixels composited on screen, and those stale pixels swallow clicks
-aimed at what is behind them.
+### The interface is checked by hand, on purpose
 
-### Driving the UI without synthesizing input
+There was a second tier that drove the real interface by synthesizing clicks at
+fixed pixel coordinates (`ui_drive.py` and eleven suites). It was retired.
 
-For verification while the user is at the machine, launch with
-`--remote-debugging-port=9222` and drive the renderer's DOM over the DevTools
-protocol. This exercises real handlers and real IPC without touching the user's
-input devices. Used to verify the shortcuts dialog, rebinding, and both
-rejection paths in `a31207f`.
+The reasons, in order of weight:
 
----
+- **It reported success while failing.** The suites never exited non-zero, so a
+  return-code check called a run green while eight assertions inside it failed.
+  Any past claim that these passed was unfounded.
+- **It rotted silently.** The setup dialog (D-11) landed and every suite that
+  pressed Record kept waiting for a session that would never appear. That went
+  unnoticed for a day, because taking over the machine means they are only ever
+  run deliberately, and a test only run deliberately is one that is not run.
+- **Fixed coordinates cannot survive layout work.** Grouping the toolbar moved
+  three buttons; the export dialog's confirm button had drifted 169px from the
+  coordinate the suite still used.
+
+**Where automation is genuinely wanted, drive the DOM instead.** Launching with
+`--remote-debugging-port` and exercising the page through the DevTools protocol
+runs the real handlers and real IPC, is immune to layout drift, and does not
+take over the machine. It is how the shortcuts dialog, rebinding and both
+rejection paths were verified in `a31207f`.
+
+What was given up: end-to-end proof of the keyboard hook path, of scoped capture
+recording an in-scope click, and of the capture-option matrix. The logic beneath
+each is covered by `LogicTests` — typing secrecy alone has 14 checks — but the
+hook-to-screenshot path is now only ever exercised by a person using the tool.
 
 ## 7. Dependencies
 
@@ -535,8 +551,9 @@ waits out because it waits for the engine's `ready`.
 - **The compact strip's elapsed timer is visually unverified.** Its logic is
   wired and the element renders, but seeing it requires an actual recording,
   which captures the screen.
-- **`tests/ui_*.py` were not run against `a31207f`.** They synthesize input and
-  the machine was in use. The JS and pure-Python suites all pass.
+- **No automated coverage of the interface at all.** See §6: the suites that
+  drove it were retired as more misleading than useful. The gap is real, and the
+  replacement is a person following the manual checklist before a release.
 - **No automated coverage of the installed artefact.** The installer is verified
   by hand.
 - **Monitor and full-screen framing still capture the recording strip.** They

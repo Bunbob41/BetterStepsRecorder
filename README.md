@@ -111,15 +111,23 @@ entirely. The protocol is documented in [docs/ipc-contract.md](docs/ipc-contract
 
 ## Tests
 
+Every test here runs without touching the mouse or keyboard, so they can be run
+on a machine you are using.
+
 ```
-node tests/export_test.js          # export rendering
-node tests/session_test.js         # step merge and persistence
-python tests/smoke.py              # engine protocol
-python tests/scope_test.py         # window enumeration and scoping
-cd tests/LogicTests && dotnet run  # redaction, wording, naming, scope rules
+for f in tests/*_test.js; do node "$f"; done   # 9 suites: export, templates,
+                                               # sessions, shortcuts, bounds,
+                                               # screenshot sizing, wiring
+python tests/smoke.py                          # engine protocol
+python tests/scope_test.py                     # window enumeration and scoping
+python tests/verify_test.py                    # rot detection
+cd tests/LogicTests && dotnet run              # redaction, wording, naming,
+                                               # scope rules, capture framing
 ```
 
-Those need no input. The remaining tests (`keyboard_test.py`,
-`settings_test.py`, `e2e.py`, `rerecord_test.py`) drive synthetic mouse and
-keyboard input, so they take over the machine while they run — do not run them
-on a machine you are using.
+The interface itself is checked by hand. There used to be a set of suites that
+drove it by synthesizing clicks at fixed pixel coordinates; they were retired
+because every layout change silently broke them, they could only be run on an
+idle machine and so were run rarely enough to rot unnoticed, and they exited
+successfully while reporting failures. `git log -- tests/ui_drive.py` has them
+if they are ever wanted back.
