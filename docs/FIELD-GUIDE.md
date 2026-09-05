@@ -153,6 +153,33 @@ the final step of every recording you ever make is *"Pressed Ctrl+Shift+F10"*.
 **Steps are written to disk as they happen.** PSR saved everything only at the
 end, so a crash lost the lot. Here the folder is always current.
 
+### Why the recorder is not in its own screenshots
+
+There are two ways to take a screenshot of a window, and the difference decides
+whether the recording strip ends up in your guide.
+
+**Copying the screen** takes whatever is physically in that rectangle — which
+includes anything sitting on top of the window. The strip is always on top, so
+it landed in the corner of the screenshots, and a reader would see Pause and
+Stop buttons that are not part of the software being documented at all.
+
+**Asking the window to draw itself** returns only that window's own content.
+Anything overlapping it is excluded automatically: the strip, notification
+pop-ups, another application's tooltips. That is what the app now does.
+
+The catch, and the reason it was not done this way originally, is that asking
+politely used to return a black rectangle for anything drawing with the graphics
+card — Chrome, and most modern applications. Windows later added a flag for
+exactly that case, and with it they render properly.
+
+It is still best-effort. A few windows — screen overlays, mostly — draw nothing
+when asked, so the app checks the result and falls back to copying the screen. A
+screenshot is never lost.
+
+> One exception: if you set the capture frame to **monitor** or **every
+> display** rather than **window**, there is no single window to ask, so the
+> strip can still appear. The default is window.
+
 ---
 
 ## 5. How it knows what you clicked

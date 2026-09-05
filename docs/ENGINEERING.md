@@ -112,12 +112,60 @@ These are load-bearing. Breaking one is a defect even if tests pass.
    and lost everything on a crash.
 10. **The engine's hooks are installed on the thread that pumps messages.** See
     D-9; this is not optional, it is how Windows dispatches hook callbacks.
+11. **A capture never fails.** If a window cannot draw itself, the screen is
+    copied instead; a step is never lost for want of a screenshot.
+12. **A screenshot is exactly the size of the `frame` recorded with its step.**
+    The click marker is a percentage of that rectangle, so any mismatch
+    misplaces the marker on every step of the guide.
 
 ---
 
 ## 4. Decision changelog
 
 Newest first. Each entry records what was decided, why, and what it replaced.
+
+### D-19 · A framed window is asked to draw itself, not copied off the screen
+`(this change)` · [capture/ScreenCapture.cs](../capture/ScreenCapture.cs)
+
+The recording strip was appearing inside the screenshots. `CopyFromScreen` takes
+whatever is physically in the rectangle, and the strip is always-on-top, so it
+sat in the corner of the screenshots of the very procedure being documented — a
+reader sees Pause and Stop buttons that are not part of the software the guide
+is about. `ignorePids` does not help: it filters *events*, so a click on the
+recorder is not recorded as a step, but it has nothing to say about pixels.
+
+`PrintWindow` with **`PW_RENDERFULLCONTENT`** renders only that window's own
+content, so everything overlapping it is excluded by construction — our strip,
+notification toasts, another application's tooltips alike. The flag matters: the
+previous comment in this file recorded that PrintWindow returns black for
+GPU-composited applications, and it does, *without* it. Measured on Chrome:
+flag 0 gives 0% non-black, flag 2 gives a complete render.
+
+Two alternatives were measured and rejected:
+
+- **`setContentProtection(true)`** — Windows applies `WDA_MONITOR`, which draws
+  the window as a **solid black rectangle** in captures rather than omitting it.
+  A black box over the documented application is barely an improvement.
+- **`SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` from the engine** — fails
+  with `ERROR_ACCESS_DENIED` (5). The call must come from the process owning the
+  window, and Electron does not expose that flag.
+
+**Best-effort, with the screen copy as the floor.** Some windows report success
+and draw nothing, so the result is sampled and the screen copy used when it
+comes back blank. A read-only sweep of every visible window on the development
+machine: Settings/UWP 92%, Explorer 100%, Notepad 100%, Chrome, Electron and
+Spotify all rendering; NVIDIA's overlay and the Windows Input Experience blank
+and falling back. Those two are overlays nobody documents a procedure against,
+and they degrade rather than producing a black screenshot.
+
+**Monitor and full-screen framing are unchanged and still show the strip**,
+because there is no single window to ask. Documented under debt below.
+
+Image dimensions are unchanged: `PrintWindow` draws the whole window rect,
+including the invisible resize border, and the result is cropped back to the DWM
+frame so it matches what copying the screen produced. Verified — the click
+marker is positioned as a percentage of the recorded frame, so a size mismatch
+would silently misplace it on every step.
 
 ### D-18 · The capture format is advised on, never changed automatically
 `(this change)` · `advise()` in [ui/src/main/screenshots.js](../ui/src/main/screenshots.js)
@@ -418,6 +466,7 @@ Kept because each changed how the project is built, not merely what it contains.
 | Stranded in the floating strip (`0d42f74`) | `leaveCompact` ran only from Stop; the strip's Stop delegated to a disabled button | Idle-while-compact always restores |
 | Unredacted originals kept forever (`0d42f74`) | Undo stashed pre-blur images; a comment claimed cleanup that did not exist | Comments are not evidence |
 | Export vanished silently (`62cd413`) | A `ReferenceError` rejected into an unawaited click handler | Report export failure; never close the dialog on error |
+| The recorder appeared in its own screenshots (D-19) | `CopyFromScreen` composites everything on screen; `ignorePids` filters events, not pixels | Ask the window to draw; keep the screen copy as the floor |
 | HTML export died with "Invalid string length" (D-17) | 412MB of PNG base64'd to 550MB, past V8's 512MB string ceiling | Size the output before building it; degrade, never fail |
 | App appeared to start maximised (`9a0120d`) | 1280×860 requested in logical px = 1600×1075 physical at 125% | Size from the work area |
 | Compact strip jumped to the primary monitor (`0d42f74`) | Positioned from `getPrimaryDisplay()` | Use the display the window is on — see D-16 |
@@ -490,6 +539,11 @@ waits out because it waits for the engine's `ready`.
   the machine was in use. The JS and pure-Python suites all pass.
 - **No automated coverage of the installed artefact.** The installer is verified
   by hand.
+- **Monitor and full-screen framing still capture the recording strip.** They
+  read the desktop, so there is no window to ask. The options are to hide the
+  strip for the duration of each capture, which costs a round trip and a visible
+  flicker per step, or to accept `setContentProtection`'s black rectangle.
+  Neither is obviously right, and window framing — the default — is now clean.
 - **The size notice is advisory only.** It cannot offer to re-encode the
   recording it is describing, because that would rewrite screenshots on disk —
   and those are the record. A user who takes the advice gets the benefit on

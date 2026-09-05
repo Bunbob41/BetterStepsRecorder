@@ -85,6 +85,20 @@ internal static class Win32
     [DllImport("user32.dll")]
     internal static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
+    /// <summary>
+    /// Renders a window's own content into a device context, ignoring anything
+    /// overlapping it on screen.
+    /// </summary>
+    [DllImport("user32.dll")]
+    internal static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint nFlags);
+
+    /// <summary>
+    /// PrintWindow alone returns black for anything drawing through
+    /// DirectComposition - Chrome, Electron, every hardware accelerated app.
+    /// This flag, added for exactly that case, renders them properly.
+    /// </summary>
+    internal const uint PW_RENDERFULLCONTENT = 2;
+
     [DllImport("user32.dll")]
     internal static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 

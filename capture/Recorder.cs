@@ -219,7 +219,7 @@ internal sealed class Recorder : IDisposable
         var bounds = ScreenCapture.ResolveBounds(hwnd, point, _options.Frame);
         var seq = ++_seq;
         var relative = $"steps/{seq:D4}.{_options.Extension}";
-        ScreenCapture.CaptureTo(bounds, Path.Combine(_sessionDir, relative), _options);
+        ScreenCapture.CaptureTo(bounds, Path.Combine(_sessionDir, relative), _options, hwnd);
 
         var window = WindowResolver.Describe(hwnd, bounds);
         var target = UiaResolver.Resolve(point.X, point.Y);
@@ -302,7 +302,7 @@ internal sealed class Recorder : IDisposable
         var relative = replaces is null
             ? $"steps/{seq:D4}.{_options.Extension}"
             : $"steps/redo-{DateTime.UtcNow:yyyyMMddHHmmssfff}.{_options.Extension}";   // forward slashes: the UI treats this as a URL
-        ScreenCapture.CaptureTo(bounds, Path.Combine(_sessionDir, relative), _options);
+        ScreenCapture.CaptureTo(bounds, Path.Combine(_sessionDir, relative), _options, hwnd);
 
         var window = WindowResolver.Describe(hwnd, bounds);
         var monitor = WindowResolver.DescribeMonitor(e.Point);
