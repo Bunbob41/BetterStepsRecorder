@@ -142,6 +142,34 @@ const mb = buildMarkdown(session, { title: 'Branded', imageDir: 'img', brand });
 check('markdown carries the organisation', mb.includes('*Acme & Co <Finance>*'));
 check('markdown carries the footer', mb.includes('Internal use only'));
 
+
+console.log('');
+console.log('voice, decided before recording:');
+
+const record = { dir, steps: [
+  { id: 'v', action: 'leftClick', text: 'Clicked the "Save" button in "Billing"',
+    point: { x: 150, y: 120 },
+    window: { title: 'Billing', process: 'app.exe', rect: { x: 100, y: 100, w: 200, h: 200 } },
+    screenshot: 'steps/0001.png' },
+]};
+
+const asProcedure = buildHtml(record, { title: 'P', embedImages: true });
+check('a procedure tells the reader what to do',
+      asProcedure.includes('Click the &quot;Save&quot; button'));
+
+const asEvidence = buildHtml(record, { title: 'E', embedImages: true, voice: 'past' });
+check('an evidence record states what was done',
+      asEvidence.includes('Clicked the &quot;Save&quot; button'));
+check('and is not rewritten into an instruction',
+      !asEvidence.includes('>Click the'));
+
+const mdEvidence = buildMarkdown(record, { title: 'E', imageDir: 'i', voice: 'past' });
+check('markdown honours the same choice', mdEvidence.includes('## 1. Clicked the'));
+
+check('hand-written wording is untouched either way',
+      buildHtml({ dir, steps: [{ id: 'e', action: 'note',
+        text: 'Approve it', textEdited: true }] }, { title: 'X' }).includes('Approve it'));
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

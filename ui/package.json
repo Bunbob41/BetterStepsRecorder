@@ -31,6 +31,10 @@
       {
         "from": "../capture/bin/packed/bettersteps-capture.exe",
         "to": "capture/bettersteps-capture.exe"
+      },
+      {
+        "from": "../templates",
+        "to": "templates"
       }
     ],
     "win": {

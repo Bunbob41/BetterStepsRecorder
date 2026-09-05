@@ -22,10 +22,16 @@ const IMPERATIVE = [
   [/^Interacted with\b/, 'Interact with'],
 ];
 
-function toImperative(step) {
+/**
+ * `voice` is decided when the recording starts, not here. A procedure tells the
+ * reader what to do ("Click Save"); an evidence record states what was done
+ * ("Clicked the Save button"), and rewriting that into an instruction would
+ * misrepresent what the document is.
+ */
+function toImperative(step, voice = 'imperative') {
   const text = step.text || step.action || '';
   // Wording the user rewrote is theirs; do not second-guess it.
-  if (step.textEdited) return text;
+  if (step.textEdited || voice === 'past') return text;
 
   for (const [pattern, replacement] of IMPERATIVE) {
     if (pattern.test(text)) return text.replace(pattern, replacement);
@@ -86,7 +92,8 @@ function logoTag(brand) {
   }
 }
 
-function buildHtml(session, { title, embedImages = true, brand = null }) {
+function buildHtml(session, { title, embedImages = true, brand = null,
+                             voice = 'imperative' }) {
   const steps = exportable(session);
   const generated = new Date().toLocaleString();
 
@@ -122,7 +129,7 @@ function buildHtml(session, { title, embedImages = true, brand = null }) {
     <li class="step">
       <div class="step-head">
         <span class="num">${i + 1}</span>
-        <p class="text">${escapeHtml(toImperative(step))}</p>
+        <p class="text">${escapeHtml(toImperative(step, voice))}</p>
       </div>
       ${context ? `<p class="context">${context}</p>` : ''}
       ${src ? `<figure class="shot">
@@ -210,7 +217,8 @@ function buildHtml(session, { title, embedImages = true, brand = null }) {
 </html>`;
 }
 
-function buildMarkdown(session, { title, imageDir, brand = null }) {
+function buildMarkdown(session, { title, imageDir, brand = null,
+                                 voice = 'imperative' }) {
   const steps = exportable(session);
   const lines = [`# ${title}`, ''];
   if (brand && brand.name) lines.push(`*${brand.name}*`, '');
@@ -225,7 +233,7 @@ function buildMarkdown(session, { title, imageDir, brand = null }) {
     }
 
     const i = n++;
-    lines.push(`## ${i + 1}. ${toImperative(step)}`, '');
+    lines.push(`## ${i + 1}. ${toImperative(step, voice)}`, '');
 
     const context = [step.window && step.window.title, step.window && step.window.process]
       .filter(Boolean).join(' — ');

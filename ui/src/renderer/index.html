@@ -96,6 +96,59 @@
     <button id="btn-reveal" disabled>Show in Explorer</button>
   </footer>
 
+  <dialog id="setupdlg">
+    <h2>What are you about to record?</h2>
+
+    <label class="field">
+      <span>Name</span>
+      <input id="su-name" type="text" placeholder="e.g. Raise a purchase order" />
+    </label>
+
+    <fieldset class="purposes">
+      <legend class="field-legend">This recording is</legend>
+
+      <label class="purpose">
+        <input type="radio" name="purpose" value="sop" checked />
+        <span class="p-title">A procedure</span>
+        <span class="p-note">Written as instructions, rendered into an SOP template.</span>
+      </label>
+
+      <label class="purpose">
+        <input type="radio" name="purpose" value="training" />
+        <span class="p-title">A training guide</span>
+        <span class="p-note">Written as instructions, no template.</span>
+      </label>
+
+      <label class="purpose">
+        <input type="radio" name="purpose" value="evidence" />
+        <span class="p-title">An evidence record</span>
+        <span class="p-note">Kept in the past tense — what was done, not what to do.</span>
+      </label>
+    </fieldset>
+
+    <label class="field" id="su-template-field">
+      <span>Template</span>
+      <select id="su-template"></select>
+      <small>
+        Your own templates live in a folder you can open —
+        <button id="su-templates-open" class="linky" type="button">show me</button>.
+        Drop a .docx or .md in there and it appears here.
+      </small>
+    </label>
+
+    <label class="field">
+      <span>Capture</span>
+      <select id="su-scope"></select>
+      <small>Scoping to one application keeps everything else off the record
+             entirely — clicks elsewhere are never captured.</small>
+    </label>
+
+    <div class="dialog-actions">
+      <button id="su-cancel" type="button">Cancel</button>
+      <button id="su-go" class="primary" type="button">Start recording</button>
+    </div>
+  </dialog>
+
   <dialog id="scopedlg">
     <h2>What should be recorded?</h2>
     <p class="note">Scoping a recording to one application keeps everything else
@@ -124,9 +177,7 @@
         <option value="template" id="opt-template">Your SOP template — set it in Settings</option>
       </select>
     </label>
-    <p class="note">Descriptions are rewritten as instructions
-       ("Click Save" rather than "Clicked the Save button"). Wording you edited
-       yourself is left exactly as written.</p>
+    <p class="note" id="exp-note"></p>
     <div class="dialog-actions">
       <button id="exp-cancel">Cancel</button>
       <button id="exp-go" class="primary">Export</button>

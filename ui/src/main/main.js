@@ -10,6 +10,7 @@ const log = require('./log');
 const { buildHtml, buildMarkdown, copyImages } = require('./export');
 const templating = require('./template');
 const docx = require('./docx');
+const templatesLib = require('./templates-lib');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
 
@@ -268,7 +269,15 @@ async function ensureSidecar() {
   return { ok: true };
 }
 
-ipcMain.handle('recording:start', async () => {
+ipcMain.handle('templates:list', () =>
+  templatesLib.list(PROJECT_ROOT, app.getPath('userData')));
+
+ipcMain.handle('templates:reveal', () => {
+  shell.openPath(templatesLib.userDir(app.getPath('userData')));
+  return { ok: true };
+});
+
+ipcMain.handle('recording:start', async (_e, intent = {}) => {
   log.info('recording:start invoked');
   const exe = Sidecar.resolveExe(PROJECT_ROOT);
   log.info(`capture engine: ${exe}`);
@@ -287,7 +296,22 @@ ipcMain.handle('recording:start', async () => {
   log.info(`creating session at ${dir}`);
   closeSession();
   session = new Session(dir);
-  session.rename(new Date().toLocaleString());
+  session.rename(intent.name || new Date().toLocaleString());
+
+  // Decided before recording, not at export: it changes how the steps are
+  // worded on the way out, and the person starting knows what they are making.
+  session.setIntent({
+    purpose: intent.purpose || 'sop',
+    templatePath: intent.purpose === 'sop'
+      ? templatesLib.defaultFor(PROJECT_ROOT, app.getPath('userData'),
+                                intent.templatePath || settings.values.templatePath)
+      : '',
+  });
+
+  if (Array.isArray(intent.scopePids)) {
+    scopePids = intent.scopePids;
+    scopeLabel = intent.scopeLabel || (intent.scopePids.length ? 'One application' : 'Everything');
+  }
 
   const booted = await ensureSidecar();
   if (!booted.ok) return booted;
@@ -312,7 +336,10 @@ ipcMain.handle('recording:start', async () => {
   // failed leaves the user in a strip with nothing recording.
   enterCompact();
   send('session:saved', { dir, count: 0 });
-  return { ok: true, dir, scope: scopeLabel, name: session.name };
+  return {
+    ok: true, dir, scope: scopeLabel, name: session.name,
+    purpose: session.purpose, templatePath: session.templatePath,
+  };
 });
 
 // The renderer calls this whenever it believes recording has ended. Compact
@@ -333,6 +360,8 @@ ipcMain.handle('recording:stop', () => {
 ipcMain.handle('session:get', () => ({
   dir: session ? session.dir : null,
   steps: session ? session.steps : [],
+  purpose: session ? session.purpose : 'sop',
+  templatePath: session ? session.templatePath : '',
 }));
 
 ipcMain.handle('step:addNote', (_e, { text, afterId }) =>
@@ -478,7 +507,19 @@ ipcMain.handle('step:redact', (_e, { id, dataUrl }) => {
   return { ok: true, step: updated };
 });
 
-ipcMain.handle('export:run', async (_e, { format, title }) => {
+ipcMain.handle('export:run', async (_e, args) => {
+  try {
+    return await runExport(args);
+  } catch (err) {
+    // A handler that throws rejects the invoke, and the renderer awaits it in a
+    // click handler where nothing catches: the dialog closes and the export
+    // silently does not happen.
+    log.error(err);
+    return { ok: false, error: `Export failed: ${err.message}` };
+  }
+});
+
+async function runExport({ format, title }) {
   if (!session || !session.steps.length) {
     return { ok: false, error: 'Nothing to export yet.' };
   }
@@ -491,18 +532,21 @@ ipcMain.handle('export:run', async (_e, { format, title }) => {
   };
   const slug = safeTitle.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
 
+  // The recording's own template wins: it was chosen for this recording, before
+  // it was made. Declared before `filters`, which reads it.
+  const templateForSession = session.templatePath || settings.values.templatePath || '';
+  if (format === 'template' && !templateForSession) {
+    return { ok: false, error: 'This recording has no template. Choose one in Settings.' };
+  }
+
   const filters = {
     html: [{ name: 'Web page', extensions: ['html'] }],
     md: [{ name: 'Markdown', extensions: ['md'] }],
     pdf: [{ name: 'PDF', extensions: ['pdf'] }],
-    template: settings.values.templatePath.toLowerCase().endsWith('.docx')
+    template: templateForSession.toLowerCase().endsWith('.docx')
       ? [{ name: 'Word document', extensions: ['docx'] }]
       : [{ name: 'Document', extensions: ['md', 'html', 'txt'] }],
   }[format];
-
-  if (format === 'template' && !settings.values.templatePath) {
-    return { ok: false, error: 'Choose a template in Settings first.' };
-  }
 
   const chosen = await dialog.showSaveDialog(win, {
     title: 'Export steps',
@@ -517,19 +561,23 @@ ipcMain.handle('export:run', async (_e, { format, title }) => {
     if (format === 'html') {
       // Images are embedded, so the export is a single portable file rather
       // than a document that breaks the moment it is emailed on its own.
-      fs.writeFileSync(out, buildHtml(session, { title: safeTitle, embedImages: true, brand }), 'utf8');
+      fs.writeFileSync(out, buildHtml(session, {
+        title: safeTitle, embedImages: true, brand, voice: voiceFor(session),
+      }), 'utf8');
 
     } else if (format === 'md') {
       const imageDir = `${path.basename(out, '.md')}-images`;
       const copied = copyImages(session, path.join(path.dirname(out), imageDir));
-      fs.writeFileSync(out, buildMarkdown(session, { title: safeTitle, imageDir, brand }), 'utf8');
+      fs.writeFileSync(out, buildMarkdown(session, {
+        title: safeTitle, imageDir, brand, voice: voiceFor(session),
+      }), 'utf8');
       log.info(`markdown export copied ${copied} images`);
 
     } else if (format === 'pdf') {
       await exportPdf(safeTitle, out, brand);
 
     } else if (format === 'template') {
-      const tpl = settings.values.templatePath;
+      const tpl = templateForSession;
       if (!fs.existsSync(tpl)) {
         return { ok: false, error: `The template is no longer at ${tpl}` };
       }
@@ -591,14 +639,24 @@ ipcMain.handle('export:run', async (_e, { format, title }) => {
     log.error(err);
     return { ok: false, error: err.message };
   }
-});
+}
 
 /**
  * Renders the same HTML in an offscreen window and prints it. Reusing the HTML
  * exporter keeps one layout to maintain rather than a separate PDF renderer.
  */
+/**
+ * A procedure tells the reader what to do; an evidence record states what was
+ * done, and rewriting it into instructions would misrepresent it.
+ */
+function voiceFor(s) {
+  return s && s.purpose === 'evidence' ? 'past' : 'imperative';
+}
+
 async function exportPdf(title, outFile, brand) {
-  const html = buildHtml(session, { title, embedImages: true, brand });
+  const html = buildHtml(session, {
+    title, embedImages: true, brand, voice: voiceFor(session),
+  });
   const temp = path.join(app.getPath('temp'), `bsr-export-${Date.now()}.html`);
   fs.writeFileSync(temp, html, 'utf8');
 

@@ -111,7 +111,7 @@ function fillRow(row, vars) {
   });
 }
 
-function stepVars(step, number, imageDir) {
+function stepVars(step, number, imageDir, voice = 'imperative') {
   const file = step.screenshot ? path.basename(step.screenshot) : '';
   const rel = file ? `${imageDir}/${file}` : '';
   const isNote = step.action === 'note';
@@ -140,7 +140,8 @@ function stepVars(step, number, imageDir) {
  * typo in a hook name fails loudly rather than silently dropping content.
  */
 function render(templateText, session, { title, imageDir = 'images', brand = null,
-                                         docId: forcedId = null, userId = null } = {}) {
+                                         docId: forcedId = null, userId = null,
+                                         voice = 'imperative' } = {}) {
   const allSteps = session.steps || [];
   const steps = allSteps.filter((s) => !s.excluded);
   const values = buildValues(session, steps, allSteps,
@@ -167,7 +168,7 @@ function render(templateText, session, { title, imageDir = 'images', brand = nul
       let number = 0;
       const rendered = source.map((step) => {
         if (step.action !== 'note') number += 1;
-        return fillRow(row, stepVars(step, number, imageDir));
+        return fillRow(row, stepVars(step, number, imageDir, voice));
       }).join('');
 
       filledLoops.push({ hook: loop.start, rows: source.length,

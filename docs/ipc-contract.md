@@ -215,3 +215,21 @@ The statuses are deliberately distinct:
 
 Results are stamped with the time they were taken, because "this control was
 gone when checked" is a different claim from "this step is wrong".
+
+
+## Intent, decided before recording
+
+A recording carries what it is FOR, chosen when it starts rather than at export:
+
+    purpose: "sop" | "training" | "evidence"
+    templatePath: the template chosen for THIS recording
+
+It is not a label. `evidence` keeps the wording in the past tense on the way out
+- a procedure tells the reader what to do, an evidence record states what was
+done, and rewriting one into the other misrepresents the document. The template
+chosen up front also wins over the one in Settings, because it was chosen for
+this recording specifically.
+
+Templates come from two places: built-ins that ship with the app (the "System
+default" SOP structure, in Markdown and Word), and whatever the user drops into
+their own templates folder, which the setup dialog can open.

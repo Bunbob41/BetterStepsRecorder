@@ -23,7 +23,10 @@ const el = {
   blur: $('btn-blur'), wrap: $('shot-wrap'), selection: $('selection'),
   exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
   expTitle: $('exp-title'), expFormat: $('exp-format'),
-  expGo: $('exp-go'), expCancel: $('exp-cancel'),
+  expGo: $('exp-go'), expCancel: $('exp-cancel'), expNote: $('exp-note'),
+  setupDlg: $('setupdlg'), suName: $('su-name'), suTemplate: $('su-template'),
+  suTemplateField: $('su-template-field'), suScope: $('su-scope'),
+  suGo: $('su-go'), suCancel: $('su-cancel'), suOpenTemplates: $('su-templates-open'),
   scopeBtn: $('btn-scope'), scopeDlg: $('scopedlg'), scopeList: $('scope-list'),
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
   note: $('btn-note'), check: $('btn-check'),
@@ -230,12 +233,92 @@ function placeIndicator(step) {
 
 // ---- actions ----------------------------------------------------------------
 
-el.record.addEventListener('click', async () => {
-  const r = await window.bsr.startRecording();
+// ---- setting out ---------------------------------------------------------------
+// What a recording is FOR is decided before it starts, not at export. It changes
+// how the steps are worded on the way out, and which template they land in — and
+// the person pressing record already knows which of those they are making.
+
+function purposeChosen() {
+  const picked = document.querySelector('input[name=purpose]:checked');
+  return picked ? picked.value : 'sop';
+}
+
+function syncPurpose() {
+  // A template only means something for a procedure.
+  el.suTemplateField.hidden = purposeChosen() !== 'sop';
+}
+
+for (const radio of document.querySelectorAll('input[name=purpose]')) {
+  radio.addEventListener('change', syncPurpose);
+}
+
+el.suOpenTemplates.addEventListener('click', () => window.bsr.revealTemplates());
+
+async function openSetup() {
+  el.suName.value = '';
+
+  const { templates } = await window.bsr.listTemplates();
+  el.suTemplate.replaceChildren();
+  for (const t of templates) {
+    const opt = document.createElement('option');
+    opt.value = t.path;
+    opt.textContent = t.origin === 'user' ? `${t.name} (${t.kind})` : t.name;
+    el.suTemplate.append(opt);
+  }
+  if (!templates.length) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'No templates found';
+    el.suTemplate.append(opt);
+  }
+
+  // Scope, chosen here rather than in a separate dialog beforehand.
+  el.suScope.replaceChildren();
+  const everything = document.createElement('option');
+  everything.value = '';
+  everything.textContent = 'Everything on screen';
+  el.suScope.append(everything);
+
+  const r = await window.bsr.listWindows();
+  const seen = new Set();
+  for (const w of (r.ok ? r.windows : [])) {
+    if (seen.has(w.pid)) continue;
+    seen.add(w.pid);
+    const opt = document.createElement('option');
+    opt.value = String(w.pid);
+    opt.textContent = `Only ${w.process} — ${w.title}`;
+    el.suScope.append(opt);
+  }
+
+  syncPurpose();
+  el.setupDlg.showModal();
+  el.suName.focus();
+}
+
+el.record.addEventListener('click', openSetup);
+el.suCancel.addEventListener('click', () => el.setupDlg.close());
+
+el.suGo.addEventListener('click', async () => {
+  const purpose = purposeChosen();
+  const pid = el.suScope.value;
+  const intent = {
+    name: el.suName.value.trim(),
+    purpose,
+    templatePath: purpose === 'sop' ? el.suTemplate.value : '',
+    scopePids: pid ? [Number(pid)] : [],
+    scopeLabel: pid
+      ? el.suScope.selectedOptions[0].textContent.replace(/^Only /, '')
+      : 'Everything',
+  };
+  el.setupDlg.close();
+
+  const r = await window.bsr.startRecording(intent);
   if (!r.ok) { alert(r.error); return; }
+
   steps = [];
   selectedId = null;
   el.sessionName.value = r.name || '';
+  el.scopeBtn.textContent = `Capture: ${r.scope}`;
   renderList();
   setState('recording');
 });
@@ -807,9 +890,21 @@ async function applyBlur(sel, displayedWidth) {
 
 // ---- export -------------------------------------------------------------------
 
-el.exportBtn.addEventListener('click', () => {
+el.exportBtn.addEventListener('click', async () => {
   if (!steps.length) { alert('Record something first.'); return; }
-  if (!el.expTitle.value) el.expTitle.value = 'Recorded steps';
+  if (!el.expTitle.value) el.expTitle.value = el.sessionName.value || 'Recorded steps';
+
+  // Say what will happen to THIS recording, not what usually happens: an
+  // evidence record is deliberately not rewritten into instructions.
+  const s = await window.bsr.getSession();
+  el.expNote.textContent = s.purpose === 'evidence'
+    ? 'This is an evidence record, so wording stays in the past tense — "Clicked '
+      + 'the Save button", describing what was done. Wording you edited yourself '
+      + 'is left exactly as written.'
+    : 'Descriptions are rewritten as instructions ("Click Save" rather than '
+      + '"Clicked the Save button"). Wording you edited yourself is left exactly '
+      + 'as written.';
+
   el.exportDlg.showModal();
 });
 

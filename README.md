@@ -47,7 +47,11 @@ no administrator prompt.
 
 ## Using it
 
-1. **Capture** — optionally scope to one application, then **Start recording**.
+1. **Set out** — press **Start recording** and say what you are making: a
+   procedure (rendered into an SOP template), a training guide, or an evidence
+   record (kept in the past tense, because it describes what was done). Name it,
+   pick a template, and scope it to one application if you want everything else
+   kept off the record.
 2. Do the thing you are documenting. The window shrinks to a small floating
    strip so it is not in your way. `Ctrl+Shift+F9` pauses, `Ctrl+Shift+F10`
    stops, from wherever you are.

@@ -185,7 +185,15 @@ dialog h2 { margin: 0 0 16px; font-size: 15px; }
   min-width: 0;
 }
 .field input[type=range] { accent-color: var(--accent); }
-.dialog-actions { display: flex; justify-content: flex-end; }
+.dialog-actions {
+  display: flex; justify-content: flex-end;
+  /* The primary action stays in view when a dialog has to scroll: a Start
+     button below the fold reads as a form with no way to submit it. */
+  position: sticky; bottom: -20px; z-index: 2;
+  background: var(--panel);
+  margin: 4px -20px -20px; padding: 14px 20px;
+  border-top: 1px solid var(--line);
+}
 
 /* Scoped to the id. As a bare class this also matched .shot-wrap.arming, which
    the blur tool sets - turning the screenshot wrapper into a full-screen fixed
@@ -347,3 +355,26 @@ button.tiny + button.tiny { margin-left: 0; }
 .step .flag.ok { color: #57c06b; }
 .check-summary { color: var(--muted); font-size: 12px; margin-left: 16px; }
 .check-summary .stale-count { color: #d6a02a; }
+
+/* Setup, before recording. The choice made here decides what the recording is
+   for, so it is a small form rather than a menu of options. */
+.purposes { border: 0; padding: 0; margin: 0 0 18px; }
+.field-legend {
+  color: var(--muted); font-size: 12px; padding: 0; margin-bottom: 8px;
+}
+.purpose {
+  display: grid; grid-template-columns: auto 1fr; gap: 1px 10px;
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
+  margin-bottom: 8px; cursor: pointer; background: var(--panel-2);
+}
+.purpose:hover { border-color: var(--accent); }
+.purpose input { grid-row: 1 / span 2; align-self: center; accent-color: var(--accent); }
+.purpose .p-title { font-size: 14px; }
+.purpose .p-note { color: var(--muted); font-size: 12px; }
+.purpose:has(input:checked) { border-color: var(--accent); background: #21304a; }
+
+button.linky {
+  background: none; border: 0; padding: 0; color: var(--accent);
+  font: inherit; font-size: 11px; cursor: pointer; text-decoration: underline;
+}
+#su-template-field[hidden] { display: none; }

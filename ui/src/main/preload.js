@@ -3,7 +3,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 // The renderer gets this narrow surface and no Node. Everything that touches
 // the filesystem or the capture process stays in the main process.
 contextBridge.exposeInMainWorld('bsr', {
-  startRecording: () => ipcRenderer.invoke('recording:start'),
+  startRecording: (intent) => ipcRenderer.invoke('recording:start', intent),
+  listTemplates: () => ipcRenderer.invoke('templates:list'),
+  revealTemplates: () => ipcRenderer.invoke('templates:reveal'),
   pauseRecording: () => ipcRenderer.invoke('recording:pause'),
   resumeRecording: () => ipcRenderer.invoke('recording:resume'),
   stopRecording: () => ipcRenderer.invoke('recording:stop'),

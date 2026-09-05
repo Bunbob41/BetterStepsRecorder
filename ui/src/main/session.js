@@ -16,7 +16,19 @@ class Session {
     // Folders stay timestamped so two recordings can never collide; the name is
     // a label, and renaming must not move files around underneath a session.
     this.name = '';
+    // What this recording is FOR, decided before it starts. It changes how the
+    // steps are worded on the way out: a procedure tells the reader what to do,
+    // an evidence record states what was done.
+    this.purpose = 'sop';
+    this.templatePath = '';
     fs.mkdirSync(path.join(dir, 'steps'), { recursive: true });
+  }
+
+  setIntent({ purpose, templatePath }) {
+    if (purpose) this.purpose = purpose;
+    if (templatePath !== undefined) this.templatePath = templatePath;
+    this.flush();
+    return { purpose: this.purpose, templatePath: this.templatePath };
   }
 
   rename(name) {
@@ -200,7 +212,8 @@ class Session {
 
   flush() {
     const payload = {
-      v: 1, name: this.name, savedAt: new Date().toISOString(), steps: this.steps,
+      v: 1, name: this.name, purpose: this.purpose, templatePath: this.templatePath,
+      savedAt: new Date().toISOString(), steps: this.steps,
     };
     // Write-then-rename: a crash mid-write leaves the previous good file intact
     // rather than a truncated one.
@@ -217,6 +230,8 @@ class Session {
         const data = JSON.parse(fs.readFileSync(meta, 'utf8'));
         s.steps = data.steps || [];
         s.name = data.name || '';
+        s.purpose = data.purpose || 'sop';
+        s.templatePath = data.templatePath || '';
       } catch {
         s.steps = [];
       }
