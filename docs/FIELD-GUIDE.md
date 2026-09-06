@@ -698,14 +698,35 @@ stepsrecorderproject/
 
 ## 13. If you want to run it from source
 
-```bash
-cd ui && npm install && npm start
+You need [Node 20 or newer](https://nodejs.org) and the
+[.NET 10 SDK](https://dotnet.microsoft.com/download). Everything below is run
+from the `ui` folder.
+
+```
+cd ui
+npm install
+npm start
 ```
 
-To build the installer (needs the .NET SDK):
+To build the installer:
 
-```bash
-cd ui && npm run dist
+```
+npm run dist
 ```
 
-The result appears in `dist/`.
+The result appears in `dist/`, one file, ready to hand to somebody.
+
+To check nothing is broken first:
+
+```
+npm test
+npm run test:window
+```
+
+The first is a few seconds and touches nothing. The second opens a window for a
+moment, because some things can only be checked by running the real page.
+
+> One thing that catches people out: these are **not** `&&` chains. Windows
+> PowerShell — the blue terminal — does not accept `&&` as a separator and will
+> say *"The token '&&' is not a valid statement separator in this version."*
+> Run the lines one at a time, or join them with `;` instead.
