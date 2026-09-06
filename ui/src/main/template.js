@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const { toImperative } = require('./export');
 const path = require('node:path');
 const os = require('node:os');
 
@@ -120,7 +121,12 @@ function stepVars(step, number, imageDir, voice = 'imperative') {
     // "3. " for a step and "" for a note, so a row template can carry the
     // numbering without emitting a stray "." for written steps.
     number_prefix: isNote ? '' : `${number}. `,
-    description: oneLine(step.text),
+    // The voice this template was asked for. It was accepted as a parameter,
+    // threaded all the way down here, and then never read - so every template
+    // export came out in the engine's past tense regardless of what the
+    // recording was for. A procedure handed to somebody then read as a report
+    // of what one person once did rather than as instructions.
+    description: oneLine(toImperative(step, voice)),
     action: (step.action || '').toUpperCase(),
     window: oneLine(step.window && step.window.title),
     process: oneLine(step.window && step.window.process),

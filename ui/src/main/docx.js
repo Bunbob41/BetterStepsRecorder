@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const { toImperative } = require('./export');
 const path = require('node:path');
 const os = require('node:os');
 
@@ -49,7 +50,7 @@ function docId(session, when) {
  * Builds the data a Word template can reference. Deliberately flat and boring:
  * whoever writes the template is a documentation author, not a programmer.
  */
-function buildData(session, { title, brand, redactionSummary }) {
+function buildData(session, { title, brand, redactionSummary, voice = 'imperative' }) {
   const all = session.steps || [];
   const included = all.filter((s) => !s.excluded);
   const when = new Date();
@@ -63,7 +64,9 @@ function buildData(session, { title, brand, redactionSummary }) {
       // "3. " for a step and "" for a note, so a template can number without
       // emitting a stray full stop for written steps.
       label: isNote ? '' : `${number}. `,
-      description: (s.text || '').replace(/\s*\n\s*/g, ' ').trim(),
+      // Word had no notion of voice at all, so the format most likely to be
+      // handed to a company was the one that read as a diary entry.
+      description: toImperative(s, voice).replace(/\s*\n\s*/g, ' ').trim(),
       action: (s.action || '').toUpperCase(),
       window: (s.window && s.window.title) || '',
       process: (s.window && s.window.process) || '',

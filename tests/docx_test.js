@@ -88,6 +88,31 @@ const tpl = path.join(__dirname, '..', 'templates', 'corporate-sop.docx');
   check('no placeholder survived', !text.includes('{{'));
 
   fs.rmSync(dir, { recursive: true, force: true });
-  console.log(`\n${pass} passed, ${fail} failed`);
+  console.log('\nvoice:');
+{
+  // Worded as the engine words it; the fixture above is already imperative and
+  // so could never have shown this up. Word had no notion of voice at all, so
+  // the format most likely to reach a company read as a diary entry.
+  const recorded = { dir, steps: [
+    { id: 'p', action: 'leftClick', text: 'Clicked the "Save" button' },
+    { id: 'e', action: 'leftClick', text: 'Slide it right', textEdited: true },
+  ] };
+  const first = (o) => buildData(recorded, { title: 'T', brand: null,
+                                             redactionSummary: '', ...o })
+                       .steps[0].description;
+
+  check('a procedure is written as instructions',
+        first({ voice: 'imperative' }) === 'Click the "Save" button');
+  check('an evidence record stays in the past tense',
+        first({ voice: 'past' }) === 'Clicked the "Save" button');
+  check('so the two differ', first({ voice: 'imperative' }) !== first({ voice: 'past' }));
+  check('the default is instructions', first({}) === 'Click the "Save" button');
+  check('wording the author rewrote is untouched either way',
+        buildData(recorded, { title: 'T', brand: null, redactionSummary: '',
+                              voice: 'imperative' }).steps[1].description
+        === 'Slide it right');
+}
+
+console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error('FAILED:', e); process.exit(1); });

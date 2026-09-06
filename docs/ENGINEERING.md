@@ -124,6 +124,27 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-22 · Every export honours what the recording was for
+`(this change)`
+
+`62cd413` decided that a procedure is written as instructions and an evidence
+record stays in the past tense, and made the app ask before recording starts.
+Three export formats honoured that. The fourth - templates, including Word -
+did not, so the format most likely to reach a company read as a report of what
+one person once did.
+
+`template.js` accepted a `voice`, threaded it down to the function building each
+step, and that function never read it. `main.js` passed none anyway, and
+`docx.js` had no notion of voice at all.
+
+The reason it survived is worth more than the fix: **the test fixtures were
+worded imperatively already** - "Click the New User button" - while the engine
+records "Clicked the New User button". The transform was a no-op on the test
+data in either direction, so the suites watched a template export ignore the
+voice entirely and reported nothing wrong. Fixtures now use the engine's own
+wording, and the evidence-record direction is asserted as well as the procedure
+one, since only checking the default would have passed throughout.
+
 ### D-21 · The click indicator is configurable, and defined in one place
 `(this change)` · [ui/src/renderer/marker.js](../ui/src/renderer/marker.js)
 
@@ -541,6 +562,7 @@ Kept because each changed how the project is built, not merely what it contains.
 | Unredacted originals kept forever (`0d42f74`) | Undo stashed pre-blur images; a comment claimed cleanup that did not exist | Comments are not evidence |
 | Export vanished silently (`62cd413`) | A `ReferenceError` rejected into an unawaited click handler | Report export failure; never close the dialog on error |
 | The recorder appeared in its own screenshots (D-19) | `CopyFromScreen` composites everything on screen; `ignorePids` filters events, not pixels | Ask the window to draw; keep the screen copy as the floor |
+| Word and template exports were in the wrong tense (D-22) | `voice` was accepted, threaded down, and never read; the template paths never passed one | Test fixtures must be worded the way the engine words them |
 | HTML export died with "Invalid string length" (D-17) | 412MB of PNG base64'd to 550MB, past V8's 512MB string ceiling | Size the output before building it; degrade, never fail |
 | App appeared to start maximised (`9a0120d`) | 1280×860 requested in logical px = 1600×1075 physical at 125% | Size from the work area |
 | Compact strip jumped to the primary monitor (`0d42f74`) | Positioned from `getPrimaryDisplay()` | Use the display the window is on — see D-16 |

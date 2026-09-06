@@ -98,6 +98,44 @@ check('a loop with no placeholders falls back to a default row',
 check('and says it did not use the file body',
       r3.report.loops.some((l) => l.usedTemplateBody === false));
 
+console.log('\nvoice - what the recording was FOR:');
+{
+  // Its own steps, worded the way the ENGINE words them. The fixtures above are
+  // already imperative, so the transform was a no-op on them in either
+  // direction - which is exactly why these tests watched a template export
+  // ignore the voice entirely and reported nothing wrong.
+  const recorded = { dir: '/tmp/x', steps: [
+    { id: 'p', action: 'leftClick', text: 'Clicked the "Save" button in "Billing"' },
+    { id: 'q', action: 'keyText', text: 'Typed "ACME Ltd" into the Customer field' },
+    { id: 'r', action: 'keyPress', text: 'Pressed Enter in "Billing"' },
+    { id: 'm', action: 'leftClick', text: 'Nudge the slider until it clicks',
+      textEdited: true },
+  ] };
+  const body = '<!-- PARSER_HOOK: START_STEPS -->{{description}}\n'
+             + '<!-- PARSER_HOOK: END_STEPS -->';
+
+  const proc = render(body, recorded, { title: 'T', imageDir: 'img',
+                                        voice: 'imperative' }).text;
+  check('a procedure tells the reader what to do',
+        proc.includes('Click the "Save" button in "Billing"'));
+  check('typing too', proc.includes('Type "ACME Ltd" into the Customer field'));
+  check('and key presses', proc.includes('Press Enter in "Billing"'));
+  check('it does not narrate what was done', !proc.includes('Clicked the "Save"'));
+
+  const evidence = render(body, recorded, { title: 'T', imageDir: 'img',
+                                            voice: 'past' }).text;
+  check('an evidence record states what was done',
+        evidence.includes('Clicked the "Save" button in "Billing"'));
+  check('so the two are different documents', evidence !== proc);
+
+  check('wording the author rewrote is left alone in both',
+        proc.includes('Nudge the slider until it clicks')
+        && evidence.includes('Nudge the slider until it clicks'));
+
+  const bare = render(body, recorded, { title: 'T', imageDir: 'img' }).text;
+  check('and the default is instructions', bare.includes('Click the "Save"'));
+}
+
 console.log('\nimages:');
 check('only included steps are copied', copyImages(session, path.join(dir, 'out')) === 3);
 

@@ -790,6 +790,7 @@ async function runExport({ format, title }) {
         const { buffer, missing } = await docx.render(tpl, session, {
           title: safeTitle,
           brand,
+          voice: voiceFor(session),
           images: prep.images,
           redactionSummary: templating.redactionSummary(session.steps),
         });
@@ -813,7 +814,7 @@ async function runExport({ format, title }) {
       const source = fs.readFileSync(tpl, 'utf8');
       const imageDir = `${path.basename(out, path.extname(out))}-images`;
       const { text, report } = templating.render(source, session, {
-        title: safeTitle, imageDir, brand,
+        title: safeTitle, imageDir, brand, voice: voiceFor(session),
       });
 
       const copied = templating.copyImages(session, path.join(path.dirname(out), imageDir));
