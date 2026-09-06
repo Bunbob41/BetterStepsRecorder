@@ -389,10 +389,12 @@ window.bsr.onHotkeys(paintShortcuts);
 // ---- advisory notices ----------------------------------------------------------
 // Shown after a recording ends, dismissed by the user, and never modal.
 
-window.bsr.onNotice(({ message }) => {
+function showNotice(message) {
   el.noticeText.textContent = message;
   el.notice.hidden = false;
-});
+}
+
+window.bsr.onNotice(({ message }) => showNotice(message));
 
 el.noticeClose.addEventListener('click', () => { el.notice.hidden = true; });
 
@@ -1120,7 +1122,11 @@ el.expGo.addEventListener('click', async () => {
   if (r.cancelled) { el.saveState.textContent = ''; return; }
   if (!r.ok) { alert(r.error); return; }
   el.saveState.textContent = `Exported to ${r.file}`;
-  if (r.warning) alert(r.warning);
+  // The strip, not alert(). 20fe21c removed a modal for exactly this reason: a
+  // routine outcome must not freeze the window. Being told the screenshots were
+  // re-encoded is worth knowing and not worth a click to dismiss before
+  // carrying on.
+  if (r.warning) showNotice(r.warning);
 });
 
 // ---- settings ----------------------------------------------------------------
@@ -1132,10 +1138,18 @@ function paintSettings(v) {
   el.logo.value = v.brandLogo || '';
   el.footer.value = v.brandFooter || '';
   el.template.value = v.templatePath || '';
-  const tpl = (v.templatePath || '').split(/[\/]/).pop();
-  el.optTemplate.textContent = tpl
-    ? `Your SOP template — ${tpl}`
-    : 'Your SOP template — set it in Settings';
+  // Split on BOTH separators. This matched forward slashes only, so on Windows
+  // the path never split and the option showed the whole of
+  // C:\Users\...\corporate-sop.docx instead of the file's name.
+  const tpl = (v.templatePath || '').split(/[\\/]/).pop();
+  // And say "Word" outright. The Word export was here all along, behind an
+  // option that only mentioned SOP templates - so it could not be found by
+  // anyone looking for Word.
+  el.optTemplate.textContent = !tpl
+    ? 'Word, or your own template — choose one in Settings'
+    : /\.docx$/i.test(tpl)
+      ? `Word (.docx) — into your template: ${tpl}`
+      : `Your own template — ${tpl}`;
   el.marker.value = v.markerStyle || 'circle';
   el.markerBold.checked = Boolean(v.markerBold);
   markerOpts = { style: el.marker.value, bold: el.markerBold.checked };

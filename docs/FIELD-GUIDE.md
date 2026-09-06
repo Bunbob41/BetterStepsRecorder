@@ -366,6 +366,13 @@ doing that part way through a recording would quietly alter the record, and if
 what you are making is an evidence record, that is the last thing it should do.
 Dismiss it and it goes away.
 
+### Exporting to Word
+
+Word is the fourth entry in the Export dropdown. It reads **"Word (.docx) — into
+your template"** once a template is chosen, or offers to let you choose one if
+not, because a Word export here is never a blank document: it fills in *your*
+format. Setting that up is the next section.
+
 ### Your own template
 
 This is the feature that decides whether an organisation can actually adopt the
