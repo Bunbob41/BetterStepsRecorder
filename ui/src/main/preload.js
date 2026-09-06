@@ -25,7 +25,8 @@ contextBridge.exposeInMainWorld('bsr', {
   shotUrl: (screenshot) => ipcRenderer.invoke('shot:url', { screenshot }),
   revealSession: () => ipcRenderer.invoke('session:reveal'),
   exportSteps: (format, title) => ipcRenderer.invoke('export:run', { format, title }),
-  redactStep: (id, dataUrl) => ipcRenderer.invoke('step:redact', { id, dataUrl }),
+  redactStep: (id, dataUrl, kind) =>
+    ipcRenderer.invoke('step:redact', { id, dataUrl, kind }),
   shotData: (screenshot) => ipcRenderer.invoke('shot:data', { screenshot }),
 
   listLibrary: () => ipcRenderer.invoke('library:list'),

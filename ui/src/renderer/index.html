@@ -79,7 +79,10 @@
         <div class="meta">
           <span id="detail-meta"></span>
           <label class="exclude"><input id="chk-exclude" type="checkbox" /> Exclude from export</label>
-          <button id="btn-blur">Blur area</button>
+          <button id="btn-box" class="tool" title="Draw a box around something">Box</button>
+          <button id="btn-arrow" class="tool" title="Point at something">Arrow</button>
+          <button id="btn-highlight" class="tool" title="Highlight an area">Highlight</button>
+          <button id="btn-blur" class="tool">Blur area</button>
           <button id="btn-rerecord">Re-record step</button>
           <button id="btn-delete" class="danger">Delete step</button>
         </div>
@@ -354,6 +357,7 @@
   </dialog>
 
   <script src="marker.js"></script>
+  <script src="annotate.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

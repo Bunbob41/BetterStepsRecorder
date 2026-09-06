@@ -479,3 +479,13 @@ body.compact .notice { display: none; }
   user-select: text;          /* so it can be copied into a bug report */
 }
 .build .stale { color: var(--rec); }
+
+/* The marking tools. Only one can be armed at a time, and the armed one has to
+   be obvious - a drag on the screenshot means something different depending on
+   which it is, and there is no undoing a mark you did not know you were making
+   without noticing it first. */
+button.tool.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}

@@ -23,6 +23,7 @@ const el = {
   templateClear: $('set-template-clear'), templateInfo: $('template-info'),
   templateCopy: $('set-template-copy'), templateFolder: $('set-template-folder'),
   blur: $('btn-blur'), wrap: $('shot-wrap'), selection: $('selection'),
+  box: $('btn-box'), arrow: $('btn-arrow'), highlight: $('btn-highlight'),
   exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
   expTitle: $('exp-title'), expFormat: $('exp-format'),
   expGo: $('exp-go'), expCancel: $('exp-cancel'), expNote: $('exp-note'),
@@ -177,7 +178,8 @@ async function select(id) {
 
   const isNote = step.action === 'note';
   // A written step has no screenshot, so the tools that act on one are moot.
-  el.blur.hidden = isNote;
+  for (const t of ['blur', 'box', 'arrow', 'highlight']) el[t].hidden = isNote;
+  if (isNote && armedTool) armTool(armedTool);   // disarm: nothing to draw on
   el.rerecord.hidden = isNote;
   el.text.placeholder = isNote ? 'Describe what the reader should do' : '';
   el.indicator.style.display = 'none';
@@ -988,18 +990,31 @@ window.bsr.onHotkey(({ action }) => {
 // that merely covered them would leave the real data in the session folder, and
 // a redacted guide whose sources still contain the data is worse than none.
 
-let blurArming = false;
-let dragStart = null;
+// Which marking tool is armed, if any: 'blur' | 'box' | 'arrow' | 'highlight'.
+// A drag on the screenshot means something different for each, so exactly one
+// is armed at a time and arming one disarms the rest.
+let armedTool = null;
 
-el.blur.addEventListener('click', () => {
-  blurArming = !blurArming;
-  el.blur.classList.toggle('active', blurArming);
-  el.wrap.classList.toggle('selecting', blurArming);
-  el.selection.hidden = true;
+const TOOL_BUTTONS = () => ({
+  blur: el.blur, box: el.box, arrow: el.arrow, highlight: el.highlight,
 });
 
+function armTool(tool) {
+  armedTool = armedTool === tool ? null : tool;
+  for (const [name, button] of Object.entries(TOOL_BUTTONS())) {
+    button.classList.toggle('active', armedTool === name);
+  }
+  el.wrap.classList.toggle('selecting', Boolean(armedTool));
+  el.selection.hidden = true;
+}
+let dragStart = null;
+
+for (const name of ['blur', 'box', 'arrow', 'highlight']) {
+  el[name].addEventListener('click', () => armTool(name));
+}
+
 el.wrap.addEventListener('mousedown', (e) => {
-  if (!blurArming || !selectedId) return;
+  if (!armedTool || !selectedId) return;
   e.preventDefault();
   const r = el.shot.getBoundingClientRect();
   dragStart = { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -1031,16 +1046,27 @@ window.addEventListener('mouseup', async (e) => {
     left: Math.min(x, dragStart.x), top: Math.min(y, dragStart.y),
     width: Math.abs(x - dragStart.x), height: Math.abs(y - dragStart.y),
   };
+  const from = { x: dragStart.x, y: dragStart.y };
+  const to = { x, y };
   dragStart = null;
   el.selection.hidden = true;
 
-  // Ignore a stray click that was not really a drag.
-  if (sel.width < 6 || sel.height < 6) return;
+  // A box only needs the region; an arrow needs to know which end the reader
+  // should be looking at, so the raw drag is kept as well.
+  const rect = { x: sel.left, y: sel.top, w: sel.width, h: sel.height };
+  if (!BsrAnnotate.isDeliberate(armedTool, rect, from, to)) return;
 
-  await applyBlur(sel, r.width);
+  await applyMark(armedTool, { sel, from, to }, r.width);
 });
 
-async function applyBlur(sel, displayedWidth) {
+/**
+ * Burns a mark into the screenshot.
+ *
+ * Blur and the annotation tools share everything except what is painted: read
+ * the file, map the drag from displayed pixels to image pixels, draw, write
+ * back with the original stashed for undo.
+ */
+async function applyMark(tool, { sel, from, to }, displayedWidth) {
   const step = steps.find((s) => s.id === selectedId);
   if (!step) return;
 
@@ -1065,26 +1091,37 @@ async function applyBlur(sel, displayedWidth) {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(img, 0, 0);
 
-  // Pixelate first, then blur the pixelated block. Blur alone can leave enough
-  // structure to read short text back; downsampling actually discards it.
-  const sw = Math.max(1, Math.round(w / 16));
-  const sh = Math.max(1, Math.round(h / 16));
-  const small = document.createElement('canvas');
-  small.width = sw; small.height = sh;
-  small.getContext('2d').drawImage(img, x, y, w, h, 0, 0, sw, sh);
+  if (tool === 'blur') {
+    // Pixelate first, then blur the pixelated block. Blur alone can leave
+    // enough structure to read short text back; downsampling actually
+    // discards it.
+    const sw = Math.max(1, Math.round(w / 16));
+    const sh = Math.max(1, Math.round(h / 16));
+    const small = document.createElement('canvas');
+    small.width = sw; small.height = sh;
+    small.getContext('2d').drawImage(img, x, y, w, h, 0, 0, sw, sh);
 
-  ctx.save();
-  ctx.filter = 'blur(3px)';
-  ctx.drawImage(small, 0, 0, sw, sh, x, y, w, h);
-  ctx.restore();
+    ctx.save();
+    ctx.filter = 'blur(3px)';
+    ctx.drawImage(small, 0, 0, sw, sh, x, y, w, h);
+    ctx.restore();
+  } else {
+    BsrAnnotate.draw(ctx, tool, {
+      rect: { x, y, w, h },
+      from: { x: Math.round(from.x * ratio), y: Math.round(from.y * ratio) },
+      to: { x: Math.round(to.x * ratio), y: Math.round(to.y * ratio) },
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+    });
+  }
 
   const out = canvas.toDataURL('image/png');
 
   let r;
   try {
-    r = await window.bsr.redactStep(step.id, out);
+    r = await window.bsr.redactStep(step.id, out, tool);
   } catch (err) {
-    alert(`Could not blur that area: ${err.message}`);
+    showNotice(`Could not mark that area: ${err.message}`);
     return;
   }
   if (!r.ok) { alert(r.error); return; }

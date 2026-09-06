@@ -487,6 +487,24 @@ that:
 | Blurred originals lingering | Undo copies are purged when the session closes |
 | Excluded steps leaking | Their screenshots are not copied alongside an export either |
 
+### Marking up a screenshot
+
+Select a step and you get four tools above the picture:
+
+- **Box** — draw a rectangle around the thing that matters
+- **Arrow** — drag from where you want the arrow to start to the thing it should
+  point at
+- **Highlight** — a translucent wash over an area
+- **Blur** — the privacy one, described below
+
+The first three are annotations: they say *look here*, which the recorder cannot
+know. They are drawn into the picture itself, so they appear in every export
+including Word. That also means they cannot be restyled afterwards - press
+**Ctrl+Z** if a mark goes wrong.
+
+Only blur counts as redaction. An arrow you drew is never reported as though you
+had hidden something.
+
 **Blur is destructive on purpose.** An overlay that merely covers pixels leaves
 the customer's name sitting in the folder, and a "redacted" guide whose source
 images still contain the data is worse than none. It pixelates first and then

@@ -556,6 +556,7 @@ ipcMain.handle('edit:undo', () => {
     }
     session.updateStep(entry.step.id, {
       redacted: entry.wasRedacted || false,
+      annotated: entry.wasAnnotated || false,
       editedAt: new Date().toISOString(),
     });
     return { ok: true, action: 'redact', steps: session.steps };
@@ -595,7 +596,7 @@ ipcMain.handle('shot:data', (_e, { screenshot }) => {
   return `data:${mime};base64,${fs.readFileSync(abs).toString('base64')}`;
 });
 
-ipcMain.handle('step:redact', (_e, { id, dataUrl }) => {
+ipcMain.handle('step:redact', (_e, { id, dataUrl, kind = 'blur' }) => {
   if (!session) return { ok: false, error: 'No recording is open.' };
 
   const step = session.steps.find((s) => s.id === id);
@@ -628,14 +629,24 @@ ipcMain.handle('step:redact', (_e, { id, dataUrl }) => {
   }
 
   // Recorded only now: a redaction that failed must not occupy an undo slot.
-  pushUndo({ type: 'redact', step: { ...step }, token, wasRedacted: step.redacted === true });
+  pushUndo({
+    type: 'redact', step: { ...step }, token,
+    wasRedacted: step.redacted === true,
+    wasAnnotated: step.annotated === true,
+  });
 
+  // An arrow is not a redaction. `redacted` feeds the compliance summary -
+  // "N screenshot(s) had regions blurred by the author" - and marking an
+  // annotation as one would claim a redaction that never happened, which is
+  // the overclaiming 79f85b5 exists to prevent. Both destroy pixels and both
+  // are undoable; only one is a privacy act.
+  const isRedaction = kind === 'blur';
   const updated = session.updateStep(id, {
-    redacted: true,
+    ...(isRedaction ? { redacted: true } : { annotated: true }),
     editedAt: new Date().toISOString(),
   });
 
-  log.info(`redacted step ${id}`);
+  log.info(`${isRedaction ? 'redacted' : `annotated (${kind})`} step ${id}`);
 
   return { ok: true, step: updated };
 });

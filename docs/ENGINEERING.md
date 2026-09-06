@@ -124,6 +124,36 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-27 · Marks are burned into the image, and are not redactions
+`(this change)` · [ui/src/renderer/annotate.js](../ui/src/renderer/annotate.js)
+
+A recorder can say where the click landed. It cannot say "this is the field
+that matters" - that is the author's knowledge, and without a way to add it
+every screenshot is a flat picture of a screen. Box, arrow and highlight now
+share the machinery blur already had: arming, drag selection, the mapping from
+displayed pixels to image pixels, the write-back, and the undo stash.
+
+**Burned in, not stored beside.** Annotations held as data would stay editable,
+but Word embeds the picture and cannot layer anything over it - the click marker
+is already missing there for exactly this reason (D-23's debt). A mark held as
+data would be absent from the format most likely to reach a company. Burning it
+in costs the ability to restyle, which is why the original is stashed for undo.
+
+**An annotation is not a redaction.** `redacted` feeds the compliance summary -
+"N screenshot(s) had regions blurred by the author" - so an arrow filed as one
+would claim a privacy act that never happened, the overclaiming `79f85b5`
+exists to prevent. Annotations set `annotated` instead, and undo restores both.
+
+Two things the geometry tests could not have caught, both found by looking at
+the rendered picture:
+
+- **The highlight was invisible.** `multiply` is how a highlighter behaves on
+  paper - it darkens - so yellow over a dark interface came out as nothing at
+  all, on exactly the screenshots this tool is most often pointed at. It is now
+  a translucent wash with an outline, which reads on either ground.
+- Stroke width scales with the image diagonal. A fixed width vanishes on a 4K
+  screenshot and swamps a small dialog.
+
 ### D-26 · The window is named once, at render time
 `(this change)` · `windowTracker()` in [ui/src/main/export.js](../ui/src/main/export.js)
 
