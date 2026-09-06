@@ -508,6 +508,14 @@ including Word. That also means they cannot be restyled afterwards - press
 Only blur counts as redaction. An arrow you drew is never reported as though you
 had hidden something.
 
+**If you use more than one highlighter colour**, turn on *Explain the
+highlighting in exports* in Settings and say what each colour means - "green:
+safe to change", "orange: check with your supervisor". The guide then carries a
+key at the top. Only the colours you actually used are listed, so a reader is
+never sent hunting for an orange mark that was never made; a colour you used but
+never explained is listed too, saying so, because a mark the key does not cover
+is exactly what a key is for.
+
 **Blur is destructive on purpose.** An overlay that merely covers pixels leaves
 the customer's name sitting in the folder, and a "redacted" guide whose source
 images still contain the data is worse than none. It pixelates first and then

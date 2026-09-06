@@ -142,9 +142,20 @@ function logoTag(brand) {
  * because the decision needs an image encoder, and this module deliberately
  * has no Electron dependency so it can be tested with plain node.
  */
+/**
+ * The key, in plain text, for a format that has no styling of its own.
+ *
+ * A colour used without a meaning still appears, saying so: a mark on the page
+ * that the key does not explain is exactly what a key exists to prevent.
+ */
+function legendLines(legend) {
+  return (legend || []).map((h) =>
+    `${h.name} — ${h.meaning || 'no meaning set'}`);
+}
+
 function buildHtml(session, { title, embedImages = true, brand = null,
                              voice = 'imperative', imageSrc = null,
-                             markerOpts = {} }) {
+                             markerOpts = {}, legend = [] }) {
   const steps = exportable(session);
   const generated = new Date().toLocaleString();
 
@@ -242,6 +253,16 @@ function buildHtml(session, { title, embedImages = true, brand = null,
     border: 1px solid var(--line); border-radius: 8px;
   }
   .bsr-marker svg { display: block; }
+  .legend {
+    margin: 0 0 32px; padding: 14px 16px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .legend-title { font-weight: 600; margin-bottom: 8px; }
+  .legend dd { margin: 0 0 4px; display: flex; align-items: center; gap: 9px; }
+  .legend .swatch {
+    width: 16px; height: 16px; border-radius: 3px; flex: none;
+    border: 1px solid var(--line);
+  }
   footer { color: var(--muted); font-size: 13px; margin-top: 40px; }
   @media print {
     body { padding: 0; background: #fff; color: #000; }
@@ -260,6 +281,11 @@ function buildHtml(session, { title, embedImages = true, brand = null,
       </div>
     </header>
     <p class="meta">${countSteps(steps)} step${countSteps(steps) === 1 ? '' : 's'} · ${escapeHtml(generated)}</p>
+    ${legend.length ? `<dl class="legend">
+      <dt class="legend-title">What the highlighting means</dt>
+      ${legend.map((h) => `<dd><span class="swatch" style="background:${h.fill}"></span>${
+        escapeHtml(h.name)} — ${escapeHtml(h.meaning || 'no meaning set')}</dd>`).join('')}
+    </dl>` : ''}
     <ol>${body}</ol>
     <footer>${brand && brand.footer
       ? escapeHtml(brand.footer) + ' &middot; '
@@ -270,12 +296,18 @@ function buildHtml(session, { title, embedImages = true, brand = null,
 }
 
 function buildMarkdown(session, { title, imageDir, brand = null,
-                                 voice = 'imperative' }) {
+                                 voice = 'imperative', legend = [] }) {
   const steps = exportable(session);
   const lines = [`# ${title}`, ''];
   if (brand && brand.name) lines.push(`*${brand.name}*`, '');
   lines.push(...['',
                  `${countSteps(steps)} step${countSteps(steps) === 1 ? '' : 's'}`, '']);
+
+  if (legend.length) {
+    lines.push('**What the highlighting means**', '');
+    for (const line of legendLines(legend)) lines.push(`* ${line}`);
+    lines.push('');
+  }
 
   let n = 0;
   const describe = windowTracker();
@@ -320,4 +352,4 @@ function copyImages(session, targetDir) {
 }
 
 module.exports = { buildHtml, buildMarkdown, copyImages, toImperative,
-                   exportable, windowTracker };
+                   exportable, windowTracker, legendLines };

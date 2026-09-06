@@ -10,6 +10,7 @@ const log = require('./log');
 const { buildHtml, buildMarkdown, copyImages, exportable } = require('./export');
 const screenshots = require('./screenshots');
 const { toJpeg } = require('./transcode');
+const annotate = require('../renderer/annotate');
 const buildInfo = require('./build-info');
 const templating = require('./template');
 const docx = require('./docx');
@@ -557,6 +558,7 @@ ipcMain.handle('edit:undo', () => {
     session.updateStep(entry.step.id, {
       redacted: entry.wasRedacted || false,
       annotated: entry.wasAnnotated || false,
+      highlights: entry.wasHighlights || [],
       editedAt: new Date().toISOString(),
     });
     return { ok: true, action: 'redact', steps: session.steps };
@@ -596,7 +598,7 @@ ipcMain.handle('shot:data', (_e, { screenshot }) => {
   return `data:${mime};base64,${fs.readFileSync(abs).toString('base64')}`;
 });
 
-ipcMain.handle('step:redact', (_e, { id, dataUrl, kind = 'blur' }) => {
+ipcMain.handle('step:redact', (_e, { id, dataUrl, kind = 'blur', colour = '' }) => {
   if (!session) return { ok: false, error: 'No recording is open.' };
 
   const step = session.steps.find((s) => s.id === id);
@@ -633,6 +635,7 @@ ipcMain.handle('step:redact', (_e, { id, dataUrl, kind = 'blur' }) => {
     type: 'redact', step: { ...step }, token,
     wasRedacted: step.redacted === true,
     wasAnnotated: step.annotated === true,
+    wasHighlights: [...(step.highlights || [])],
   });
 
   // An arrow is not a redaction. `redacted` feeds the compliance summary -
@@ -641,8 +644,16 @@ ipcMain.handle('step:redact', (_e, { id, dataUrl, kind = 'blur' }) => {
   // the overclaiming 79f85b5 exists to prevent. Both destroy pixels and both
   // are undoable; only one is a privacy act.
   const isRedaction = kind === 'blur';
+
+  // Which highlighter colours this step carries, so the legend can list the
+  // ones a guide actually uses rather than all of them.
+  const highlights = kind === 'highlight' && colour
+    ? [...new Set([...(step.highlights || []), colour])]
+    : step.highlights;
+
   const updated = session.updateStep(id, {
     ...(isRedaction ? { redacted: true } : { annotated: true }),
+    ...(highlights ? { highlights } : {}),
     editedAt: new Date().toISOString(),
   });
 
@@ -718,6 +729,17 @@ function htmlImages(s, { assetDir, assetHref }) {
   };
 }
 
+/**
+ * The highlighter key for this recording, if one was asked for.
+ *
+ * Off unless enabled: most guides use one colour and need no key, and a
+ * one-entry legend is clutter.
+ */
+function legendFor(s) {
+  if (!settings.values.showHighlightLegend) return [];
+  return annotate.legendFor(exportable(s), settings.values.highlightMeanings || {});
+}
+
 /** How the click should be marked, as chosen in Settings. */
 function markerOptions() {
   return {
@@ -784,7 +806,7 @@ async function runExport({ format, title }) {
       });
       fs.writeFileSync(out, buildHtml(session, {
         title: safeTitle, brand, voice: voiceFor(session), imageSrc,
-        markerOpts: markerOptions(),
+        markerOpts: markerOptions(), legend: legendFor(session),
       }), 'utf8');
       log.info(`exported html to ${out}`);
       return { ok: true, file: out, warning };
@@ -819,6 +841,7 @@ async function runExport({ format, title }) {
           title: safeTitle,
           brand,
           voice: voiceFor(session),
+          legend: legendFor(session),
           images: prep.images,
           redactionSummary: templating.redactionSummary(session.steps),
         });
@@ -843,6 +866,7 @@ async function runExport({ format, title }) {
       const imageDir = `${path.basename(out, path.extname(out))}-images`;
       const { text, report } = templating.render(source, session, {
         title: safeTitle, imageDir, brand, voice: voiceFor(session),
+        legend: legendFor(session),
       });
 
       const copied = templating.copyImages(session, path.join(path.dirname(out), imageDir));
@@ -899,7 +923,7 @@ async function exportPdf(title, outFile, brand) {
 
   const html = buildHtml(session, {
     title, brand, voice: voiceFor(session), imageSrc,
-    markerOpts: markerOptions(),
+    markerOpts: markerOptions(), legend: legendFor(session),
   });
   const temp = path.join(tempDir, `${stem}.html`);
   fs.writeFileSync(temp, html, 'utf8');

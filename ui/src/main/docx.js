@@ -1,5 +1,5 @@
 const fs = require('node:fs');
-const { toImperative, windowTracker } = require('./export');
+const { toImperative, windowTracker, legendLines } = require('./export');
 const path = require('node:path');
 const os = require('node:os');
 
@@ -50,10 +50,13 @@ function docId(session, when) {
  * Builds the data a Word template can reference. Deliberately flat and boring:
  * whoever writes the template is a documentation author, not a programmer.
  */
-function buildData(session, { title, brand, redactionSummary, voice = 'imperative' }) {
+function buildData(session, { title, brand, redactionSummary, voice = 'imperative',
+                              legend = [] }) {
   const all = session.steps || [];
   const included = all.filter((s) => !s.excluded);
   const when = new Date();
+
+  const highlightLegend = legendLines(legend);
 
   let number = 0;
   const describe = windowTracker();
@@ -91,6 +94,11 @@ function buildData(session, { title, brand, redactionSummary, voice = 'imperativ
     organisation: (brand && brand.name) || '',
     footer: (brand && brand.footer) || '',
     redaction_summary: redactionSummary,
+    // A template can print {{highlight_legend}} to explain its colours.
+    // Empty unless a legend was asked for, so a template carrying the
+    // placeholder does not show a heading for a guide with one colour.
+    highlight_legend: highlightLegend.join('; '),
+    highlight_legend_lines: highlightLegend,
     steps,
   };
 }

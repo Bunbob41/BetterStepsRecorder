@@ -43,6 +43,7 @@ const el = {
   cElapsed: $('c-elapsed'),
   build: $('build'),
   marker: $('set-marker'), markerBold: $('set-marker-bold'),
+  legend: $('set-legend'), legendMeanings: $('legend-meanings'),
   notice: $('notice'), noticeText: $('notice-text'),
   noticeSettings: $('notice-settings'), noticeClose: $('notice-close'),
   keysDlg: $('keysdlg'), kPause: $('k-pause'), kStop: $('k-stop'),
@@ -1222,7 +1223,8 @@ async function applyMark(tool, { sel, from, to }, displayedWidth) {
 
   let r;
   try {
-    r = await window.bsr.redactStep(step.id, out, tool);
+    r = await window.bsr.redactStep(step.id, out, tool,
+                                    tool === 'highlight' ? highlightId : '');
   } catch (err) {
     showNotice(`Could not mark that area: ${err.message}`);
     return;
@@ -1282,6 +1284,7 @@ function paintSettings(v) {
   el.template.value = v.templatePath || '';
   paintTemplates(v.templatePath || '');
   highlightId = v.highlightColour || 'yellow';
+  paintLegendMeanings(v);
   el.marker.value = v.markerStyle || 'circle';
   el.markerBold.checked = Boolean(v.markerBold);
   markerOpts = { style: el.marker.value, bold: el.markerBold.checked };
@@ -1348,6 +1351,52 @@ async function paintTemplates(chosenPath) {
       ? `Word (.docx) — into ${mine ? 'your template' : 'the built-in SOP template'}: ${name}`
       : `${mine ? 'Your own template' : 'The built-in template'} — ${name}`;
 }
+
+/**
+ * A row per highlighter colour, for saying what it means in your guides.
+ *
+ * The meanings live in Settings rather than on a recording because they are an
+ * organisation's convention - green means the same thing in every procedure it
+ * writes, or it means nothing at all.
+ */
+function paintLegendMeanings(values) {
+  el.legend.checked = Boolean(values.showHighlightLegend);
+  el.legendMeanings.hidden = !el.legend.checked;
+  el.legendMeanings.replaceChildren();
+
+  const meanings = values.highlightMeanings || {};
+  for (const hue of BsrAnnotate.HIGHLIGHTS) {
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const swatch = document.createElement('span');
+    swatch.className = 'swatch';
+    swatch.style.background = hue.fill;
+
+    const label = document.createElement('label');
+    label.textContent = hue.name;
+    label.htmlFor = `mean-${hue.id}`;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = `mean-${hue.id}`;
+    input.value = meanings[hue.id] || '';
+    input.placeholder = 'what this colour means';
+    input.addEventListener('change', async () => {
+      const next = { ...(values.highlightMeanings || {}), [hue.id]: input.value.trim() };
+      await window.bsr.setSettings({ highlightMeanings: next });
+      values.highlightMeanings = next;
+    });
+
+    row.append(swatch, label, input);
+    el.legendMeanings.append(row);
+  }
+}
+
+el.legend.addEventListener('change', async () => {
+  const v = await window.bsr.setSettings({ showHighlightLegend: el.legend.checked });
+  paintLegendMeanings(v);
+});
 
 async function paintBuild() {
   let b;

@@ -139,7 +139,6 @@ main { flex: 1; display: grid; grid-template-columns: 320px 1fr; min-height: 0; 
 
 .meta { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; }
 .meta span { user-select: text; }
-.meta button { margin-left: auto; }
 
 /* overflow hidden: an arrow's tail is longer than a small screenshot is tall,
    and a marker hanging outside the picture it annotates looks like a fault.
@@ -239,9 +238,6 @@ dialog h2 { margin: 0 0 16px; font-size: 15px; }
 }
 .arming-title { font-size: 15px; margin-bottom: 8px; }
 .arming-card p { color: var(--muted); margin: 0 0 16px; }
-.meta button + button { margin-left: 8px; }
-.meta #btn-rerecord { margin-left: auto; }
-.meta #btn-delete { margin-left: 0; }
 .redone { color: var(--accent); font-size: 11px; }
 
 .checkfield {
@@ -534,3 +530,27 @@ button.tool.active {
   border: 1px solid rgba(255,255,255,.35);
 }
 .huemenu button.chosen::after { content: '✓'; margin-left: auto; color: var(--muted); }
+
+/* The step's own tools. Marking on the left, the irreversible pair on the
+   right; the divider is the same one the main toolbar uses, for the same
+   reason - a row of eight equal-looking buttons says nothing about which of
+   them deletes your work. */
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tools .group + .divider { margin-left: auto; }
+
+/* One row per highlighter colour: the swatch, and what it means in this
+   organisation's guides. */
+.legend-meanings { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 14px; }
+.legend-meanings[hidden] { display: none; }
+.legend-meanings .row { display: flex; align-items: center; gap: 9px; }
+.legend-meanings .swatch {
+  width: 16px; height: 16px; border-radius: 3px; flex: none;
+  border: 1px solid rgba(255,255,255,.3);
+}
+.legend-meanings label { width: 62px; color: var(--muted); font-size: 12px; }
+.legend-meanings input { flex: 1; }

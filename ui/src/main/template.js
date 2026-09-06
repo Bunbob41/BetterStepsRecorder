@@ -1,5 +1,5 @@
 const fs = require('node:fs');
-const { toImperative, windowTracker } = require('./export');
+const { toImperative, windowTracker, legendLines } = require('./export');
 const path = require('node:path');
 const os = require('node:os');
 
@@ -102,6 +102,9 @@ function buildValues(session, steps, allSteps, opts) {
     INJECT_STEP_COUNT: String(steps.filter((s) => s.action !== 'note').length),
     INJECT_ORGANISATION: opts.brand && opts.brand.name ? opts.brand.name : '',
     INJECT_REDACTION_SUMMARY: redactionSummary(allSteps),
+    // Empty when no legend was asked for, so a template carrying the hook does
+    // not print an empty heading for guides that use one colour.
+    INJECT_HIGHLIGHT_LEGEND: legendLines(opts.legend).join('; '),
   };
 }
 
@@ -147,11 +150,11 @@ function stepVars(step, number, imageDir, voice = 'imperative', describe = null)
  */
 function render(templateText, session, { title, imageDir = 'images', brand = null,
                                          docId: forcedId = null, userId = null,
-                                         voice = 'imperative' } = {}) {
+                                         voice = 'imperative', legend = [] } = {}) {
   const allSteps = session.steps || [];
   const steps = allSteps.filter((s) => !s.excluded);
   const values = buildValues(session, steps, allSteps,
-                             { title, brand, docId: forcedId, userId });
+                             { title, brand, docId: forcedId, userId, legend });
 
   let out = templateText;
   const filledLoops = [];

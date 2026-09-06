@@ -94,6 +94,40 @@ console.log('\nhighlighter colours:');
   check('and so does none at all', a.highlightFill(undefined) === a.HIGHLIGHTS[0].fill);
 }
 
+console.log('\nthe key printed in a guide:');
+{
+  const step = (...ids) => ({ action: 'leftClick', highlights: ids });
+  const meanings = { yellow: 'Check this', green: 'Safe to change' };
+
+  const used = a.legendFor(
+    [step('yellow'), step('green', 'yellow'), { action: 'leftClick' }], meanings);
+
+  check('lists the colours the guide actually uses', used.length === 2);
+  check('with what each means',
+        used.find((h) => h.id === 'yellow').meaning === 'Check this');
+  check('and a swatch to print', used.every((h) => h.fill));
+
+  // Listing every colour would be a key to marks that are not there, and a
+  // reader would hunt for an orange one that was never made.
+  check('a colour never used is absent', !used.some((h) => h.id === 'orange'));
+
+  // But a colour that IS used with nothing said about it must still appear:
+  // a mark the key does not explain is what a key exists to prevent.
+  const unexplained = a.legendFor([step('pink')], meanings);
+  check('a used colour with no meaning is still listed', unexplained.length === 1);
+  check('and says so rather than sitting blank', unexplained[0].meaning === '');
+
+  check('no highlighting at all means no key',
+        a.legendFor([{ action: 'leftClick' }], meanings).length === 0);
+  check('and neither does an empty recording', a.legendFor([], meanings).length === 0);
+  check('nor one that was never passed', a.legendFor(undefined, meanings).length === 0);
+
+  // The order is the palette's, not the order they happened to be used, so two
+  // guides from the same organisation read the same way.
+  const order = a.legendFor([step('orange'), step('yellow')], {});
+  check('listed in a consistent order', order[0].id === 'yellow');
+}
+
 console.log('\nthe tools on offer:');
 {
   check('box, ellipse, arrow and highlight',

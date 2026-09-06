@@ -191,6 +191,33 @@
     return rect.w >= 6 && rect.h >= 6;
   }
 
-  return { TOOLS, HIGHLIGHTS, highlightFill, strokeFor, arrowGeometry,
+  /**
+   * The key for a guide: which highlighter colours it uses and what each means.
+   *
+   * Only the colours actually used in this recording. Listing the rest would be
+   * a key to marks that are not there, which is worse than no key at all - a
+   * reader would hunt for an orange mark that was never made.
+   *
+   * A colour used without a meaning is still listed, saying so. Silently
+   * omitting it would leave a mark on the page that the key does not explain,
+   * which is the thing a legend exists to prevent.
+   */
+  function legendFor(steps, meanings = {}) {
+    const used = new Set();
+    for (const step of steps || []) {
+      for (const id of step.highlights || []) used.add(id);
+    }
+
+    return HIGHLIGHTS
+      .filter((h) => used.has(h.id))
+      .map((h) => ({
+        id: h.id,
+        name: h.name,
+        fill: h.fill,
+        meaning: String(meanings[h.id] || '').trim(),
+      }));
+  }
+
+  return { TOOLS, HIGHLIGHTS, highlightFill, legendFor, strokeFor, arrowGeometry,
            headArea, draw, isDeliberate };
 }));
