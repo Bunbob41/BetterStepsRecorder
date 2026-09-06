@@ -222,5 +222,27 @@ console.log('\nthe ready-made row text, for a format with no conditionals:');
         pairs.every(([d, b]) => b === d || b.includes(d)));
 }
 
+console.log('\nwhat the compliance section admits to:');
+{
+  const { redactionSummary } = require('../ui/src/main/template');
+
+  // A cropped picture is not the frame that was captured. A reader comparing
+  // the document to the live system has to be told, or the guide is quietly
+  // claiming to show more than it does.
+  const withCrops = [
+    { id: 'a', action: 'leftClick', cropped: true },
+    { id: 'b', action: 'leftClick', cropped: true },
+    { id: 'c', action: 'leftClick' },
+  ];
+  const said = redactionSummary(withCrops);
+  check('cropping is reported', /2 screenshot\(s\) were cropped/.test(said));
+  check('and counted, not just mentioned', !/3 screenshot\(s\) were cropped/.test(said));
+
+  // And not claimed when it did not happen: the same honesty the redaction
+  // wording exists to keep.
+  check('a recording with no crops says nothing about cropping',
+        !/cropped/.test(redactionSummary([{ id: 'a', action: 'leftClick' }])));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

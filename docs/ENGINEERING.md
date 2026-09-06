@@ -139,8 +139,45 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-32 · A crop cuts the frame as well as the picture
+`(this change)` · [ui/src/renderer/crop.js](../ui/src/renderer/crop.js)
+
+A screenshot framed by the monitor, or of a maximised window, is mostly not the
+thing being pointed at. Cropping is the difference between a guide whose
+pictures a reader can follow and one where every step is a full desktop with a
+small ring somewhere in it.
+
+The pixels were never the hard part. **The click marker is stored as a
+percentage of the step's `frame`** (invariant 12), so cutting the image without
+cutting the frame by the same proportion moves the marker off what it points
+at - on every export, silently, with nothing on screen to show it happened.
+`frameAfter()` scales the frame by the crop, in the frame's own coordinates
+rather than the image's, so a 4K capture of a window measured in logical pixels
+scales instead of shifting. The percentage then resolves to the same place in
+the world, and the screenshot is still exactly the size of its frame.
+
+**A crop that cuts the click out is legitimate** - trimming to a panel the
+click was not in - but it must never be a surprise, so it is asked about before
+it happens rather than discovered in a finished document. `markerPosition`
+already returns null for a click outside the frame, so nothing further is
+needed to make the marker disappear correctly.
+
+**Undo restores both.** A `crop` entry carries the stashed image and the
+previous frame; putting one back without the other is the one thing this must
+never leave behind. Writing the pixels is now `rewriteScreenshot()`, shared
+with redaction, which had the only copy of the write-beside-and-rename dance.
+
+**The compliance summary says so.** A cropped picture is not the frame that was
+captured, and a reader comparing the document to the live system should be told.
+That is the same honesty as not overclaiming a redaction (`79f85b5`), pointing
+the other way.
+
+Verified by cropping a real screenshot and marking it: 27.4%, 60.2% became
+17.8%, 64.6% after trimming 15% off each edge, which is what the arithmetic
+predicts - and the ring landed on the same element in both pictures.
+
 ### D-31 · Word gets the marker drawn into the pixels
-`(this change)` · [ui/src/main/composite.js](../ui/src/main/composite.js)
+`88c5f6e` · [ui/src/main/composite.js](../ui/src/main/composite.js)
 
 HTML and PDF lay the click marker over the picture in CSS, which is why it is
 free and restyleable. Word cannot: it embeds a picture and has no way to put
@@ -935,7 +972,7 @@ machine in use.
 |---|---|---|
 | `tests/composite_test.js` | `npm run test:composite` (from `ui/`) | the click marker drawn into real pixels, and into a real .docx |
 | `tests/window_test.js` | `npm run test:window` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
-| `tests/*_test.js` (15) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
+| `tests/*_test.js` (16) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
 | `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |
 | `tests/smoke.py` | `python tests/<file>` | engine protocol |

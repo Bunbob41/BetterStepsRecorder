@@ -15,6 +15,7 @@ const { toJpeg } = require('./transcode');
 const annotate = require('../renderer/annotate');
 const sections = require('../renderer/sections');
 const find = require('../renderer/find');
+const crop = require('../renderer/crop');
 const buildInfo = require('./build-info');
 const templating = require('./template');
 const docx = require('./docx');
@@ -571,6 +572,20 @@ ipcMain.handle('edit:undo', () => {
     return { ok: true, action: 'retext', steps: session.steps };
   }
 
+  if (entry.type === 'crop') {
+    if (!session.restore(entry.token, entry.step.screenshot)) {
+      return { ok: false, error: 'The original screenshot is no longer available.' };
+    }
+    // The frame goes back with the pixels. Restoring one without the other is
+    // what a crop must never leave behind.
+    session.updateStep(entry.step.id, {
+      frame: entry.wasFrame || undefined,
+      cropped: entry.step.cropped === true,
+      editedAt: new Date().toISOString(),
+    });
+    return { ok: true, action: 'crop', steps: session.steps };
+  }
+
   if (entry.type === 'redact') {
     if (!session.restore(entry.token, entry.step.screenshot)) {
       return { ok: false, error: 'The original screenshot is no longer available.' };
@@ -656,28 +671,23 @@ ipcMain.handle('shot:data', (_e, { screenshot }) => {
   return `data:${mime};base64,${fs.readFileSync(abs).toString('base64')}`;
 });
 
-ipcMain.handle('step:redact', (_e, { id, dataUrl, kind = 'blur', colour = '' }) => {
-  if (!session) return { ok: false, error: 'No recording is open.' };
-
-  const step = session.steps.find((s) => s.id === id);
-  if (!step || !step.screenshot) return { ok: false, error: 'Step not found.' };
-
+/**
+ * Writes new pixels over a step's screenshot, keeping the old ones for undo.
+ *
+ * Beside the original and renamed over it, so an interrupted write cannot leave
+ * a truncated screenshot where a real one used to be. A locked or read-only
+ * file must come back as an error, not as a rejected promise the renderer
+ * swallows in a mouse handler.
+ */
+function rewriteScreenshot(step, dataUrl) {
   const match = /^data:image\/png;base64,(.+)$/.exec(dataUrl || '');
   if (!match) return { ok: false, error: 'Expected a PNG data URL.' };
 
   const file = path.join(session.dir, step.screenshot);
   const bytes = Buffer.from(match[1], 'base64');
-
-  // Keep the pre-blur image so the edit can be undone. Blur destroys pixels by
-  // design; that is only defensible if a slip is recoverable while the session
-  // is open.
   const token = session.stash(step.screenshot);
-
-  // Write beside the original and rename over it, so an interrupted write
-  // cannot leave a truncated screenshot where a real one used to be. A locked
-  // or read-only file must come back as an error, not as a rejected promise
-  // the renderer swallows in a mouse handler.
   const temp = file + '.tmp';
+
   try {
     fs.writeFileSync(temp, bytes);
     fs.renameSync(temp, file);
@@ -688,9 +698,62 @@ ipcMain.handle('step:redact', (_e, { id, dataUrl, kind = 'blur', colour = '' }) 
     return { ok: false, error: `Could not update the screenshot: ${err.message}` };
   }
 
+  return { ok: true, token };
+}
+
+/**
+ * Trims a screenshot, and trims the step's frame by the same proportion.
+ *
+ * Both, always. The click marker is stored as a percentage of `frame`, so an
+ * image cut without its frame puts the marker somewhere else on every export
+ * with nothing on screen to show it happened - and a screenshot that is no
+ * longer the size of its frame breaks the one thing every exporter assumes.
+ */
+ipcMain.handle('step:crop', (_e, { id, dataUrl, rect, image }) => {
+  if (!session) return { ok: false, error: 'No recording is open.' };
+
+  const step = session.steps.find((s) => s.id === id);
+  if (!step || !step.screenshot) return { ok: false, error: 'Step not found.' };
+  if (!rect || !image) return { ok: false, error: 'No region to crop to.' };
+  if (!crop.isDeliberate(rect, image)) {
+    return { ok: false, error: 'That region is too small to crop to.' };
+  }
+
+  const written = rewriteScreenshot(step, dataUrl);
+  if (!written.ok) return written;
+
+  const nextFrame = crop.frameAfter(step.frame, rect, image);
+
+  pushUndo({
+    type: 'crop', step: { ...step }, token: written.token,
+    wasFrame: step.frame ? { ...step.frame } : null,
+  });
+
+  const updated = session.updateStep(id, {
+    ...(nextFrame ? { frame: nextFrame } : {}),
+    cropped: true,
+    editedAt: new Date().toISOString(),
+  });
+
+  log.info(`cropped step ${id} to ${Math.round(rect.w)}x${Math.round(rect.h)}`);
+  return { ok: true, step: updated };
+});
+
+ipcMain.handle('step:redact', (_e, { id, dataUrl, kind = 'blur', colour = '' }) => {
+  if (!session) return { ok: false, error: 'No recording is open.' };
+
+  const step = session.steps.find((s) => s.id === id);
+  if (!step || !step.screenshot) return { ok: false, error: 'Step not found.' };
+
+  // The pre-blur image is kept so the edit can be undone. Blur destroys pixels
+  // by design; that is only defensible if a slip is recoverable while the
+  // session is open.
+  const written = rewriteScreenshot(step, dataUrl);
+  if (!written.ok) return written;
+
   // Recorded only now: a redaction that failed must not occupy an undo slot.
   pushUndo({
-    type: 'redact', step: { ...step }, token,
+    type: 'redact', step: { ...step }, token: written.token,
     wasRedacted: step.redacted === true,
     wasAnnotated: step.annotated === true,
     wasHighlights: [...(step.highlights || [])],

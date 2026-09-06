@@ -636,3 +636,14 @@ button.tool.active {
    touch the highlighted one. */
 .step.matched { box-shadow: inset 3px 0 0 #d6a02a; }
 .step.matched .title { color: #f0c866; }
+
+/* The crop selection. Dashed and light, and the part being kept is the part
+   inside it - the opposite of the blur selection, which marks what is about to
+   be destroyed. */
+#btn-crop.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.selection.cropping {
+  border-style: dashed;
+  border-color: #fff;
+  background: transparent;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .45);
+}

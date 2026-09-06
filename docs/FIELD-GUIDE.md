@@ -401,6 +401,29 @@ export, because both are drawn by the same piece of code.
 > picture itself rather than layering anything on top of it, so the marker
 > cannot simply be drawn over it the way it is in a web page or PDF.
 
+### Trimming a screenshot
+
+**Crop** trims a screenshot to the part that matters. Arm it, drag a rectangle,
+and everything outside it goes. The selection is drawn the opposite way round
+to the others — what is *inside* it is what you keep — and everything being cut
+away is dimmed.
+
+The interesting part is what happens to the marker. Every step remembers the
+region of the screen it was captured from, and the click is stored as a
+position *within that region*. So when the picture is cut, that region is cut
+by the same proportion — and the marker goes on pointing at the same thing. Get
+this wrong and every cropped step would have its marker quietly in the wrong
+place, in every export, with nothing on screen to show it.
+
+If you crop the click itself out of the picture — trimming to a panel the click
+was not in — you are asked first. That step then has no marker, which is
+correct, but it should never be a surprise.
+
+**Ctrl+Z** puts the screenshot and its region back together.
+
+Cropped steps are counted in the compliance section of a template export, so a
+reader knows the pictures are not the full frames that were captured.
+
 ### The marker in a Word document
 
 Word works differently from the other formats, and it is worth knowing why.

@@ -60,6 +60,7 @@ const SESSION = {
 // that the page's own behaviour - the count, the marks, the notice - is what
 // is under test.
 const find = require(PROJECT + '/ui/src/renderer/find.js');
+const crop = require(PROJECT + '/ui/src/renderer/crop.js');
 const { solidPngDataUrl } = require(PROJECT + '/tests/png-fixture.js');
 const SHOT = solidPngDataUrl(600, 400);
 
@@ -88,6 +89,16 @@ const ANSWERS = {
   // The page assigns r.step back into its list, so a stub that omits it puts
   // undefined where a step should be and the next render dies.
   redactStep: (id) => ({ ok: true, step: SESSION.steps.find((x) => x.id === id) }),
+  cropStep: (id, dataUrl, rect, image) => {
+    const step = SESSION.steps.find((x) => x.id === id);
+    if (!step) return { ok: false, error: 'gone' };
+    // What the real handler does: the frame is cut with the picture.
+    const next = crop.frameAfter(step.frame, rect, image);
+    if (next) step.frame = next;
+    step.cropped = true;
+    LAST_CROP = { id, rect, frame: next, bytes: (dataUrl || '').length };
+    return { ok: true, step };
+  },
   replaceAll: (query, replacement, options) => {
     const changes = find.plan(SESSION.steps, query, replacement, options || {});
     for (const c of changes) {
@@ -103,12 +114,15 @@ const ANSWERS = {
 // refuses a Proxy ("An object could not be cloned"), and taking the names from
 // preload.js rather than a list here means the stub cannot drift away from the
 // surface the page actually has.
+let LAST_CROP = null;
+
 const bridge = {};
 for (const name of NAMES) {
   bridge[name] = name.startsWith('on')
     ? () => {}
     : async (...args) => (ANSWERS[name] ? ANSWERS[name](...args) : { ok: true });
 }
+bridge.__lastCrop = async () => LAST_CROP;
 contextBridge.exposeInMainWorld('bsr', bridge);
 `;
 
@@ -228,6 +242,10 @@ app.whenReady().then(async () => {
     // turns "the page gave up and told the user" into something assertable.
     window.__alerts = [];
     window.alert = (m) => { window.__alerts.push(String(m)); };
+    // confirm() blocks a hidden window exactly as alert() does. Recorded, and
+    // answered "yes", so a run never stalls on a question nobody can see.
+    window.__confirms = [];
+    window.confirm = (m) => { window.__confirms.push(String(m)); return true; };
     // The page boots asynchronously - the library is fetched over the bridge -
     // so wait for the row rather than assuming it is there.
     const until = async (sel) => {
@@ -367,6 +385,50 @@ app.whenReady().then(async () => {
 
   check('Escape closes it', find4.hidden);
   check('and the marks go with it', find4.marked === 0);
+
+  // ---- cropping ------------------------------------------------------------
+  console.log('\ntrimming a screenshot to what matters:');
+
+  const cropped = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const wrap = document.getElementById('shot-wrap');
+    const shot = document.getElementById('shot');
+    const sel = document.getElementById('selection');
+    const r = shot.getBoundingClientRect();
+
+    document.querySelector('#step-list li.step').click();
+    await sleep(120);
+
+    document.getElementById('btn-crop').click();
+    await sleep(30);
+    wrap.dispatchEvent(new MouseEvent('mousedown',
+      { bubbles: true, clientX: r.left + 100, clientY: r.top + 80 }));
+    await sleep(15);
+    window.dispatchEvent(new MouseEvent('mousemove',
+      { bubbles: true, clientX: r.left + 400, clientY: r.top + 300 }));
+    await sleep(15);
+    const inverted = sel.classList.contains('cropping');
+    window.dispatchEvent(new MouseEvent('mouseup',
+      { bubbles: true, clientX: r.left + 400, clientY: r.top + 300 }));
+    await sleep(250);
+
+    return { inverted, last: await window.bsr.__lastCrop(),
+             confirms: window.__confirms.length };
+  })()`);
+
+  check('the selection reads as keep-this, not act-on-this', cropped.inverted);
+  check('a crop reaches the main process', Boolean(cropped.last));
+  check('with a region inside the picture',
+        cropped.last.rect.x >= 0 && cropped.last.rect.y >= 0
+        && cropped.last.rect.w > 0 && cropped.last.rect.h > 0);
+  check('and the pixels to write', cropped.last.bytes > 100);
+  // The whole reason crop needed care: the frame goes with the picture.
+  check('the frame is cut with it', Boolean(cropped.last.frame));
+  check('and it is smaller than it was',
+        cropped.last.frame.w < 600 && cropped.last.frame.h < 400);
+  // The click on this fixture is at 300,200 of a 600x400 frame - inside the
+  // region dragged - so nothing should have been asked.
+  check('a crop that keeps the click asks nothing', cropped.confirms === 0);
 
   // Last, so it covers everything above it. The original defect here was a
   // ReferenceError, which is invisible to every other assertion if it happens

@@ -22,7 +22,8 @@ const el = {
   template: $('set-template'), templatePick: $('set-template-pick'),
   templateClear: $('set-template-clear'), templateInfo: $('template-info'),
   templateCopy: $('set-template-copy'), templateFolder: $('set-template-folder'),
-  blur: $('btn-blur'), wrap: $('shot-wrap'), selection: $('selection'),
+  blur: $('btn-blur'), crop: $('btn-crop'),
+  wrap: $('shot-wrap'), selection: $('selection'),
   box: $('btn-box'), ellipse: $('btn-ellipse'), arrow: $('btn-arrow'),
   highlight: $('btn-highlight'), dragPreview: $('drag-preview'),
   hueMenu: $('huemenu'),
@@ -208,7 +209,9 @@ async function select(id) {
   const isSection = BsrSections.isSection(step);
   const isNote = step.action === 'note' || isSection;
   // A written step has no screenshot, so the tools that act on one are moot.
-  for (const t of ['blur', 'box', 'ellipse', 'arrow', 'highlight']) el[t].hidden = isNote;
+  for (const t of ['blur', 'crop', 'box', 'ellipse', 'arrow', 'highlight']) {
+    el[t].hidden = isNote;
+  }
   if (isNote && armedTool) armTool(armedTool);   // disarm: nothing to draw on
   el.rerecord.hidden = isNote;
   el.text.placeholder = isSection ? 'Name this phase of the procedure'
@@ -1234,11 +1237,14 @@ function showPreview(on) {
  */
 function previewDrag(from, to) {
   const rectTools = armedTool === 'box' || armedTool === 'highlight'
-                 || armedTool === 'blur';
+                 || armedTool === 'blur' || armedTool === 'crop';
   // The single owner of which of the two is on screen. Nothing else may set
   // these: the version that shipped had the mousedown handler re-showing the
   // rectangle straight afterwards, so a circle drag previewed a box.
   el.selection.hidden = !rectTools;
+  // Crop keeps what is inside the rectangle; every other rectangle tool acts
+  // on it. The selection is drawn inverted so the two cannot be confused.
+  el.selection.classList.toggle('cropping', armedTool === 'crop');
   showPreview(!rectTools);
   if (rectTools) return;
 
@@ -1322,7 +1328,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') el.hueMenu.hidden = true;
 });
 
-for (const name of ['blur', 'box', 'ellipse', 'arrow', 'highlight']) {
+for (const name of ['blur', 'crop', 'box', 'ellipse', 'arrow', 'highlight']) {
   el[name].addEventListener('click', () => armTool(name));
 }
 
@@ -1374,6 +1380,9 @@ window.addEventListener('mouseup', async (e) => {
   // A box only needs the region; an arrow needs to know which end the reader
   // should be looking at, so the raw drag is kept as well.
   const rect = { x: sel.left, y: sel.top, w: sel.width, h: sel.height };
+  // `sel`, not `rect`: applyCrop works in the displayed box's own terms.
+  if (armedTool === 'crop') { await applyCrop(sel); return; }
+
   if (!BsrAnnotate.isDeliberate(armedTool, rect, from, to)) return;
 
   await applyMark(armedTool, { sel, from, to }, r.width);
@@ -1386,6 +1395,60 @@ window.addEventListener('mouseup', async (e) => {
  * the file, map the drag from displayed pixels to image pixels, draw, write
  * back with the original stashed for undo.
  */
+/**
+ * Trims the screenshot to the dragged region.
+ *
+ * Separate from applyMark because it is not a mark: it changes the size of the
+ * picture, which is the one edit the click marker's position depends on. The
+ * main process cuts the step's `frame` by the same proportion, and the marker
+ * - a percentage of that frame - goes on pointing at the same thing.
+ */
+async function applyCrop(sel) {
+  const step = steps.find((s) => s.id === selectedId);
+  if (!step) return;
+
+  const dataUrl = await window.bsr.shotData(step.screenshot);
+  if (!dataUrl) { showNotice('Could not read the screenshot.'); return; }
+
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve; img.onerror = reject; img.src = dataUrl;
+  });
+
+  const displayed = el.shot.getBoundingClientRect().width;
+  const ratio = img.naturalWidth / displayed;
+  const image = { width: img.naturalWidth, height: img.naturalHeight };
+  const rect = BsrCrop.clamp({
+    x: sel.left * ratio, y: sel.top * ratio,
+    w: sel.width * ratio, h: sel.height * ratio,
+  }, image);
+
+  if (!BsrCrop.isDeliberate(rect, image)) return;
+
+  // Said before it happens, not discovered in the finished document. Cropping
+  // the click out is a legitimate thing to want - trimming to a panel the
+  // click was not in - but it should never be a surprise.
+  if (BsrCrop.losesMarker(step.point, step.frame, rect, image)) {
+    const ok = confirm('The click on this step is outside that region, so the '
+      + 'step will have no marker on it. Crop anyway?');
+    if (!ok) return;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = rect.w;
+  canvas.height = rect.h;
+  canvas.getContext('2d')
+    .drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+
+  const r = await window.bsr.cropStep(step.id, canvas.toDataURL('image/png'),
+                                      rect, image);
+  if (!r || !r.ok) { showNotice((r && r.error) || 'Could not crop that step.'); return; }
+
+  steps[steps.indexOf(step)] = r.step;
+  armTool('crop');       // one crop at a time, so the next drag is deliberate
+  select(step.id);
+}
+
 async function applyMark(tool, { sel, from, to }, displayedWidth) {
   const step = steps.find((s) => s.id === selectedId);
   if (!step) return;

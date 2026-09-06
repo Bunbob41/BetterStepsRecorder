@@ -56,6 +56,7 @@ function redactionSummary(allSteps) {
   const blurred = steps.filter((s) => s.redacted).length;
   const masked = steps.filter((s) => (s.typed || '').includes('[redacted]')).length;
   const excluded = allSteps.filter((s) => s.excluded).length;
+  const cropped = steps.filter((s) => s.cropped).length;
 
   const parts = [];
   parts.push(passwords
@@ -65,6 +66,10 @@ function redactionSummary(allSteps) {
   parts.push(blurred
     ? `${blurred} screenshot(s) had regions blurred by the author`
     : 'no screenshot regions were blurred by the author');
+  // A cropped screenshot is not the frame that was captured. Saying so is the
+  // same honesty as not overclaiming a redaction: a reader comparing the
+  // document to the system should know the pictures were trimmed.
+  if (cropped) parts.push(`${cropped} screenshot(s) were cropped by the author`);
   if (excluded) parts.push(`${excluded} step(s) were excluded from this document`);
 
   return parts.join('; ') + '.';
