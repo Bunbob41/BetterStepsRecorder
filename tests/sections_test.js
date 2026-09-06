@@ -102,6 +102,33 @@ console.log('\na heading with nothing under it never reaches the reader:');
   check('and an empty one does not throw', s.withoutEmpty([]).length === 0);
 }
 
+console.log('\na heading with no name is not a heading:');
+{
+  // Accepting a suggested boundary inserts an unnamed heading, because the
+  // tool knows where a phase probably starts and not what it is called. Until
+  // it is named there is nothing to print, and an empty one renders as a rule
+  // with a gap where the name should be - a defect, not a section.
+  check('an unnamed one is dropped', s.withoutEmpty([head(''), step('a')]).length === 1);
+  check('and so is one that is only whitespace',
+        s.withoutEmpty([head('   '), step('a')]).length === 1);
+
+  // But it must not take the steps under it with it, and it must not make the
+  // heading above it look empty either.
+  const mixed = s.withoutEmpty([head('Setup'), head(''), step('a'), step('b')]);
+  check('the steps under it survive', mixed.filter(s.isStep).length === 2);
+  check('and the named heading above it survives',
+        mixed.some((r) => r.text === 'Setup'));
+
+  // Two unnamed ones in a row must not fool the "is there content below" walk.
+  const two = s.withoutEmpty([head('Setup'), head(''), head(''), step('a')]);
+  check('several unnamed in a row are all dropped', two.length === 2);
+  check('and the named one still stands', two[0].text === 'Setup');
+
+  // A named heading whose only content is an unnamed heading really is empty.
+  check('a named heading followed only by an unnamed one goes too',
+        s.withoutEmpty([head('Setup'), head('')]).length === 0);
+}
+
 console.log('\nwhich heading a step falls under:');
 {
   const rows = [step('a'), head('Two'), step('b'), note('n'), head('Three'), step('c')];

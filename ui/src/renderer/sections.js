@@ -77,19 +77,32 @@
   }
 
   /**
-   * Drops headings with nothing underneath.
+   * Drops headings that would say nothing to a reader: the ones with no name,
+   * and the ones with nothing underneath.
    *
    * Run on the list that is actually being exported, so a section whose every
    * step was excluded disappears with them. A heading over nothing is a promise
    * the document does not keep, and the reader spends their time looking for
    * the part that was cut.
+   *
+   * A heading IS its text - an unnamed one renders as a rule with a gap where
+   * the name should be, which reads as a defect rather than a section. It is
+   * kept in the list, where it shows as untitled and says it will not appear,
+   * because that is an unfinished edit rather than a mistake to be tidied away.
    */
   function withoutEmpty(steps) {
     const list = steps || [];
     return list.filter((s, i) => {
       if (!isSection(s)) return true;
-      const next = list[i + 1];
-      return Boolean(next) && !isSection(next);
+      if (!(s.text || '').trim()) return false;
+      // Look past any unnamed heading between this one and its content: it is
+      // being dropped too, so it cannot be what makes this one empty.
+      for (let j = i + 1; j < list.length; j++) {
+        const next = list[j];
+        if (!isSection(next)) return true;
+        if ((next.text || '').trim()) return false;
+      }
+      return false;
     });
   }
 

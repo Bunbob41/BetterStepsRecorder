@@ -139,7 +139,9 @@ function renderList() {
     // styling already say what it is, and the word only crowds a short name.
     // A note keeps its label, which distinguishes it from a recorded step.
     sub.textContent = isSection
-      ? (s.excluded ? 'excluded' : '')
+      ? (s.excluded ? 'excluded'
+         : !(s.text || '').trim() ? 'not named yet \u2014 will not appear in the guide'
+         : '')
       : isNote
       ? (s.excluded ? 'note · excluded' : 'note')
       : [s.window?.process, s.action, s.excluded ? 'excluded' : null]
@@ -898,8 +900,9 @@ async function addSection(text, afterId) {
   steps.splice(r.index, 0, r.step);
   renderList();
   await select(r.step.id);
-  // Selected, not merely focused: a suggested heading arrives named after the
-  // application, and the name of a program is rarely the name of a phase.
+  // Empty on purpose, like a note: the name of a phase is what the reader is
+  // being told, and no default we could invent is that. Selected as well as
+  // focused so a heading created with a name can be typed straight over.
   el.text.focus();
   el.text.select();
   return r.step;
@@ -927,8 +930,12 @@ function suggestionRow(hint, index) {
     e.stopPropagation();
     // Anchored to the row before, because insertion is "after" - which puts the
     // heading immediately above the step that changed application.
+    //
+    // Unnamed. The suggestion knows where a phase probably starts; it does not
+    // know what that phase is called, and "Excel" is the name of a program
+    // rather than of a piece of work.
     const before = steps[index - 1];
-    addSection(phaseName(hint.app), before && before.id);
+    addSection('', before && before.id);
   });
 
   const no = document.createElement('button');

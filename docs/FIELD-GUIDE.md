@@ -337,13 +337,19 @@ and "I'm stuck on step 3" would stop meaning anything.
 moved to a different program, a dashed row appears in the list — *Moves to
 Excel here* — with a **+ Section** button. That is a guess, and only a guess:
 work can change phase without changing program, and change program in the
-middle of a phase. Accept it and it becomes a heading named after the program,
-selected so you can type over it. Dismiss it with the **×** and it stays
-dismissed.
+middle of a phase. Accept it and you get an empty heading with the cursor in
+it, waiting for a name — the app knows where a phase probably starts, not what
+it is called, and "Excel" is the name of a program rather than of a piece of
+work. Dismiss it with the **×** and it stays dismissed.
 
-**A heading with nothing left under it is dropped from the export.** If you
-exclude every step of a phase, the heading goes with them, rather than
-promising the reader a section that is not there.
+**An unnamed heading does not appear in the export.** It stays in the step
+list, saying so, because it is an unfinished edit rather than a mistake — but
+a heading *is* its text, and one with none renders as a rule with a gap where
+the name should be.
+
+**A heading with nothing left under it is dropped too.** If you exclude every
+step of a phase, the heading goes with them, rather than promising the reader
+a section that is not there.
 
 Headings do not nest. One level, as many as the procedure needs.
 

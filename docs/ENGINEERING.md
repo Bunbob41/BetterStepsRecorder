@@ -124,8 +124,9 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     A reader who says "step 9" must mean the ninth step of the procedure. Every
     format counts rows that are neither notes nor headings, via
     `sections.countSteps`.
-14. **A heading that has nothing under it never reaches the reader.** Applied
-    after exclusion, so holding back a phase's last step takes the phase too.
+14. **A heading that has no name, or nothing under it, never reaches the
+    reader.** Applied after exclusion, so holding back a phase's last step
+    takes the phase too.
 
 ---
 
@@ -163,10 +164,13 @@ do not nest: an ISO template gets its 5.1/5.2 hierarchy from its own structure,
 and a second hierarchy from us would fight it. `level: 1` is written to disk so
 nesting can arrive later without a migration, and is not surfaced.
 
-**A heading with nothing under it is dropped at export.** `withoutEmpty()` runs
-after the exclusion filter, so a phase whose every step was held back goes with
-them. A heading over nothing is a promise the document does not keep, and the
-reader spends their time hunting for the part that was cut.
+**A heading that would say nothing is dropped at export.** `withoutEmpty()`
+runs after the exclusion filter, so a phase whose every step was held back goes
+with them - a heading over nothing is a promise the document does not keep, and
+the reader hunts for the part that was cut. An unnamed one goes the same way: a
+heading *is* its text, and one with none renders as a rule with a gap, which
+reads as a defect rather than a section. It stays in the step list saying it
+will not appear, because that is an unfinished edit and not ours to tidy away.
 
 **Boundaries are suggested, never applied.** `suggestions()` marks the points
 where the recording changed application - usually, not always, where the work
@@ -174,6 +178,11 @@ changed phase - and offers a heading there. Accepting or dismissing one
 silences it; a dismissal is `noSection` on the step, so it survives a reload.
 Sectioning is an authoring judgement and the tool only knows which program
 changed.
+
+Accepting inserts an **unnamed** heading. The first cut named it after the
+application and selected the text for overtyping; that is a name for a program,
+not for a piece of work, and offering it as a default invites it to survive
+into a guide. The empty row asks the question instead of answering it wrongly.
 
 **Markdown demotes its steps when a guide has headings**, so a wiki's contents
 list shows phases with steps beneath rather than forty flat entries. A guide
