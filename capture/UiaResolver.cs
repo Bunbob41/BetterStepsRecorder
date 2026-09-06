@@ -70,6 +70,62 @@ internal static class UiaResolver
         }
     }
 
+    /// <summary>
+    /// Whether the focused control is somewhere text is entered.
+    /// </summary>
+    /// <remarks>
+    /// The difference between documentation and noise. Keys pressed with a text
+    /// box focused are a value worth transcribing: Typed "ACME Corp". The same
+    /// keys pressed with no text box focused are commands to the application -
+    /// W A S D driving a car, panning a point cloud, an editor's shortcuts - and
+    /// transcribing those produced steps reading Typed "wddad". In one 106 step
+    /// recording, 42 of the steps were that.
+    ///
+    /// Deliberately NOT a judgement about which application is running. A game
+    /// is a legitimate thing to document, and a CAD tool's navigation keys look
+    /// identical to a game's. What matters is where the keys are going.
+    ///
+    /// Fails OPEN, like the password check above and for the same reason: when
+    /// UI Automation cannot answer, transcribing is the old behaviour, whereas
+    /// summarising would silently discard someone's typing.
+    /// </remarks>
+    internal static bool FocusAcceptsText(IntPtr hwnd)
+    {
+        try
+        {
+            var task = Task.Run(() =>
+            {
+                var element = AutomationElement.FocusedElement
+                              ?? (hwnd != IntPtr.Zero ? AutomationElement.FromHandle(hwnd) : null);
+                if (element is null) return true;   // cannot tell: assume text
+
+                var type = element.Current.ControlType;
+                if (type == ControlType.Edit || type == ControlType.Document
+                    || type == ControlType.ComboBox || type == ControlType.Spinner)
+                {
+                    return true;
+                }
+
+                // Some frameworks report a generic type but still expose a text
+                // pattern, which is the more honest signal.
+                if (element.TryGetCurrentPattern(TextPattern.Pattern, out _)) return true;
+                if (element.TryGetCurrentPattern(ValuePattern.Pattern, out var vp)
+                    && vp is ValuePattern v && !v.Current.IsReadOnly)
+                {
+                    return true;
+                }
+
+                return false;
+            });
+
+            return !task.Wait(Deadline) || task.Result;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
     internal static TargetInfo? Resolve(int x, int y)
     {
         try

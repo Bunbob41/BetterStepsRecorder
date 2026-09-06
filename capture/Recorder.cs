@@ -151,7 +151,9 @@ internal sealed class Recorder : IDisposable
             FlushTyping();
             // Resolve once per field, not per keystroke: UI Automation is a
             // cross-process COM call and would be ruinous on every character.
-            _typing.BeginFocus(k.Focus, UiaResolver.IsPasswordField(k.Focus));
+            _typing.BeginFocus(k.Focus,
+                               UiaResolver.IsPasswordField(k.Focus),
+                               UiaResolver.FocusAcceptsText(k.Focus));
         }
 
         switch (k.Kind)
@@ -188,14 +190,26 @@ internal sealed class Recorder : IDisposable
 
     private void FlushTyping()
     {
-        var (wasSecret, text) = _typing.Take();
+        var (wasSecret, text, keys, presses) = _typing.Take();
 
-        if (!wasSecret && string.IsNullOrEmpty(text)) return;
+        if (!wasSecret && string.IsNullOrEmpty(text) && presses == 0) return;
 
         if (wasSecret)
         {
             // Deliberately says nothing about length or content.
             EmitKeyStep("password", "Entered password", _typing.Focus, DateTime.UtcNow);
+            return;
+        }
+
+        if (presses > 0)
+        {
+            // Keys sent to the application rather than into a field. Which keys
+            // and how many is the useful part; the order is not - a reader
+            // gains nothing from "wddad" and a great deal from knowing that
+            // W, A, S and D drove the thing.
+            var times = presses == 1 ? "once" : $"{presses} times";
+            EmitKeyStep("keyPress", $"Pressed {keys} ({times})",
+                        _typing.Focus, DateTime.UtcNow);
             return;
         }
 

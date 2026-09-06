@@ -1,4 +1,5 @@
 using System.Text;
+using System.Linq;
 
 namespace BetterSteps.Capture;
 
@@ -24,20 +25,34 @@ internal sealed class TypingState
     /// <summary>Whether that control masks its input. Survives a flush.</summary>
     internal bool FocusIsSecret { get; private set; }
 
+    /// <summary>
+    /// Whether that control is somewhere text is entered. When it is not, the
+    /// keys are commands to the application rather than a value, and the
+    /// sequence is counted instead of transcribed.
+    /// </summary>
+    internal bool FocusAcceptsText { get; private set; } = true;
+
+    /// <summary>Which keys were used, and how many times, when not transcribing.</summary>
+    private readonly SortedSet<char> _keys = new();
+    private int _presses;
+
     /// <summary>Whether anything has been typed since the last flush.</summary>
     private bool _secretActivity;
 
     internal DateTime LastUtc { get; private set; }
 
-    internal bool HasPending => _buffer.Length > 0 || _secretActivity;
+    internal bool HasPending => _buffer.Length > 0 || _secretActivity || _presses > 0;
 
-    /// <summary>Moves to a new control, deciding secrecy afresh.</summary>
-    internal void BeginFocus(IntPtr focus, bool isSecret)
+    /// <summary>Moves to a new control, deciding secrecy and kind afresh.</summary>
+    internal void BeginFocus(IntPtr focus, bool isSecret, bool acceptsText = true)
     {
         Focus = focus;
         FocusIsSecret = isSecret;
+        FocusAcceptsText = acceptsText;
         _secretActivity = false;
         _buffer.Clear();
+        _keys.Clear();
+        _presses = 0;
     }
 
     /// <summary>Marks the current field secret, e.g. a Win32 ES_PASSWORD control.</summary>
@@ -52,14 +67,28 @@ internal sealed class TypingState
 
     internal void Append(char c, DateTime utc)
     {
-        if (FocusIsSecret) _secretActivity = true;
-        else _buffer.Append(c);
+        if (FocusIsSecret)
+        {
+            _secretActivity = true;
+        }
+        else if (!FocusAcceptsText)
+        {
+            // Not a value being entered: a command being given. Keep which keys
+            // and how many, not the order - "wddad" tells a reader nothing.
+            _keys.Add(char.ToUpperInvariant(c));
+            _presses++;
+        }
+        else
+        {
+            _buffer.Append(c);
+        }
         LastUtc = utc;
     }
 
     internal void Backspace(DateTime utc)
     {
         if (FocusIsSecret) _secretActivity = true;
+        else if (!FocusAcceptsText) { _keys.Add('\u232B'); _presses++; }
         else if (_buffer.Length > 0) _buffer.Length--;
         LastUtc = utc;
     }
@@ -70,14 +99,18 @@ internal sealed class TypingState
     /// Empties the buffer and reports what it held. Secrecy of the field itself
     /// is deliberately NOT cleared: the user may keep typing into it.
     /// </summary>
-    internal (bool WasSecret, string Text) Take()
+    internal (bool WasSecret, string Text, string Keys, int Presses) Take()
     {
         var wasSecret = _secretActivity && FocusIsSecret;
         var text = _buffer.ToString();
+        var keys = string.Join(", ", _keys);
+        var presses = _presses;
 
         _buffer.Clear();
         _secretActivity = false;
+        _keys.Clear();
+        _presses = 0;
 
-        return (wasSecret, text);
+        return (wasSecret, text, keys, presses);
     }
 }

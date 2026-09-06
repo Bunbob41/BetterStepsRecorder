@@ -124,6 +124,34 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-25 · Keys are transcribed only where text is entered
+`(this change)` · [capture/UiaResolver.cs](../capture/UiaResolver.cs),
+[capture/TypingState.cs](../capture/TypingState.cs)
+
+In a 106 step recording of Rocket League, **42 steps read `Typed "wddad"`**. The
+only characters across all of them were `a d e q s w` - W A S D driving a car,
+transcribed as prose. Two fifths of the document was noise.
+
+The discriminator is **where the keys are going**, not which application is
+running. A game is a legitimate thing to document, and a CAD tool's navigation
+keys are indistinguishable from a game's; filtering by process would break the
+Minecraft-tutorial and point-cloud cases while fixing nothing in principle.
+
+So the focused control is asked whether it accepts text - `ControlType.Edit`,
+`Document`, `ComboBox`, `Spinner`, or a writable `ValuePattern`/`TextPattern`.
+Where it does, typing is transcribed as before. Where it does not, the keys are
+counted and named instead: `Pressed A, D, W (6 times)`. Which keys and how many
+is the useful part; the order is not.
+
+**Fails open**, like the password check and for the same reason: when UI
+Automation cannot answer, transcribing is the existing behaviour, whereas
+summarising would silently discard someone's typing. It costs one extra UIA
+call, made at the moment focus changes, where the password check already runs.
+
+Merging consecutive key steps was considered and rejected on the evidence: in
+that recording the pattern is `CKCKCKCK` with a longest run of one. Every burst
+sits between two clicks, so there is nothing to merge.
+
 ### D-24 · A folder is a recording because of what is in it
 `(this change)` · [ui/src/main/library.js](../ui/src/main/library.js)
 

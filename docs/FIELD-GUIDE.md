@@ -230,6 +230,12 @@ Three protections apply:
 
 - **Password fields record nothing but the fact.** You get *Entered password*.
   The characters never enter the recording at any point.
+- **Keys are only written out as text when they go into a text box.** Pressing
+  W, A, S and D to drive a car, pan a 3D view or trigger an editor's shortcuts
+  is not typing, and writing it down as *Typed "wddad"* helps nobody. Those are
+  counted and named instead: *Pressed A, D, W (6 times)*. The app decides this
+  by asking what is focused, not by guessing which program you are in - a game
+  is a perfectly good thing to document.
 - **Card numbers and national insurance / social security shapes are masked**
   even in ordinary fields, because people paste them into the wrong boxes.
 - **Keyboard capture can be turned off entirely** in Settings, in which case the

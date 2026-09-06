@@ -111,7 +111,7 @@ var st = new TypingState();
 st.BeginFocus(box, isSecret: false);
 st.Append('h', t0); st.Append('i', t0);
 var taken = st.Take();
-Check("plain typing is kept", taken is (false, "hi"));
+Check("plain typing is kept", !taken.WasSecret && taken.Text == "hi");
 
 // A password field keeps nothing.
 st = new TypingState();
@@ -136,7 +136,65 @@ Check("continued password typing still reports as secret", taken.WasSecret);
 st.BeginFocus(otherBox, isSecret: false);
 st.Append('o', t0); st.Append('k', t0);
 taken = st.Take();
-Check("a different, non-secret field types normally", taken is (false, "ok"));
+Check("a different, non-secret field types normally",
+      !taken.WasSecret && taken.Text == "ok");
+
+// ---- keys that are commands, not a value ------------------------------------
+// 42 of the 106 steps in a real recording read Typed "wddad" - W A S D driving
+// a car. The keys were going to the application, not into a field, and the
+// difference is what the focused control is, not which application is running:
+// a game is a legitimate thing to document and a CAD tool's navigation keys
+// look the same.
+
+st = new TypingState();
+st.BeginFocus(box, isSecret: false, acceptsText: false);
+foreach (var c in "wddadw") st.Append(c, t0);
+taken = st.Take();
+Check("keys sent to the application are not transcribed", taken.Text.Length == 0);
+Check("they are counted instead", taken.Presses == 6);
+Check("and reported as which keys, not in which order", taken.Keys == "A, D, W");
+Check("nothing is treated as secret", !taken.WasSecret);
+
+// The same keys, in a text box, are a value and must survive intact.
+st = new TypingState();
+st.BeginFocus(box, isSecret: false, acceptsText: true);
+foreach (var c in "wddadw") st.Append(c, t0);
+taken = st.Take();
+Check("the same keys in a text field are still transcribed", taken.Text == "wddadw");
+Check("and are not counted as commands", taken.Presses == 0);
+
+// A field that cannot be identified is assumed to take text, so real typing is
+// never silently discarded when UI Automation has no answer.
+st = new TypingState();
+st.BeginFocus(box, isSecret: false);
+foreach (var c in "ACME") st.Append(c, t0);
+Check("an unknown control defaults to transcribing", st.Take().Text == "ACME");
+
+// Secrecy still wins over everything.
+st = new TypingState();
+st.BeginFocus(box, isSecret: true, acceptsText: false);
+foreach (var c in "hunter2") st.Append(c, t0);
+taken = st.Take();
+Check("a secret field is never counted or transcribed",
+      taken.Text.Length == 0 && taken.Presses == 0);
+Check("and still reports as secret", taken.WasSecret);
+
+// Moving between the two kinds re-decides, like secrecy does.
+st = new TypingState();
+st.BeginFocus(box, isSecret: false, acceptsText: false);
+st.Append('w', t0);
+st.BeginFocus(otherBox, isSecret: false, acceptsText: true);
+st.Append('h', t0); st.Append('i', t0);
+taken = st.Take();
+Check("moving to a text field starts transcribing again",
+      taken.Text == "hi" && taken.Presses == 0);
+
+// One press should not read "1 times" - the Recorder words it, but the count
+// has to be exact for it to.
+st = new TypingState();
+st.BeginFocus(box, isSecret: false, acceptsText: false);
+st.Append('e', t0);
+Check("a single press is counted as one", st.Take().Presses == 1);
 
 // Learning mid-buffer that a field is secret discards what was already typed.
 st = new TypingState();
