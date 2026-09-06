@@ -124,6 +124,29 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-23 · The stock Word template declares the namespaces a picture needs
+`(this change)` · [scripts/make-docx-template.js](../scripts/make-docx-template.js)
+
+Every Word export containing a screenshot was invalid and could not be opened.
+Word reported only "Word experienced an error trying to open the file", naming
+nothing.
+
+A `.docx` is XML. The stock template declared `w:` and `r:` and no more, which
+is correct for what the template contains - paragraphs. But an inserted picture
+arrives as drawing XML using `a:`, `pic:`, `wp:` and `a14:`, and a prefix that
+is used without being declared makes the whole document malformed. The template
+was valid; every export made from it was not.
+
+Only our own generated template was affected. A `.docx` authored in Word
+declares the full set already, so a user's own template never hit this.
+
+**The verification was the real failure.** Two separate checks had passed this
+file: one confirmed a valid zip containing 104 images, the other that the
+document contained no leftover placeholders. A broken export satisfies both. The
+suite now parses the document and asserts that every prefix used is declared -
+and it was confirmed to fail against the previous template, naming all four
+missing prefixes, rather than merely passing against the new one.
+
 ### D-22 · Every export honours what the recording was for
 `(this change)`
 
@@ -562,6 +585,7 @@ Kept because each changed how the project is built, not merely what it contains.
 | Unredacted originals kept forever (`0d42f74`) | Undo stashed pre-blur images; a comment claimed cleanup that did not exist | Comments are not evidence |
 | Export vanished silently (`62cd413`) | A `ReferenceError` rejected into an unawaited click handler | Report export failure; never close the dialog on error |
 | The recorder appeared in its own screenshots (D-19) | `CopyFromScreen` composites everything on screen; `ignorePids` filters events, not pixels | Ask the window to draw; keep the screen copy as the floor |
+| Every Word export with a screenshot was unopenable (D-23) | The stock template declared `w:` and `r:` only; inserted pictures use `a: pic: wp: a14:` | Assert the artefact opens, not that it exists |
 | Word and template exports were in the wrong tense (D-22) | `voice` was accepted, threaded down, and never read; the template paths never passed one | Test fixtures must be worded the way the engine words them |
 | HTML export died with "Invalid string length" (D-17) | 412MB of PNG base64'd to 550MB, past V8's 512MB string ceiling | Size the output before building it; degrade, never fail |
 | App appeared to start maximised (`9a0120d`) | 1280×860 requested in logical px = 1600×1075 physical at 125% | Size from the work area |

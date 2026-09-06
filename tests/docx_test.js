@@ -72,6 +72,24 @@ const tpl = path.join(__dirname, '..', 'templates', 'corporate-sop.docx');
 
   check('is a valid zip with the expected parts',
         Boolean(zip.file('[Content_Types].xml') && zip.file('word/document.xml')));
+
+  // Every export containing a screenshot was invalid, and nothing noticed:
+  // the checks here confirmed a zip holding images and stopped there, which a
+  // broken export passes just as happily. Word said only "error trying to open
+  // the file", naming nothing. A picture arrives as drawing XML using a:, pic:,
+  // wp: and a14:; the template declared w: and r: alone, because the template
+  // itself is nothing but paragraphs - so those prefixes were unbound the
+  // moment an image was inserted.
+  {
+    const root = xml.match(/<w:document[^>]*>/)[0];
+    const declared = new Set([...root.matchAll(/xmlns:(\w+)=/g)].map((m) => m[1]));
+    const used = new Set([...xml.matchAll(/<\/?(\w+):/g)].map((m) => m[1]));
+    const undeclared = [...used].filter((u) => !declared.has(u));
+    check('every namespace prefix used is declared', undeclared.length === 0);
+    if (undeclared.length) console.log('    undeclared: ' + undeclared.join(', '));
+    check('an image really was inserted, so this test can fail',
+          used.has('pic') || used.has('a'));
+  }
   // Exclude the folder entry itself, which JSZip lists alongside the files.
   const media = Object.keys(zip.files)
     .filter((f) => f.startsWith('word/media/') && !zip.files[f].dir);
