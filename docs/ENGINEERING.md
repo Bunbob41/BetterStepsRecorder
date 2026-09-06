@@ -99,7 +99,9 @@ These are load-bearing. Breaking one is a defect even if tests pass.
    Implemented as a pure function (`Scope.cs`) with its own tests rather than a
    condition inside the worker.
 2. **Out-of-scope events are discarded before capture**, not captured and
-   filtered. A screenshot that we delete afterwards still existed.
+   filtered. A screenshot that we delete afterwards still existed, and so did a
+   password held in a buffer until the next flush. Scope is decided when focus
+   moves, on the field, before a character is kept or a UIA call is made.
 3. **A template is read, never written.** Unrecognised markers are left exactly
    as found and reported.
 4. **Naming never blocks capture.** UIA runs off-thread behind a 400 ms
@@ -142,8 +144,49 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-34 · Scope is a property of the focused field, decided before anything is kept
+`(this change)` · [capture/TypingState.cs](../capture/TypingState.cs)
+
+Invariant 2 says out-of-scope events are discarded *before* capture, not
+captured and filtered. That held for the mouse - `InScope` is checked before any
+screenshot or UIA work. It did not hold for the keyboard.
+
+Scope was applied in `EmitKeyStep`, at flush time. Every character typed into
+every other application on the desktop was accumulated in `TypingState._buffer`
+first and thrown away afterwards. Nothing reached disk, and no step was ever
+emitted - but "documenting one system does not capture your mail and chat" is
+the promise this feature exists to keep, and holding somebody's password in a
+buffer for the length of a flush is not keeping it.
+
+Worse in its own way: `IsPasswordField` and `FocusAcceptsText` were called on
+every focus change *anywhere*, so the recorder reached across into applications
+the user had explicitly scoped out to ask what kind of field they had focused.
+
+Scope is now decided once when focus moves, alongside secrecy and for the same
+reason, and stored on the field. Out of scope: no UIA call, no characters, no
+key counts, nothing pending, and not even the fact that a password field was
+typed into. `ProcessKey` returns before the switch, so a named key or a chord is
+never taken either - the difference between discarding an event and never
+taking it.
+
+Proved against the old behaviour: with the guard removed, four of the new
+checks in `LogicTests` go red.
+
+Also here, while reading the engine: `ReadCommands` caught only `JsonException`,
+so a command that failed for any other reason - a session directory that could
+not be created, a disk that filled - killed the process mid-recording, taking
+the hooks and any unflushed typing with it. Any failure is now reported as
+`COMMAND_FAILED` and the loop keeps listening.
+
+Read and found sound, for the record: the dead-key handling (`ToUnicodeEx` with
+the do-not-disturb flag, which is what stops a recording corrupting accented
+input in the app being documented), GDI handle discipline in `ScreenCapture`,
+double-click folding (three rapid clicks correctly become a pair and a single,
+not one endlessly-superseding double), hook callbacks that only enqueue, and the
+command parser's per-field `TryGet` discipline.
+
 ### D-33 · A recording's own paths are treated as claims, not facts
-`(this change)` · [ui/src/main/paths.js](../ui/src/main/paths.js)
+`bb6dfb4` · [ui/src/main/paths.js](../ui/src/main/paths.js)
 
 A recording is a folder, and the entire point of it is that it can be handed to
 somebody else - the README says so. Which means `session.json` is not this

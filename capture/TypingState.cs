@@ -32,6 +32,22 @@ internal sealed class TypingState
     /// </summary>
     internal bool FocusAcceptsText { get; private set; } = true;
 
+    /// <summary>
+    /// Whether the control belongs to an application this recording covers.
+    /// </summary>
+    /// <remarks>
+    /// A property of the field, like secrecy, and for the same reason: it is
+    /// decided once when focus moves and must not be re-decided per keystroke.
+    ///
+    /// Scope used to be applied when a step was emitted, which meant every
+    /// character typed into every other application on the desktop was
+    /// accumulated here first and thrown away afterwards. Nothing reached
+    /// disk - but "documenting one system does not capture your mail and chat"
+    /// is the promise, and holding somebody's password in a buffer for the
+    /// length of a flush is not keeping it. Out of scope, nothing is kept.
+    /// </remarks>
+    internal bool FocusInScope { get; private set; } = true;
+
     /// <summary>Which keys were used, and how many times, when not transcribing.</summary>
     private readonly SortedSet<char> _keys = new();
     private int _presses;
@@ -44,11 +60,13 @@ internal sealed class TypingState
     internal bool HasPending => _buffer.Length > 0 || _secretActivity || _presses > 0;
 
     /// <summary>Moves to a new control, deciding secrecy and kind afresh.</summary>
-    internal void BeginFocus(IntPtr focus, bool isSecret, bool acceptsText = true)
+    internal void BeginFocus(IntPtr focus, bool isSecret, bool acceptsText = true,
+                             bool inScope = true)
     {
         Focus = focus;
         FocusIsSecret = isSecret;
         FocusAcceptsText = acceptsText;
+        FocusInScope = inScope;
         _secretActivity = false;
         _buffer.Clear();
         _keys.Clear();
@@ -58,6 +76,7 @@ internal sealed class TypingState
     /// <summary>Marks the current field secret, e.g. a Win32 ES_PASSWORD control.</summary>
     internal void MarkSecret(DateTime utc)
     {
+        if (!FocusInScope) return;
         FocusIsSecret = true;
         _secretActivity = true;
         // Anything buffered before we learned this must not survive.
@@ -67,6 +86,10 @@ internal sealed class TypingState
 
     internal void Append(char c, DateTime utc)
     {
+        // Before everything: an application this recording does not cover has
+        // nothing kept about it, not even that a key was pressed.
+        if (!FocusInScope) return;
+
         if (FocusIsSecret)
         {
             _secretActivity = true;
@@ -87,6 +110,7 @@ internal sealed class TypingState
 
     internal void Backspace(DateTime utc)
     {
+        if (!FocusInScope) return;
         if (FocusIsSecret) _secretActivity = true;
         else if (!FocusAcceptsText) { _keys.Add('\u232B'); _presses++; }
         else if (_buffer.Length > 0) _buffer.Length--;

@@ -648,6 +648,13 @@ never sent hunting for an orange mark that was never made; a colour you used but
 never explained is listed too, saying so, because a mark the key does not cover
 is exactly what a key is for.
 
+**Scoping to one application really does mean one application.** When you scope
+a recording, keystrokes in every other program are not merely left out of the
+guide — they are never taken. Nothing is buffered, nothing is counted, and the
+recorder does not even ask those programs what kind of field you are typing in.
+Previously the text was collected and then discarded at the last moment, which
+came to the same document but is not the same promise.
+
 **A recording you were sent is treated as a stranger's file.** A recording is a
 folder, and the point of it is that people pass them around — so the little
 `session.json` inside one did not necessarily come from your copy of this app.

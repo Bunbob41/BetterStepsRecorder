@@ -293,6 +293,15 @@ internal static class Program
             {
                 Protocol.Error("BAD_JSON", ex.Message);
             }
+            catch (Exception ex)
+            {
+                // A command that fails must not take the engine down with it.
+                // Only malformed JSON was caught here, so a session directory
+                // that could not be created - a full disk, a path that went
+                // away - killed the process mid-recording, taking the hooks and
+                // any unflushed typing with it. Report it and keep listening.
+                Protocol.Error("COMMAND_FAILED", ex.Message);
+            }
         }
 
         // stdin closed: the UI died. Do not linger as an orphan with a global hook.

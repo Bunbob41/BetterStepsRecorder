@@ -149,12 +149,28 @@ internal sealed class Recorder : IDisposable
         if (k.Focus != _typing.Focus)
         {
             FlushTyping();
+
+            // Scope first, and once per field. An application this recording
+            // does not cover gets nothing asked of it and nothing kept from
+            // it - not its characters, and not a UI Automation call reaching
+            // across into it to find out what kind of field is focused.
+            var root = k.Focus != IntPtr.Zero
+                ? Win32.GetAncestor(k.Focus, Win32.GA_ROOT)
+                : IntPtr.Zero;
+            var inScope = InScope(WindowResolver.ProcessIdOf(root));
+
             // Resolve once per field, not per keystroke: UI Automation is a
             // cross-process COM call and would be ruinous on every character.
             _typing.BeginFocus(k.Focus,
-                               UiaResolver.IsPasswordField(k.Focus),
-                               UiaResolver.FocusAcceptsText(k.Focus));
+                               inScope && UiaResolver.IsPasswordField(k.Focus),
+                               !inScope || UiaResolver.FocusAcceptsText(k.Focus),
+                               inScope);
         }
+
+        // A named key or a chord in another application is not this recording's
+        // business either. EmitKeyStep would refuse it, but refusing it here is
+        // the difference between discarding an event and never taking it.
+        if (!_typing.FocusInScope) return;
 
         switch (k.Kind)
         {

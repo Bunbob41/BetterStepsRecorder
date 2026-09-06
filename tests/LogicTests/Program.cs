@@ -132,7 +132,56 @@ taken = st.Take();
 Check("a flush does not un-secret the field", taken.Text.Length == 0);
 Check("continued password typing still reports as secret", taken.WasSecret);
 
+// ---- a field in an application this recording does not cover -----------------
+// Scope was applied when a step was EMITTED, which meant every character typed
+// into every other application on the desktop was accumulated in this buffer
+// first and thrown away afterwards. Nothing reached disk - but the promise is
+// that documenting one system does not capture your mail and chat, and holding
+// somebody's password in a buffer for the length of a flush is not keeping it.
+st = new TypingState();
+st.BeginFocus(box, isSecret: false, acceptsText: true, inScope: false);
+foreach (var c in "my bank password") st.Append(c, t0);
+taken = st.Take();
+Check("an out-of-scope field keeps no characters", taken.Text.Length == 0);
+Check("and reports no activity at all",
+      !taken.WasSecret && taken.Presses == 0 && taken.Keys.Length == 0);
+
+// Not even the fact that something was typed there.
+st = new TypingState();
+st.BeginFocus(box, isSecret: false, acceptsText: true, inScope: false);
+st.Append('x', t0);
+Check("nothing is pending from out of scope", !st.HasPending);
+
+// A field that masks its input is no different: out of scope, there is nothing
+// to say about it, not even that a password was entered.
+st = new TypingState();
+st.BeginFocus(box, isSecret: true, acceptsText: true, inScope: false);
+foreach (var c in "hunter2") st.Append(c, t0);
+st.MarkSecret(t0);
+taken = st.Take();
+Check("an out-of-scope password is not even mentioned",
+      !taken.WasSecret && taken.Text.Length == 0);
+
+// Keys driving an application, out of scope, are not counted either.
+st = new TypingState();
+st.BeginFocus(box, isSecret: false, acceptsText: false, inScope: false);
+foreach (var c in "wasd") st.Append(c, t0);
+st.Backspace(t0);
+taken = st.Take();
+Check("out-of-scope key presses are not counted", taken.Presses == 0);
+
+// And moving back into scope records normally again: scope is a property of
+// the field, decided afresh when focus moves, exactly like secrecy.
+st.BeginFocus(otherBox, isSecret: false, acceptsText: true, inScope: true);
+st.Append('o', t0); st.Append('k', t0);
+taken = st.Take();
+Check("returning to a covered field records again", taken.Text == "ok");
+
 // Leaving the field and coming back to a normal one re-decides secrecy.
+st = new TypingState();
+st.BeginFocus(box, isSecret: true);
+foreach (var c in "hunter") st.Append(c, t0);
+st.Take();
 st.BeginFocus(otherBox, isSecret: false);
 st.Append('o', t0); st.Append('k', t0);
 taken = st.Take();
