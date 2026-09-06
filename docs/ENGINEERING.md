@@ -182,9 +182,17 @@ built installer accused itself of shipping a stale engine, in red, on first
 open. The case actually worth catching only exists in a source tree: the C# was
 edited and not rebuilt.
 
-Shown at the bottom of Settings and written to the log at startup - the latter
-in plain ASCII, since a log is opened with whatever tool is to hand and a middot
-written as UTF-8 returns as mojibake in anything assuming the system codepage.
+Settings shows the label, the version and the commit, and nothing else. The
+build time and the engine's were shown at first and were noise beside a hash
+that already identifies the build uniquely; the engine is now mentioned only
+when it has something wrong to report, so silence there means agreement. The
+full line including timestamps goes to the log at startup - in plain ASCII,
+since a log is opened with whatever tool is to hand and a middot written as
+UTF-8 returns as mojibake in anything assuming the system codepage.
+
+The red warning says "capture engine needs rebuilding" rather than naming what
+was compared: since the check became the engine against its own source, the app
+being newer is no longer the point.
 
 The stamp is generated at build time and gitignored: it describes a build, not a
 source tree. Without one the app asks git directly and reports `development`

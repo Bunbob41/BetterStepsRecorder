@@ -502,24 +502,26 @@ Three deliberate choices:
 Open **Settings** and look at the bottom left:
 
 ```
-Build: 0.1.0 · b43661a · 5 Sep 2026, 5:54 pm · engine 5:54 pm
+Build: 0.1.0 · 0fec6f2
 ```
 
-Four things, and the first is the least useful. The version number stays at
+Two things, and the second is the one that matters. The version number stays at
 `0.1.0` for a long time - it did not change once across a day of fixes - so on
 its own it cannot tell you whether the build you are running includes something
-that was fixed this morning. The **commit** and the **build time** can.
+that was fixed this morning. The **commit** can: it is different for every
+build, and it is what to quote when reporting a problem.
 
-A `+` after the commit means the code had uncommitted edits when it was built,
-so the commit does not fully describe it.
+A `+` after it means the code had uncommitted edits when it was built, so the
+commit does not fully describe what is in there.
 
-The **engine** is listed separately because the two halves of the app are built
-separately, and it is possible to end up with a new interface and an old
-recorder. That combination looks exactly like a fix that did not work, so if the
-engine is older than the app the line says so in red.
+You will not normally see anything about the capture engine, because in an
+installed copy it ships inside the same installer and cannot be out of step. It
+is only mentioned when something is wrong - if it needs rebuilding, the line
+says so in red - so no news is good news.
 
-The same line is written to the log each time the app starts, so it travels with
-a bug report.
+The build time is written to the log each time the app starts rather than shown
+here, since it is one more thing to read and the commit already answers the
+question.
 
 **It is not code-signed.** Windows SmartScreen will show a warning on first run,
 and endpoint protection may object to a program that hooks input and takes

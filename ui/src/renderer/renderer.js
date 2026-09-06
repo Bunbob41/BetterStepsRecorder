@@ -1160,19 +1160,21 @@ async function paintBuild() {
   try { b = await window.bsr.getBuild(); } catch { return; }
   if (!b) return;
 
-  const when = b.built ? new Date(b.built).toLocaleString() : b.source;
-  // Labelled, because a bare string of a version, a hash and two dates does not
-  // announce what it is - the first person to see it had to ask.
-  el.build.textContent = `Build: ${b.version} · ${b.commit} · ${when}`;
+  // The commit identifies the build on its own; the build time and the engine's
+  // were noise beside it. In a package the engine ships inside the installer and
+  // cannot be out of step, so there is nothing to say about it - and when there
+  // IS, it is said below rather than left for the reader to work out by
+  // comparing two timestamps.
+  el.build.textContent = `Build: ${b.version} · ${b.commit}`;
 
-  const engine = b.engineReported || b.engineBuilt;
-  if (engine) {
-    el.build.append(` · engine ${new Date(engine).toLocaleString()}`);
-  }
+  if (b.source !== 'packaged') el.build.append(' · development');
+
   if (b.engineStale) {
     const warn = document.createElement('span');
     warn.className = 'stale';
-    warn.textContent = ' (engine older than the app)';
+    // Says what to do, not what was compared. The check is the engine against
+    // its own source, so the app being newer is not the point.
+    warn.textContent = ' — capture engine needs rebuilding';
     el.build.append(warn);
   }
 }
