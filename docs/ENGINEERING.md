@@ -124,6 +124,24 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-24 · A folder is a recording because of what is in it
+`(this change)` · [ui/src/main/library.js](../ui/src/main/library.js)
+
+Recordings are created in folders named `session-<timestamp>`, so that two can
+never collide and renaming one inside the app never moves files underneath an
+open session (`9a0120d`). The library listing then also *required* that prefix.
+
+So renaming a folder - the obvious thing to do with a folder called
+`session-2026-09-05T20-19-13-795Z` - removed the recording from the application
+entirely, while 404MB of it sat untouched on disk. It was reported as "the
+Rocket League demo was renamed RL", and the folder was found only by listing the
+directory without the prefix filter.
+
+The prefix was never the test. A readable `session.json` is what makes a folder
+a recording; the folder's own name belongs to the person whose disk it is. The
+listing now says so, and falls back to the folder name when a recording has no
+label of its own, so nothing ever lists as blank.
+
 ### D-23 · The stock Word template declares the namespaces a picture needs
 `(this change)` · [scripts/make-docx-template.js](../scripts/make-docx-template.js)
 
@@ -585,6 +603,7 @@ Kept because each changed how the project is built, not merely what it contains.
 | Unredacted originals kept forever (`0d42f74`) | Undo stashed pre-blur images; a comment claimed cleanup that did not exist | Comments are not evidence |
 | Export vanished silently (`62cd413`) | A `ReferenceError` rejected into an unawaited click handler | Report export failure; never close the dialog on error |
 | The recorder appeared in its own screenshots (D-19) | `CopyFromScreen` composites everything on screen; `ignorePids` filters events, not pixels | Ask the window to draw; keep the screen copy as the floor |
+| Renaming a recording's folder hid it from the app (D-24) | The listing required a `session-` prefix as well as a readable `session.json` | Identify things by what they contain, not what they are called |
 | Every Word export with a screenshot was unopenable (D-23) | The stock template declared `w:` and `r:` only; inserted pictures use `a: pic: wp: a14:` | Assert the artefact opens, not that it exists |
 | Word and template exports were in the wrong tense (D-22) | `voice` was accepted, threaded down, and never read; the template paths never passed one | Test fixtures must be worded the way the engine words them |
 | HTML export died with "Invalid string length" (D-17) | 412MB of PNG base64'd to 550MB, past V8's 512MB string ceiling | Size the output before building it; degrade, never fail |

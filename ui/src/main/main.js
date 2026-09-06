@@ -16,6 +16,7 @@ const docx = require('./docx');
 const templatesLib = require('./templates-lib');
 const shortcuts = require('./shortcuts');
 const bounds = require('./bounds');
+const library = require('./library');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
 
@@ -965,33 +966,7 @@ ipcMain.handle('step:rerecord', async (_e, { id }) => {
  * Recent recordings, newest first. Read straight from disk so the list is
  * correct even for sessions this process never opened.
  */
-ipcMain.handle('library:list', () => {
-  const root = settings.values.saveRoot;
-  if (!fs.existsSync(root)) return [];
-
-  const entries = [];
-  for (const name of fs.readdirSync(root)) {
-    const dir = path.join(root, name);
-    const meta = path.join(dir, 'session.json');
-    if (!name.startsWith('session-') || !fs.existsSync(meta)) continue;
-
-    try {
-      const data = JSON.parse(fs.readFileSync(meta, 'utf8'));
-      const steps = data.steps || [];
-      entries.push({
-        dir,
-        name: data.name || '',
-        steps: steps.filter((s) => s.action !== 'note').length,
-        savedAt: data.savedAt || null,
-        // Recorded from the first step that names one, so the card says what
-        // the recording is actually about.
-        app: (steps.find((s) => s.window && s.window.process) || {}).window?.process || '',
-      });
-    } catch { /* a half-written session is skipped, not fatal */ }
-  }
-
-  return entries.sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt)));
-});
+ipcMain.handle('library:list', () => library.list(settings.values.saveRoot));
 
 ipcMain.handle('library:open', (_e, { dir }) => {
   if (!dir || !fs.existsSync(path.join(dir, 'session.json'))) {
