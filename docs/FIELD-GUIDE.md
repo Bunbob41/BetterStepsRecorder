@@ -368,10 +368,14 @@ Dismiss it and it goes away.
 
 ### Exporting to Word
 
-Word is the fourth entry in the Export dropdown. It reads **"Word (.docx) — into
-your template"** once a template is chosen, or offers to let you choose one if
-not, because a Word export here is never a blank document: it fills in *your*
-format. Setting that up is the next section.
+Word is the fourth entry in the Export dropdown. **It works straight away** —
+an SOP template ships with the app and is used when you have not chosen one of
+your own, so there is nothing to set up first. The dropdown names whichever one
+it will use.
+
+Settings lists the templates available to you: the ones that ship with the app,
+anything you have dropped into your own templates folder, and any file you point
+it at with **Choose a file…**. **Reset** goes back to the built-in one.
 
 ### Your own template
 

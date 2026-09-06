@@ -18,6 +18,7 @@ const el = {
   brand: $('set-brand'), logo: $('set-logo'), logoPick: $('set-logo-pick'),
   logoClear: $('set-logo-clear'), footer: $('set-footer'),
   optTemplate: $('opt-template'),
+  templateList: $('set-template-list'),
   template: $('set-template'), templatePick: $('set-template-pick'),
   templateClear: $('set-template-clear'), templateInfo: $('template-info'),
   blur: $('btn-blur'), wrap: $('shot-wrap'), selection: $('selection'),
@@ -1138,18 +1139,7 @@ function paintSettings(v) {
   el.logo.value = v.brandLogo || '';
   el.footer.value = v.brandFooter || '';
   el.template.value = v.templatePath || '';
-  // Split on BOTH separators. This matched forward slashes only, so on Windows
-  // the path never split and the option showed the whole of
-  // C:\Users\...\corporate-sop.docx instead of the file's name.
-  const tpl = (v.templatePath || '').split(/[\\/]/).pop();
-  // And say "Word" outright. The Word export was here all along, behind an
-  // option that only mentioned SOP templates - so it could not be found by
-  // anyone looking for Word.
-  el.optTemplate.textContent = !tpl
-    ? 'Word, or your own template — choose one in Settings'
-    : /\.docx$/i.test(tpl)
-      ? `Word (.docx) — into your template: ${tpl}`
-      : `Your own template — ${tpl}`;
+  paintTemplates(v.templatePath || '');
   el.marker.value = v.markerStyle || 'circle';
   el.markerBold.checked = Boolean(v.markerBold);
   markerOpts = { style: el.marker.value, bold: el.markerBold.checked };
@@ -1169,6 +1159,54 @@ function paintSettings(v) {
  * with it, and the capture engine separately, since the two halves are built
  * independently and a stale engine looks exactly like a fix that did not work.
  */
+/** Base name of a path, on either separator. */
+const baseName = (p) => (p || '').split(/[\\/]/).pop();
+
+/**
+ * Fills the template picker and names, in the export dropdown, the template
+ * that would actually be used.
+ *
+ * The dropdown used to say "choose one in Settings" whenever nothing had been
+ * chosen, which was untrue: a Word template ships with the app and is used when
+ * nothing else is set. Saying otherwise sent people looking for a file they did
+ * not need.
+ */
+async function paintTemplates(chosenPath) {
+  let templates = [];
+  let effective = { path: chosenPath, chosen: Boolean(chosenPath) };
+  try {
+    const r = await window.bsr.listTemplates();
+    templates = (r && r.templates) || [];
+    effective = await window.bsr.effectiveTemplate();
+  } catch { /* leave the picker as it is rather than blanking it */ }
+
+  if (el.templateList) {
+    el.templateList.replaceChildren();
+    for (const t of templates) {
+      const o = document.createElement('option');
+      o.value = t.path;
+      o.textContent = t.origin === 'builtin' ? `${t.name} — ships with the app` : t.name;
+      el.templateList.append(o);
+    }
+    // A file chosen with the browser may sit outside both folders.
+    if (chosenPath && !templates.some((t) => t.path === chosenPath)) {
+      const o = document.createElement('option');
+      o.value = chosenPath;
+      o.textContent = `${baseName(chosenPath)} — your own file`;
+      el.templateList.append(o);
+    }
+    el.templateList.value = effective.path || '';
+  }
+
+  const name = baseName(effective.path);
+  const mine = effective.chosen;
+  el.optTemplate.textContent = !name
+    ? 'Word, or your own template — none available'
+    : /\.docx$/i.test(name)
+      ? `Word (.docx) — into ${mine ? 'your template' : 'the built-in SOP template'}: ${name}`
+      : `${mine ? 'Your own template' : 'The built-in template'} — ${name}`;
+}
+
 async function paintBuild() {
   let b;
   try { b = await window.bsr.getBuild(); } catch { return; }
@@ -1255,6 +1293,10 @@ el.templatePick.addEventListener('click', async () => {
   if ((i.loops || []).length) bits.push(`${i.loops.length} repeating block(s)`);
   if ((i.unpaired || []).length) bits.push(`unpaired: ${i.unpaired.join(', ')}`);
   el.templateInfo.textContent = bits.join(' · ');
+});
+
+el.templateList.addEventListener('change', async () => {
+  paintSettings(await window.bsr.setSettings({ templatePath: el.templateList.value }));
 });
 
 el.templateClear.addEventListener('click', async () => {

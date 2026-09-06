@@ -338,6 +338,12 @@ async function ensureSidecar() {
   return { ok: true };
 }
 
+ipcMain.handle('templates:effective', () => ({
+  path: settings.values.templatePath
+     || templatesLib.defaultFor(PROJECT_ROOT, app.getPath('userData')) || '',
+  chosen: Boolean(settings.values.templatePath),
+}));
+
 ipcMain.handle('templates:list', () =>
   templatesLib.list(PROJECT_ROOT, app.getPath('userData')));
 
@@ -707,9 +713,17 @@ async function runExport({ format, title }) {
 
   // The recording's own template wins: it was chosen for this recording, before
   // it was made. Declared before `filters`, which reads it.
-  const templateForSession = session.templatePath || settings.values.templatePath || '';
+  // Fall back to the SOP template that ships with the app. Refusing here was a
+  // dead end for anyone who had never set one up - which is everybody on their
+  // first run - even though a perfectly good Word template was sitting in the
+  // installation the whole time. defaultFor() was already doing this when a
+  // recording starts; export simply never asked.
+  const templateForSession = session.templatePath
+    || settings.values.templatePath
+    || templatesLib.defaultFor(PROJECT_ROOT, app.getPath('userData'))
+    || '';
   if (format === 'template' && !templateForSession) {
-    return { ok: false, error: 'This recording has no template. Choose one in Settings.' };
+    return { ok: false, error: 'No template is available to render into.' };
   }
 
   const filters = {
