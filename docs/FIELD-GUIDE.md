@@ -513,17 +513,17 @@ Three deliberate choices:
 Open **Settings** and look at the bottom left:
 
 ```
-Build: 0.1.0 · 0fec6f2
+Build 36 · 0.1.0 · 4c78965
 ```
 
-Two things, and the second is the one that matters. The version number stays at
-`0.1.0` for a long time - it did not change once across a day of fixes - so on
-its own it cannot tell you whether the build you are running includes something
-that was fixed this morning. The **commit** can: it is different for every
-build, and it is what to quote when reporting a problem.
+**The build number is the one to read.** It goes up by one with every change, so
+a bigger number is a newer app - that is the whole question you usually have.
 
-A `+` after it means the code had uncommitted edits when it was built, so the
-commit does not fully describe what is in there.
+The version number beside it stays at `0.1.0` for a long time; it did not move
+once across a day of fixes, so on its own it cannot tell you anything. The last
+part is the exact code the build came from, which is worth quoting in a bug
+report and otherwise ignoring. A `+` after it means there were uncommitted edits
+when it was built, so it does not fully describe what is inside.
 
 You will not normally see anything about the capture engine, because in an
 installed copy it ships inside the same installer and cannot be out of step. It

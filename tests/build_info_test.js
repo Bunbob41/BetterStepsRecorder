@@ -16,9 +16,9 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bsr-build-'));
 const stampDir = path.join(tmp, 'ui');
 fs.mkdirSync(stampDir, { recursive: true });
 
-function stamp(built, commit = 'abc1234') {
+function stamp(built, commit = 'abc1234', build = 42) {
   fs.writeFileSync(path.join(stampDir, 'build-info.json'),
-    JSON.stringify({ version: '0.1.0', commit, built, source: 'packaged' }));
+    JSON.stringify({ version: '0.1.0', commit, build, built, source: 'packaged' }));
 }
 
 function engineAt(iso) {
@@ -40,6 +40,29 @@ console.log('a packaged build:');
   check('knows it is packaged', info.source === 'packaged');
   check('reports the engine separately', info.engineBuilt !== null);
   check('an engine built alongside it is not stale', info.engineStale === false);
+}
+
+console.log('\nthe number a person actually reads:');
+{
+  // The version does not move. 0.1.0 covered a whole day of builds that
+  // behaved differently from one another, and pointing at a commit hash
+  // instead asked the reader to do the computer's job.
+  stamp('2026-09-05T14:40:00.000Z', 'abc1234', 36);
+  const a = b.describe({ version: '0.1.0', projectRoot: tmp });
+  check('a build number is reported', a.build === 36);
+
+  stamp('2026-09-05T17:51:00.000Z', 'def5678', 37);
+  const later = b.describe({ version: '0.1.0', projectRoot: tmp });
+  check('and it goes up', later.build > a.build);
+  check('while the version stays put', later.version === a.version);
+  check('the summary leads with it', b.summarise(later).includes('build 37'));
+
+  // An older stamp, written before build numbers existed.
+  fs.writeFileSync(path.join(stampDir, 'build-info.json'),
+    JSON.stringify({ version: '0.1.0', commit: 'old', built: '2026-01-01T00:00:00.000Z',
+                     source: 'packaged' }));
+  check('a stamp without one does not crash',
+        b.describe({ version: '0.1.0', projectRoot: tmp }).build === 0);
 }
 
 console.log('\nstaleness is about the engine and its own source:');

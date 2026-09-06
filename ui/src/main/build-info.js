@@ -41,7 +41,9 @@ function fromGit(projectRoot) {
                    stdio: ['ignore', 'pipe', 'ignore'] };
     const commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], opts).trim();
     const dirty = execFileSync('git', ['status', '--porcelain'], opts).trim().length > 0;
-    return { commit: dirty ? `${commit}+` : commit, source: 'development' };
+    const build = execFileSync('git', ['rev-list', '--count', 'HEAD'], opts).trim();
+    return { commit: dirty ? `${commit}+` : commit,
+             build: Number(build) || 0, source: 'development' };
   } catch {
     return { commit: 'unknown', source: 'development' };
   }
@@ -64,6 +66,10 @@ function describe({ version, projectRoot, engineExe }) {
 
   return {
     version,
+    // The number a person reads. It increases with every change, which the
+    // version does not: 0.1.0 covered a whole day of builds that behaved
+    // differently from one another.
+    build: stamp.build || 0,
     commit: stamp.commit || 'unknown',
     built: stamp.built || null,
     source: stamp.source || 'packaged',
@@ -116,7 +122,8 @@ function summarise(info) {
   const when = info.built
     ? new Date(info.built).toLocaleString()
     : info.source;
-  const parts = [`Steps Recorder ${info.version}`, info.commit, when];
+  const parts = [`Steps Recorder build ${info.build}`, info.version,
+                 info.commit, when];
   return parts.filter(Boolean).join(' | ');
 }
 

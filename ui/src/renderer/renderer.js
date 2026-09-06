@@ -1217,7 +1217,7 @@ async function paintBuild() {
   // cannot be out of step, so there is nothing to say about it - and when there
   // IS, it is said below rather than left for the reader to work out by
   // comparing two timestamps.
-  el.build.textContent = `Build: ${b.version} · ${b.commit}`;
+  el.build.textContent = `Build ${b.build} · ${b.version} · ${b.commit}`;
 
   if (b.source !== 'packaged') el.build.append(' · development');
 
