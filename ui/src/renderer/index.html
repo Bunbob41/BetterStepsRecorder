@@ -331,14 +331,20 @@
       <span>SOP template</span>
       <div class="row">
         <select id="set-template-list"></select>
-        <button id="set-template-pick">Choose a file…</button>
         <button id="set-template-clear">Reset</button>
+      </div>
+      <div class="row">
+        <button id="set-template-copy" class="primary">Make a copy I can edit</button>
+        <button id="set-template-pick">Use a file of my own…</button>
+        <button id="set-template-folder">Open my templates folder</button>
       </div>
       <input id="set-template" type="hidden" />
       <small id="template-info">Render recordings into your organisation's own
              SOP format. One ships with the app, so Word export works without
-             setting anything up. The template file is only ever read, never
-             changed.</small>
+             setting anything up. <b>Make a copy</b> to change the wording,
+             letterhead or sections — it opens in Word and is used from then on.
+             Keep the <code>{{…}}</code> markers: they are where the recording
+             goes. Your template file is only ever read, never changed.</small>
     </label>
 
     <div class="dialog-actions">

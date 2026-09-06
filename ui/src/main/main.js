@@ -348,6 +348,22 @@ ipcMain.handle('templates:effective', () => ({
 ipcMain.handle('templates:list', () =>
   templatesLib.list(PROJECT_ROOT, app.getPath('userData')));
 
+ipcMain.handle('templates:duplicate', async (_e, { path: source } = {}) => {
+  const from = source || settings.values.templatePath
+            || templatesLib.defaultFor(PROJECT_ROOT, app.getPath('userData'));
+  const r = templatesLib.duplicate(from, app.getPath('userData'));
+  if (!r.ok) return r;
+
+  // Select the copy immediately: the point of making it is to use it.
+  settings.set({ templatePath: r.path });
+  log.info(`template copied to ${r.path}`);
+
+  // And open it, because the next thing anyone wants to do is edit it.
+  const problem = await shell.openPath(r.path);
+  return { ok: true, path: r.path, values: settings.values,
+           opened: !problem, openError: problem || null };
+});
+
 ipcMain.handle('templates:reveal', () => {
   shell.openPath(templatesLib.userDir(app.getPath('userData')));
   return { ok: true };

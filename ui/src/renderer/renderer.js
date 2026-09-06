@@ -21,6 +21,7 @@ const el = {
   templateList: $('set-template-list'),
   template: $('set-template'), templatePick: $('set-template-pick'),
   templateClear: $('set-template-clear'), templateInfo: $('template-info'),
+  templateCopy: $('set-template-copy'), templateFolder: $('set-template-folder'),
   blur: $('btn-blur'), wrap: $('shot-wrap'), selection: $('selection'),
   exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
   expTitle: $('exp-title'), expFormat: $('exp-format'),
@@ -1294,6 +1295,23 @@ el.templatePick.addEventListener('click', async () => {
   if ((i.unpaired || []).length) bits.push(`unpaired: ${i.unpaired.join(', ')}`);
   el.templateInfo.textContent = bits.join(' · ');
 });
+
+// Taking a stock template and making it yours, in one step: the app copies it
+// somewhere you own, starts using it, and opens it so you can start editing.
+el.templateCopy.addEventListener('click', async () => {
+  const r = await window.bsr.duplicateTemplate(el.templateList.value);
+  if (!r.ok) { showNotice(r.error); return; }
+
+  paintSettings(r.values);
+  showNotice(r.opened
+    ? `Copied to your templates folder and opened for editing. It is now the `
+      + `template exports use. Keep the {{…}} markers — that is where the `
+      + `recording goes.`
+    : `Copied to ${r.path}, and it is now the template exports use. Open it `
+      + `yourself to edit — this machine had nothing registered to open it.`);
+});
+
+el.templateFolder.addEventListener('click', () => window.bsr.revealTemplates());
 
 el.templateList.addEventListener('change', async () => {
   paintSettings(await window.bsr.setSettings({ templatePath: el.templateList.value }));

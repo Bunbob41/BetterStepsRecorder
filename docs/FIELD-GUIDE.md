@@ -374,8 +374,17 @@ your own, so there is nothing to set up first. The dropdown names whichever one
 it will use.
 
 Settings lists the templates available to you: the ones that ship with the app,
-anything you have dropped into your own templates folder, and any file you point
-it at with **Choose a file…**. **Reset** goes back to the built-in one.
+anything in your own templates folder, and any file you point it at.
+
+To make one your own, press **Make a copy I can edit**. That copies the selected
+template somewhere you own, starts using it for exports, and opens it so you can
+change the wording, the letterhead, the sections - whatever your organisation
+needs. The ones that ship with the app are inside the installation and are
+replaced whenever it updates, so editing a copy rather than the original is the
+difference between keeping your work and losing it.
+
+The only rule when editing: **leave the `{{…}}` markers alone**. They are where
+the recording is poured in. Everything around them is yours.
 
 ### Your own template
 

@@ -46,5 +46,36 @@ check('a preference that no longer exists falls back',
       defaultFor(projectRoot, fakeUserData, '/gone/missing.docx').endsWith('.docx'));
 
 fs.rmSync(fakeUserData, { recursive: true, force: true });
+console.log('\nmaking a stock template your own:');
+{
+  const { duplicate } = require('../ui/src/main/templates-lib');
+  const stock = path.join(projectRoot, 'templates', 'corporate-sop.docx');
+
+  const first = duplicate(stock, fakeUserData);
+  check('it is copied', first.ok && fs.existsSync(first.path));
+  check('into the folder the app looks in',
+        first.ok && path.dirname(first.path) === userDir(fakeUserData));
+  check('under a name a person would recognise',
+        first.ok && /^My corporate sop\.docx$/.test(path.basename(first.path)));
+  check('with the bytes intact',
+        first.ok && fs.readFileSync(first.path).equals(fs.readFileSync(stock)));
+
+  // The one that matters: a second copy must not land on work already done.
+  fs.writeFileSync(first.path, 'EDITED BY THE USER');
+  const second = duplicate(stock, fakeUserData);
+  check('a second copy gets its own name', second.ok && second.path !== first.path);
+  check('and does not overwrite the edited one',
+        fs.readFileSync(first.path, 'utf8') === 'EDITED BY THE USER');
+
+  check('copying something that has gone is reported, not thrown',
+        duplicate(path.join(projectRoot, 'vanished.docx'), fakeUserData).ok === false);
+  check('and so is copying nothing at all', duplicate('', fakeUserData).ok === false);
+
+  // It has to show up as a choice afterwards, or the copy is pointless.
+  const after = list(projectRoot, fakeUserData).templates;
+  check('the copy is offered alongside the stock ones',
+        after.some((t) => t.origin === 'user' && /^My corporate sop/.test(t.name)));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

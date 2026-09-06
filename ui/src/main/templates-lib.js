@@ -90,4 +90,36 @@ function defaultFor(projectRoot, userDataPath, preferred = '') {
   return def ? def.path : '';
 }
 
-module.exports = { list, defaultFor, userDir };
+/**
+ * Copies a template into the user's own folder so it can be edited.
+ *
+ * The ones that ship with the app live inside the installation, read-only and
+ * replaced on every update. Making one your own previously meant finding that
+ * folder, copying the file out and putting it somewhere the app looks - which
+ * nobody does, so "use your own format" was really "already have a format and
+ * know where to put it".
+ */
+function duplicate(sourcePath, userDataPath, { label = 'My' } = {}) {
+  if (!sourcePath || !fs.existsSync(sourcePath)) {
+    return { ok: false, error: 'That template is no longer where it was.' };
+  }
+
+  const dir = userDir(userDataPath);
+  const ext = path.extname(sourcePath);
+  const base = `${label} ${path.basename(sourcePath, ext).replace(/[-_]/g, ' ')}`;
+
+  // Never overwrite something the user has already worked on.
+  let target = path.join(dir, `${base}${ext}`);
+  for (let n = 2; fs.existsSync(target); n += 1) {
+    target = path.join(dir, `${base} ${n}${ext}`);
+  }
+
+  try {
+    fs.copyFileSync(sourcePath, target);
+    return { ok: true, path: target };
+  } catch (err) {
+    return { ok: false, error: `Could not copy the template: ${err.message}` };
+  }
+}
+
+module.exports = { list, defaultFor, userDir, duplicate };

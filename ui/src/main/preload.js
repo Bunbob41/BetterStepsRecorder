@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('bsr', {
   listTemplates: () => ipcRenderer.invoke('templates:list'),
   effectiveTemplate: () => ipcRenderer.invoke('templates:effective'),
   revealTemplates: () => ipcRenderer.invoke('templates:reveal'),
+  duplicateTemplate: (path) => ipcRenderer.invoke('templates:duplicate', { path }),
   pauseRecording: () => ipcRenderer.invoke('recording:pause'),
   resumeRecording: () => ipcRenderer.invoke('recording:resume'),
   stopRecording: () => ipcRenderer.invoke('recording:stop'),
