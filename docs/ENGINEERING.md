@@ -117,19 +117,22 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     D-9; this is not optional, it is how Windows dispatches hook callbacks.
 11. **A capture never fails.** If a window cannot draw itself, the screen is
     copied instead; a step is never lost for want of a screenshot.
-12. **A screenshot is exactly the size of the `frame` recorded with its step.**
+12. **Nothing in a `session.json` may name a file outside its own folder.** A
+    recording is something people send each other, so its paths are claims.
+    Rejected at load and re-checked at every read, write and delete.
+13. **A screenshot is exactly the size of the `frame` recorded with its step.**
     The click marker is a percentage of that rectangle, so any mismatch
     misplaces the marker on every step of the guide.
-13. **Step numbers run through the whole guide, never restarting at a heading.**
+14. **Step numbers run through the whole guide, never restarting at a heading.**
     A reader who says "step 9" must mean the ninth step of the procedure. Every
     format counts rows that are neither notes nor headings, via
     `sections.countSteps`.
-14. **A heading that has no name, or nothing under it, never reaches the
+15. **A heading that has no name, or nothing under it, never reaches the
     reader.** Applied after exclusion, so holding back a phase's last step
     takes the phase too.
-15. **Every edit that can touch more than one step is one undo entry.** Bulk
+16. **Every edit that can touch more than one step is one undo entry.** Bulk
     delete and replace-all both; twenty presses of Ctrl+Z is not undo.
-16. **`textEdited` means a person wrote those words.** Only an explicit claim
+17. **`textEdited` means a person wrote those words.** Only an explicit claim
     sets it. Inferring it from a mechanical substitution freezes that step's
     tense at export.
 
@@ -138,6 +141,45 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 ## 4. Decision changelog
 
 Newest first. Each entry records what was decided, why, and what it replaced.
+
+### D-33 · A recording's own paths are treated as claims, not facts
+`(this change)` · [ui/src/main/paths.js](../ui/src/main/paths.js)
+
+A recording is a folder, and the entire point of it is that it can be handed to
+somebody else - the README says so. Which means `session.json` is not this
+application's data. It is a file that arrived from outside, and every path in
+it is an assertion by whoever wrote it.
+
+`Session.load` took `data.steps` verbatim, and `step.screenshot` was joined to
+the session directory in seven places. `path.join` resolves `..` cheerfully, so
+a recording containing `"screenshot": "../../../secrets.txt"` would have the
+application:
+
+- read that file and hand its bytes to the window (`shot:data`),
+- serve it over the `bsr:` protocol,
+- **replace it** with a blurred or cropped screenshot (`rewriteScreenshot`),
+- **copy it** into the recording's trash on the way (`stash`),
+- and **delete it** when the step was removed or re-recorded.
+
+Opening a recording somebody sent you and blurring one step is an ordinary
+thing to do. Demonstrated rather than argued: with the check reverted, the
+hostile-recording test in `session_test.js` deletes the file it planted outside
+the recording, and fails by not being able to read it back.
+
+**Rejected at load, and guarded at every file operation.** The reference is
+dropped and the step kept - losing a picture is better than refusing to open
+the recording, and the step's wording is still worth reading. `screenshotRejected`
+marks it rather than blanking it silently.
+
+**`startsWith` is not the check.** The `bsr:` handler already tried to confine
+itself and got this wrong: `C:\Recordings\session-10` starts with
+`C:\Recordings\session-1`, so every sibling recording passed. `path.relative`
+is the check - it answers "how would I get from here to there", and any answer
+that begins by climbing is outside.
+
+This is defence in depth for the renderer, which runs only our code under
+`script-src 'self'`. It is not defence in depth for a shared recording, which
+is a real input from a real stranger.
 
 ### D-32 · A crop cuts the frame as well as the picture
 `aa181e2` · [ui/src/renderer/crop.js](../ui/src/renderer/crop.js)
@@ -972,7 +1014,7 @@ machine in use.
 |---|---|---|
 | `tests/composite_test.js` | `npm run test:composite` (from `ui/`) | the click marker drawn into real pixels, and into a real .docx |
 | `tests/window_test.js` | `npm run test:window` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
-| `tests/*_test.js` (17) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
+| `tests/*_test.js` (18) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
 | `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |
 | `tests/smoke.py` | `python tests/<file>` | engine protocol |

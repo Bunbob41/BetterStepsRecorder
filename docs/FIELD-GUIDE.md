@@ -648,6 +648,15 @@ never sent hunting for an orange mark that was never made; a colour you used but
 never explained is listed too, saying so, because a mark the key does not cover
 is exactly what a key is for.
 
+**A recording you were sent is treated as a stranger's file.** A recording is a
+folder, and the point of it is that people pass them around — so the little
+`session.json` inside one did not necessarily come from your copy of this app.
+It could name a file somewhere else on your machine and, unchecked, blurring
+one step would overwrite that file. Every path inside a recording is now
+checked to be inside that recording, when it is opened and again every time
+anything is read, written or deleted. A step naming somewhere else loses its
+picture and keeps its words.
+
 **Blur is destructive on purpose.** An overlay that merely covers pixels leaves
 the customer's name sitting in the folder, and a "redacted" guide whose source
 images still contain the data is worse than none. It pixelates first and then

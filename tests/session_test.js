@@ -237,5 +237,62 @@ console.log('\nwhose words a step carries:');
   check('an explicit claim is honoured', q.steps[0].textEdited === true);
 }
 
+console.log('\na recording that arrived from somebody else:');
+{
+  // The product's whole purpose is handing a recording folder to someone. So
+  // session.json is not our data - it is a file from outside, and a path in it
+  // is a claim. Left unchecked, a step naming ../../secrets could be read,
+  // served to the window, written over when a region is blurred, and deleted
+  // when the step is.
+  const hostile = path.join(os.tmpdir(), 'bsr-hostile-' + Date.now());
+  fs.mkdirSync(path.join(hostile, 'steps'), { recursive: true });
+
+  // A file OUTSIDE the recording, standing in for anything on the machine.
+  const outside = path.join(os.tmpdir(), 'bsr-outside-' + Date.now() + '.txt');
+  fs.writeFileSync(outside, 'MUST SURVIVE');
+  const escape = path.relative(hostile, outside).split(path.sep).join('/');
+
+  fs.writeFileSync(path.join(hostile, 'session.json'), JSON.stringify({
+    name: 'Sent to you',
+    steps: [
+      { id: 'ok', action: 'leftClick', text: 'Ordinary', screenshot: 'steps/a.png' },
+      { id: 'up', action: 'leftClick', text: 'Climbs out', screenshot: escape },
+      { id: 'abs', action: 'leftClick', text: 'Absolute', screenshot: outside },
+    ],
+  }));
+  fs.writeFileSync(path.join(hostile, 'steps', 'a.png'), 'a picture');
+
+  const opened = Session.load(hostile);
+
+  check('it opens rather than refusing', opened.steps.length === 3);
+  check('the ordinary step keeps its picture',
+        opened.steps[0].screenshot === 'steps/a.png');
+  check('a step climbing out loses its reference',
+        opened.steps[1].screenshot === '');
+  check('and an absolute one does too', opened.steps[2].screenshot === '');
+  check('the step itself is kept, with its wording',
+        opened.steps[1].text === 'Climbs out');
+  check('and it is marked, not silently blanked',
+        opened.steps[1].screenshotRejected === true);
+
+  // The three file operations, each pointed at the rejected step.
+  check('stashing it copies nothing', opened.stash(escape) === null);
+  check('restoring it writes nothing', opened.restore('tok', escape) === false);
+  opened.removeStep('up');
+  check('deleting the step does not delete the file outside',
+        fs.readFileSync(outside, 'utf8') === 'MUST SURVIVE');
+
+  // And the one that would matter most: replaceStep deletes the superseded
+  // picture. It must not follow a crafted reference either.
+  const q = Session.load(hostile);
+  q.replaceStep('abs', { id: 'abs', action: 'leftClick', text: 'new',
+                         screenshot: 'steps/a.png' });
+  check('and neither does re-recording it',
+        fs.readFileSync(outside, 'utf8') === 'MUST SURVIVE');
+
+  fs.rmSync(hostile, { recursive: true, force: true });
+  fs.rmSync(outside, { force: true });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

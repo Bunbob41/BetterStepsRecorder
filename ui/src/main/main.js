@@ -22,6 +22,7 @@ const docx = require('./docx');
 const templatesLib = require('./templates-lib');
 const shortcuts = require('./shortcuts');
 const bounds = require('./bounds');
+const paths = require('./paths');
 const library = require('./library');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -204,7 +205,10 @@ app.whenReady().then(() => {
     const url = new URL(request.url);
     const target = path.normalize(decodeURIComponent(url.pathname.replace(/^\//, '')));
 
-    if (!session || !target.startsWith(path.normalize(session.dir))) {
+    // Not startsWith: `C:\Recordings\session-10` starts with
+    // `C:\Recordings\session-1`, so every sibling recording passed the check
+    // this was written to make.
+    if (!session || !paths.insideDir(session.dir, target)) {
       return new Response('forbidden', { status: 403 });
     }
     return net.fetch(pathToFileURL(target).href);
@@ -664,9 +668,11 @@ ipcMain.handle('session:open', async () => {
 // with a bsr:// image would taint it and make toDataURL throw, so editing
 // loads the bytes as a data URL instead.
 ipcMain.handle('shot:data', (_e, { screenshot }) => {
-  if (!session || !screenshot) return null;
-  const abs = path.join(session.dir, screenshot);
-  if (!fs.existsSync(abs)) return null;
+  if (!session) return null;
+  // Inside the recording or nowhere: this reads a file and hands its bytes to
+  // the window, and the name comes from a session.json that may not be ours.
+  const abs = paths.safeJoin(session.dir, screenshot);
+  if (!abs || !fs.existsSync(abs)) return null;
   const mime = /\.jpe?g$/i.test(abs) ? 'image/jpeg' : 'image/png';
   return `data:${mime};base64,${fs.readFileSync(abs).toString('base64')}`;
 });
@@ -683,7 +689,15 @@ function rewriteScreenshot(step, dataUrl) {
   const match = /^data:image\/png;base64,(.+)$/.exec(dataUrl || '');
   if (!match) return { ok: false, error: 'Expected a PNG data URL.' };
 
-  const file = path.join(session.dir, step.screenshot);
+  // The write. A crafted recording naming a path outside itself would have
+  // this replace that file with a blurred screenshot, and stash() would move
+  // the original into the recording's trash on the way - so the check belongs
+  // here most of all.
+  const file = paths.safeJoin(session.dir, step.screenshot);
+  if (!file) {
+    return { ok: false, error: 'That step points outside the recording.' };
+  }
+
   const bytes = Buffer.from(match[1], 'base64');
   const token = session.stash(step.screenshot);
   const temp = file + '.tmp';
@@ -1354,7 +1368,7 @@ ipcMain.handle('session:reveal', () => {
 });
 
 ipcMain.handle('shot:url', (_e, { screenshot }) => {
-  if (!session || !screenshot) return null;
-  const abs = path.join(session.dir, screenshot);
-  return fs.existsSync(abs) ? 'bsr://step/' + encodeURIComponent(abs) : null;
+  if (!session) return null;
+  const abs = paths.safeJoin(session.dir, screenshot);
+  return abs && fs.existsSync(abs) ? 'bsr://step/' + encodeURIComponent(abs) : null;
 });

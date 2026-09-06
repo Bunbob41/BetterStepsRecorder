@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { safeReference, safeJoin } = require('./paths');
 
 /**
  * A recording session on disk:
@@ -46,9 +47,11 @@ class Session {
    * means one slip costs a re-record.
    */
   stash(relative) {
-    if (!relative) return null;
-    const from = path.join(this.dir, relative);
-    if (!fs.existsSync(from)) return null;
+    // Belt and braces with the check in load(): these three do file
+    // operations - a copy, a write and two deletes - on a name that came out
+    // of session.json, and a delete is not something to guard in one place.
+    const from = safeJoin(this.dir, relative);
+    if (!from || !fs.existsSync(from)) return null;
 
     fs.mkdirSync(this.trashDir, { recursive: true });
     const token = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-`
@@ -83,7 +86,8 @@ class Session {
     const from = path.join(this.trashDir, token);
     if (!fs.existsSync(from)) return false;
 
-    const to = path.join(this.dir, relative);
+    const to = safeJoin(this.dir, relative);
+    if (!to) return false;
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.copyFileSync(from, to);
     try { fs.unlinkSync(from); } catch { /* leave it; harmless */ }
@@ -141,7 +145,8 @@ class Session {
 
     // Drop the superseded screenshot once the new one is safely referenced.
     if (old.screenshot && old.screenshot !== merged.screenshot) {
-      try { fs.unlinkSync(path.join(this.dir, old.screenshot)); } catch { /* already gone */ }
+      const doomed = safeJoin(this.dir, old.screenshot);
+      if (doomed) try { fs.unlinkSync(doomed); } catch { /* already gone */ }
     }
     return { index: i, step: merged };
   }
@@ -231,7 +236,8 @@ class Session {
     let token = null;
     if (doomed.screenshot && !this.steps.some((s) => s.screenshot === doomed.screenshot)) {
       token = this.stash(doomed.screenshot);
-      try { fs.unlinkSync(path.join(this.dir, doomed.screenshot)); } catch { /* gone */ }
+      const target = safeJoin(this.dir, doomed.screenshot);
+      if (target) try { fs.unlinkSync(target); } catch { /* gone */ }
     }
     return { index, step: doomed, token };
   }
@@ -263,7 +269,21 @@ class Session {
     if (fs.existsSync(meta)) {
       try {
         const data = JSON.parse(fs.readFileSync(meta, 'utf8'));
-        s.steps = data.steps || [];
+
+        // A recording is a folder people hand to each other, so this file
+        // arrived from outside and every path in it is a claim rather than a
+        // fact. A step naming `../../../secrets.txt` would otherwise be read,
+        // served to the window, and - the one that matters - written over when
+        // somebody blurs a region of it.
+        //
+        // The step is kept and only the reference dropped: losing a picture is
+        // better than refusing to open the recording, and the step's wording
+        // is still worth reading.
+        s.steps = (data.steps || []).map((step) => {
+          if (!step || step.screenshot === undefined) return step;
+          if (safeReference(step.screenshot)) return step;
+          return { ...step, screenshot: '', screenshotRejected: true };
+        });
         s.name = data.name || '';
         s.purpose = data.purpose || 'sop';
         s.templatePath = data.templatePath || '';
