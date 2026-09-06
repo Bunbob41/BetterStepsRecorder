@@ -972,11 +972,18 @@ machine in use.
 |---|---|---|
 | `tests/composite_test.js` | `npm run test:composite` (from `ui/`) | the click marker drawn into real pixels, and into a real .docx |
 | `tests/window_test.js` | `npm run test:window` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
-| `tests/*_test.js` (16) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
+| `tests/*_test.js` (17) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
 | `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |
 | `tests/smoke.py` | `python tests/<file>` | engine protocol |
 | `tests/LogicTests` (C#) | `dotnet run` | redaction, typing secrecy, naming, scope rules, capture framing |
+
+`invariants_test.js` checks the properties in §3 that hold ACROSS files, where
+no unit test is positioned to notice them breaking: an undo entry pushed with a
+type nothing handles, a screenshot written without being stashed first, a
+handler nothing can reach, a new place that counts steps by "not a note" and so
+counts headings. It checks shape, not behaviour - a pass means nothing has
+drifted, not that the behaviour is right.
 
 `renderer_wiring_test.js` earns its place cheaply: it checks statically that
 every element the renderer resolves exists in the markup, every bridge call is
