@@ -140,7 +140,7 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 Newest first. Each entry records what was decided, why, and what it replaced.
 
 ### D-32 · A crop cuts the frame as well as the picture
-`(this change)` · [ui/src/renderer/crop.js](../ui/src/renderer/crop.js)
+`aa181e2` · [ui/src/renderer/crop.js](../ui/src/renderer/crop.js)
 
 A screenshot framed by the monitor, or of a maximised window, is mostly not the
 thing being pointed at. Cropping is the difference between a guide whose
@@ -1043,6 +1043,12 @@ waits out because it waits for the engine's `ready`.
 - **The compact strip's elapsed timer is visually unverified.** Its logic is
   wired and the element renders, but seeing it requires an actual recording,
   which captures the screen.
+- **A screenshot shared by two steps carries only the first one's marker in
+  Word.** Two steps can reference one file; HTML and PDF overlay per step and
+  are unaffected, but Word's marker is in the pixels, so the file can only hold
+  one. The second is skipped and logged rather than drawn on top of the first,
+  which would put both markers on both steps. Rare, and the fix is per-step
+  image parts in the .docx rather than per-file.
 - **A wide, short screenshot gets an oversized marker.** The marker scales with
   the image's width, matching what the HTML guide does, so a 1920x60 taskbar
   strip gets a marker sized for a 1920-wide picture. Consistent between the two

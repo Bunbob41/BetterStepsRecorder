@@ -1380,8 +1380,10 @@ window.addEventListener('mouseup', async (e) => {
   // A box only needs the region; an arrow needs to know which end the reader
   // should be looking at, so the raw drag is kept as well.
   const rect = { x: sel.left, y: sel.top, w: sel.width, h: sel.height };
-  // `sel`, not `rect`: applyCrop works in the displayed box's own terms.
-  if (armedTool === 'crop') { await applyCrop(sel); return; }
+  // `sel`, not `rect`: applyCrop works in the displayed box's own terms. And
+  // `r.width` from up there, measured with the drag - not re-measured later,
+  // which is a different number if anything reflowed in between.
+  if (armedTool === 'crop') { await applyCrop(sel, r.width); return; }
 
   if (!BsrAnnotate.isDeliberate(armedTool, rect, from, to)) return;
 
@@ -1403,7 +1405,7 @@ window.addEventListener('mouseup', async (e) => {
  * main process cuts the step's `frame` by the same proportion, and the marker
  * - a percentage of that frame - goes on pointing at the same thing.
  */
-async function applyCrop(sel) {
+async function applyCrop(sel, displayedWidth) {
   const step = steps.find((s) => s.id === selectedId);
   if (!step) return;
 
@@ -1415,8 +1417,11 @@ async function applyCrop(sel) {
     img.onload = resolve; img.onerror = reject; img.src = dataUrl;
   });
 
-  const displayed = el.shot.getBoundingClientRect().width;
-  const ratio = img.naturalWidth / displayed;
+  // Measured when the drag ended, not now. Reading it here would ask the
+  // element how wide it is AFTER two awaits, and a window resized or a notice
+  // strip appearing in between changes the answer - scaling a selection taken
+  // at the old width by the new one, and cropping to the wrong region.
+  const ratio = img.naturalWidth / displayedWidth;
   const image = { width: img.naturalWidth, height: img.naturalHeight };
   const rect = BsrCrop.clamp({
     x: sel.left * ratio, y: sel.top * ratio,

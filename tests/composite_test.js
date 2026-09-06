@@ -141,6 +141,62 @@ app.whenReady().then(async () => {
           marker.svg(centre, {}, '#e5484d', 40000, 20000).width < 400);
     check('and it never vanishes on a tiny one',
           marker.svg(centre, {}, '#e5484d', 60, 40).width >= 12);
+
+    // A height of zero used to fall through to the width, which put a click at
+    // half the height of a 1080px screenshot 960px down it - off the picture,
+    // and silent.
+    const square = marker.svg({ x: 50, y: 50 }, {}, '#e5484d', 1920, 1920);
+    const noHeight = marker.svg({ x: 50, y: 50 }, {}, '#e5484d', 1920);
+    check('omitting the height does not send the marker off the picture',
+          noHeight.top === square.top);
+    check('and a real height is used as given',
+          marker.svg({ x: 50, y: 50 }, {}, '#e5484d', 1920, 1080).top < square.top);
+  }
+
+  console.log('\nthe map it hands back is the shape everything else expects:');
+  {
+    const one = await composite.markAll([{ file: shot, pos: centre }]);
+    const got = one.images.get(shot);
+    // screenshots.prepare stores { data, mime, ext }. An entry missing `mime`
+    // reaches dataUriFor - which the HTML and PDF exports go through - as
+    // "data:undefined;base64,...", and renders nothing at all.
+    check('an entry carries its mime type', got.mime === 'image/png');
+    check('and its extension', got.ext === '.png');
+    check('and its bytes', Buffer.isBuffer(got.data));
+
+    // Entries it did not touch must come through untouched.
+    const passthrough = new Map([['C:/elsewhere.png',
+                                  { data: Buffer.from('x'), mime: 'image/jpeg', ext: '.jpg' }]]);
+    const mixed = await composite.markAll([{ file: shot, pos: centre }],
+                                          { images: passthrough });
+    check('an unmarked entry is left exactly as it was',
+          mixed.images.get('C:/elsewhere.png').mime === 'image/jpeg');
+    check('and the caller\u2019s map is not modified',
+          passthrough.size === 1 && !passthrough.has(shot));
+  }
+
+  console.log('\none screenshot, one marker, however many steps use it:');
+  {
+    // Two steps can point at one screenshot - session.js keeps the file while
+    // either still references it. Marking is keyed by file and each pass reads
+    // what the last one wrote, so without a guard the second step's marker is
+    // drawn onto the first step's result and both appear on both.
+    const twice = await composite.markAll([
+      { file: shot, pos: { x: 25, y: 25 } },
+      { file: shot, pos: { x: 75, y: 75 } },
+    ], { markerOpts: { style: 'circle' } });
+
+    check('it is marked once', twice.marked === 1);
+    check('and the repeat is reported rather than silently done', twice.shared === 1);
+
+    const a = marker.svg({ x: 25, y: 25 }, { style: 'circle' }, '#e5484d', 800, 600);
+    const b = marker.svg({ x: 75, y: 75 }, { style: 'circle' }, '#e5484d', 800, 600);
+    const [first, second] = await pixels(twice.images.get(shot).data, [
+      [Math.round(a.left + a.width / 2), a.top + 2],
+      [Math.round(b.left + b.width / 2), b.top + 2],
+    ]);
+    check(`the first step\u2019s marker is there (${first})`, isMarker(first));
+    check(`and the second step\u2019s is not (${second})`, isGrey(second));
   }
 
   // ---- and into a real Word document ---------------------------------------

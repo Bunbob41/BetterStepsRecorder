@@ -120,6 +120,15 @@ async function markAll(items, { images = null, markerOpts = {}, colour = '#e5484
   let marked = 0;
   let failed = 0;
 
+  // Two steps can reference one screenshot - session.js supports it on purpose
+  // and keeps the file while either still points at it. Marking is keyed by
+  // file, and the source for each pass is whatever is already in the map, so
+  // the second step's marker would be drawn onto the first step's result and
+  // both would appear on both. HTML and PDF do not have this problem: they
+  // overlay per step. Marking the file once keeps the two formats agreeing.
+  const seen = new Set();
+  let shared = 0;
+
   // If the window itself cannot be had, every screenshot goes in unmarked and
   // the export still happens. A missing marker is a worse document; a thrown
   // error is no document at all.
@@ -133,6 +142,7 @@ async function markAll(items, { images = null, markerOpts = {}, colour = '#e5484
 
   {
     for (const { file, pos } of work) {
+      if (seen.has(file)) { shared++; continue; }
       try {
         const prepared = out.get(file);
         const ext = prepared
@@ -154,10 +164,17 @@ async function markAll(items, { images = null, markerOpts = {}, colour = '#e5484
           DRAW(source, m.svg, m.left, m.top, m.width, m.height, mime, quality));
 
         const base64 = String(url).slice(String(url).indexOf(',') + 1);
+        // The same shape `screenshots.prepare` produces, `mime` included.
+        // Without it this map holds two kinds of entry, and the one consumer
+        // that reads `.mime` - dataUriFor, which the HTML and PDF exports go
+        // through - would silently emit `data:undefined;base64,...` for every
+        // marked screenshot the day anybody routed this map to it.
         out.set(file, {
           data: Buffer.from(base64, 'base64'),
+          mime,
           ext: mime === 'image/jpeg' ? '.jpg' : '.png',
         });
+        seen.add(file);
         marked++;
       } catch (err) {
         // Keep whatever this file already had, and say so once.
@@ -167,7 +184,7 @@ async function markAll(items, { images = null, markerOpts = {}, colour = '#e5484
     }
   }
 
-  return { images: out, marked, failed };
+  return { images: out, marked, failed, shared };
 }
 
 module.exports = { markAll, mimeFor, dispose };

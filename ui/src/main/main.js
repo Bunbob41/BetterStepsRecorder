@@ -992,6 +992,10 @@ async function runExport({ format, title }) {
         if (marks.failed) {
           log.warn(`${marks.failed} screenshot(s) went into the document unmarked`);
         }
+        if (marks.shared) {
+          log.warn(`${marks.shared} step(s) share a screenshot with an earlier one; `
+                   + `it carries the first step's marker`);
+        }
 
         const { buffer, missing } = await docx.render(tpl, session, {
           title: safeTitle,

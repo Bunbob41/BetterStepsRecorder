@@ -185,7 +185,7 @@
    * `pos` is the click as a percentage of the image, as everywhere else.
    */
   function svg(pos, opts = {}, colour = '#e5484d', imageWidth = REFERENCE_WIDTH,
-               imageHeight = 0) {
+               imageHeight = imageWidth) {
     const p = plan(pos, opts);
     const k = scaleFor(imageWidth);
     const size = Math.round(p.size * k);
@@ -195,7 +195,11 @@
 
     // Where the element's top-left corner lands, in image pixels.
     const cx = (pos.x / 100) * imageWidth;
-    const cy = (pos.y / 100) * (imageHeight || imageWidth);
+    // Squared off rather than falling back to the width. A caller who omits
+    // the height gets a marker on the diagonal of a square, which is wrong but
+    // visibly so; substituting the width put a click at 50% height 960px down
+    // a 1080px screenshot - off the picture, and silent about it.
+    const cy = (pos.y / 100) * (Number(imageHeight) || imageWidth);
     const left = Math.round(cx - p.offsetX * k);
     const top = Math.round(cy - p.offsetY * k);
 
