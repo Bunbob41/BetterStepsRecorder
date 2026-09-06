@@ -1109,7 +1109,20 @@ function armTool(tool) {
   }
   el.wrap.classList.toggle('selecting', Boolean(armedTool));
   el.selection.hidden = true;
-  el.dragPreview.hidden = true;
+  showPreview(false);
+}
+
+/**
+ * Shows or hides the preview overlay.
+ *
+ * By attribute, not by `.hidden`. That property belongs to HTMLElement, and the
+ * overlay is an <svg> - so `el.dragPreview.hidden = false` quietly defined a
+ * plain JavaScript property, left the `hidden` attribute the stylesheet matches
+ * on exactly where it was, and then read back as `false` as though it had
+ * worked. The preview was correct, present in the DOM, and invisible.
+ */
+function showPreview(on) {
+  el.dragPreview.toggleAttribute('hidden', !on);
 }
 
 /**
@@ -1122,8 +1135,11 @@ function armTool(tool) {
 function previewDrag(from, to) {
   const rectTools = armedTool === 'box' || armedTool === 'highlight'
                  || armedTool === 'blur';
+  // The single owner of which of the two is on screen. Nothing else may set
+  // these: the version that shipped had the mousedown handler re-showing the
+  // rectangle straight afterwards, so a circle drag previewed a box.
   el.selection.hidden = !rectTools;
-  el.dragPreview.hidden = rectTools;
+  showPreview(!rectTools);
   if (rectTools) return;
 
   const svg = 'http://www.w3.org/2000/svg';
@@ -1215,10 +1231,11 @@ el.wrap.addEventListener('mousedown', (e) => {
   e.preventDefault();
   const r = el.shot.getBoundingClientRect();
   dragStart = { x: e.clientX - r.left, y: e.clientY - r.top };
-  previewDrag(dragStart, { x, y });
   Object.assign(el.selection.style, { left: `${dragStart.x}px`, top: `${dragStart.y}px`,
                                       width: '0px', height: '0px' });
-  el.selection.hidden = false;
+  // From the start point to itself: nothing to see yet, but it puts the right
+  // one of the two on screen before the pointer moves.
+  previewDrag(dragStart, dragStart);
 });
 
 window.addEventListener('mousemove', (e) => {
@@ -1232,6 +1249,10 @@ window.addEventListener('mousemove', (e) => {
     width: `${Math.abs(x - dragStart.x)}px`,
     height: `${Math.abs(y - dragStart.y)}px`,
   });
+
+  // The whole point of the preview: redrawn as the pointer moves. Without this
+  // the circle and the arrow were drawn once, at zero size, and never again.
+  previewDrag(dragStart, { x, y });
 });
 
 window.addEventListener('mouseup', async (e) => {
@@ -1248,7 +1269,7 @@ window.addEventListener('mouseup', async (e) => {
   const to = { x, y };
   dragStart = null;
   el.selection.hidden = true;
-  el.dragPreview.hidden = true;
+  showPreview(false);
 
   // A box only needs the region; an arrow needs to know which end the reader
   // should be looking at, so the raw drag is kept as well.

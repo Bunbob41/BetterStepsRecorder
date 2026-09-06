@@ -134,8 +134,51 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-29 · The window is driven in a test, not only reasoned about
+`(this change)` · [tests/preview_test.js](../tests/preview_test.js)
+
+The drag preview shipped broken twice and nothing caught it. `previewDrag` was
+called as `previewDrag(dragStart, { x, y })` from a scope where `x` and `y` do
+not exist - a ReferenceError on every mousedown, which killed the rest of the
+handler, so **no tool previewed anything**: not the circle the user reported,
+not the arrow, not even the rubber band a box and a blur have always had. Every
+unit test passed, because none of them runs a handler. `renderer_wiring_test`
+passed, because every element and channel it checks does exist.
+
+Under it sat a second one that only a rendered page could show. The overlay is
+an `<svg>`, and `.hidden` belongs to `HTMLElement` - so
+`el.dragPreview.hidden = false` defined a plain JavaScript property, left the
+`hidden` attribute the stylesheet matches on exactly where it was, and read
+back as `false` as though it had worked. A DOM assertion written against
+`.hidden` was fooled the same way the code was; only the screenshot showed it.
+Visibility is now toggled with `toggleAttribute`, and the overlay carries an
+explicit size, because an `<svg>` with `width: auto` takes its intrinsic size
+rather than filling its box.
+
+So there is now a tier between the pure units and the hand check: the real
+`index.html`, `renderer.js` and stylesheet in a real Electron window, with the
+bridge stubbed by a preload built from the **real preload's own method names**,
+so the stub cannot drift from the surface the page has. Mouse events are
+dispatched into the page; nothing is synthesized at the operating system, which
+is what made the retired `ui_drive.py` tier unrunnable on a machine in use.
+
+The test was checked against the broken code before being kept: 13 of its 19
+checks fail there, and it names the ReferenceError. A test that cannot fail is
+not evidence.
+
+Two smaller things it forced, both worth keeping:
+
+- **It must not be able to hang.** Electron shows a modal dialog for an
+  uncaught main-process error, and on a hidden window that dialog is invisible
+  and waits forever - which it did, four times, until the processes were killed
+  by hand. There is a watchdog.
+- **The page's own CSP applies.** Sizing the placeholder screenshot with an
+  injected `<style>` is refused by `style-src 'self'`; it goes through the
+  CSSOM instead. A test that worked around the policy would not be testing this
+  page.
+
 ### D-28 · A heading is a row, not a property of the step below it
-`(this change)` · [ui/src/renderer/sections.js](../ui/src/renderer/sections.js)
+`b720b0d` · [ui/src/renderer/sections.js](../ui/src/renderer/sections.js)
 
 Every SOP format we support has section headings, and nothing in a recording
 could produce one. The ISO template ships with "5.1 Phase One" in it and the
@@ -784,6 +827,7 @@ machine in use.
 
 | Suite | Runs | Covers |
 |---|---|---|
+| `tests/preview_test.js` | `npx electron tests/preview_test.js` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
 | `tests/*_test.js` (14) | `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
 | `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |

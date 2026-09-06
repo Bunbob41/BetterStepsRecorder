@@ -490,6 +490,12 @@ button.tool.active {
 .drag-preview {
   position: absolute;
   inset: 0;
+  /* Explicit, because an <svg> with `width: auto` takes its own intrinsic size
+     rather than filling the box the way a div would. The preview is drawn in
+     the displayed pixels of the screenshot, so the overlay has to be exactly
+     the size of it. */
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   overflow: visible;
 }
