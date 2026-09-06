@@ -44,7 +44,8 @@ A modern replacement for the deprecated Windows PSR.exe.
 
 ## Install
 
-Download `StepsRecorder-Setup-<version>.exe` and run it. Installs per-user, so
+Download `StepsRecorder-Setup-<version>.exe` from
+[Releases](https://github.com/Bunbob41/BetterStepsRecorder/releases) and run it. Installs per-user, so
 no administrator prompt, and nothing else is required — no .NET, no Node. It
 runs on Windows 10 (1607 or later) and Windows 11, x64.
 
@@ -111,6 +112,11 @@ Two processes:
 They are separate processes rather than a native addon: a low-level hook needs
 its own message pump, and this avoids node-gyp and Electron ABI coupling
 entirely. The protocol is documented in [docs/ipc-contract.md](docs/ipc-contract.md).
+
+## What changed, and when
+
+[CHANGELOG.md](CHANGELOG.md) — what each release added, and what it still does
+not do.
 
 ## Documentation
 
