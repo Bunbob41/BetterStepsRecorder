@@ -160,3 +160,8 @@ retired because every layout change silently broke them, they could only be run
 on an idle machine and so were run rarely enough to rot unnoticed, and they
 exited successfully while reporting failures. `git log -- tests/ui_drive.py`
 has them if they are ever wanted back.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). Use it, change it, ship it; keep the copyright
+notice, and it comes with no warranty.

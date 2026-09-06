@@ -4,6 +4,7 @@
   "description": "Record what you do on screen and turn it into a guide",
   "main": "src/main/main.js",
   "private": true,
+  "license": "MIT",
   "engines": {
     "node": ">=20"
   },
