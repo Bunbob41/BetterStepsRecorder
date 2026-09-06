@@ -47,6 +47,7 @@ flowchart TB
 
         subgraph rend["Renderer — Chromium, sandboxed"]
             renderer["index.html · renderer.js · styles.css<br/><i>no Node, no filesystem</i>"]
+            shared["marker.js · annotate.js · sections.js<br/><i>UMD: script tag here, require() in main</i>"]
         end
     end
 
@@ -55,6 +56,8 @@ flowchart TB
     win["Windows<br/>Win32 · UI Automation · GDI+"]
     disk[("Session folder<br/>session.json + steps/*.png")]
 
+    renderer --- shared
+    exporters -.->|"require()"| shared
     renderer <-->|"window.bsr.*<br/>ipcRenderer.invoke"| preload
     preload <--> main
     main --> sidecar
@@ -117,6 +120,12 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 12. **A screenshot is exactly the size of the `frame` recorded with its step.**
     The click marker is a percentage of that rectangle, so any mismatch
     misplaces the marker on every step of the guide.
+13. **Step numbers run through the whole guide, never restarting at a heading.**
+    A reader who says "step 9" must mean the ninth step of the procedure. Every
+    format counts rows that are neither notes nor headings, via
+    `sections.countSteps`.
+14. **A heading that has nothing under it never reaches the reader.** Applied
+    after exclusion, so holding back a phase's last step takes the phase too.
 
 ---
 
@@ -124,8 +133,72 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-28 · A heading is a row, not a property of the step below it
+`(this change)` · [ui/src/renderer/sections.js](../ui/src/renderer/sections.js)
+
+Every SOP format we support has section headings, and nothing in a recording
+could produce one. The ISO template ships with "5.1 Phase One" in it and the
+engine had no way to fill that shape: a forty-click procedure came out as forty
+flat steps, and the reader had to infer where one phase of work ended.
+
+**A heading is a note with a rank.** `action: 'section'`, authored text, no
+screenshot, no number - the same shape `addNote` already produced. As a row it
+inherits insert-after-selection, drag to reorder, delete, exclude, rename and
+"authored text is never rewritten by export" from machinery that already
+existed and is already tested.
+
+The alternative was `step.heading = 'Preparation'` on the first step of a
+phase. Rejected: the heading would die with the step that carried it, and a
+step is deleted or re-recorded precisely when its screenshot was wrong - which
+is not a reason to lose the phase it began. It would also need new controls on
+every step row instead of one new kind of row.
+
+**Numbering runs through the phases, not restarting in each.** A guide with
+four sections numbered 1-3 apiece has four step 3s, and "I am stuck on step 3"
+stops meaning anything. `countSteps` counts rows that are neither notes nor
+headings, in every format.
+
+**One level.** The number of sections is whatever a procedure needs, but they
+do not nest: an ISO template gets its 5.1/5.2 hierarchy from its own structure,
+and a second hierarchy from us would fight it. `level: 1` is written to disk so
+nesting can arrive later without a migration, and is not surfaced.
+
+**A heading with nothing under it is dropped at export.** `withoutEmpty()` runs
+after the exclusion filter, so a phase whose every step was held back goes with
+them. A heading over nothing is a promise the document does not keep, and the
+reader spends their time hunting for the part that was cut.
+
+**Boundaries are suggested, never applied.** `suggestions()` marks the points
+where the recording changed application - usually, not always, where the work
+changed phase - and offers a heading there. Accepting or dismissing one
+silences it; a dismissal is `noSection` on the step, so it survives a reload.
+Sectioning is an authoring judgement and the tool only knows which program
+changed.
+
+**Markdown demotes its steps when a guide has headings**, so a wiki's contents
+list shows phases with steps beneath rather than forty flat entries. A guide
+with no headings is byte-identical to before.
+
+**`{{text_block}}` for the template engine**, in the same spirit as
+`image_block` (D-7): a loop body is one string for every row and the engine has
+no conditionals, so without it a heading rendered as another bold line of body
+text - the one thing a heading must not be. `{{checkbox}}` is the same idea for
+checklist templates, empty on a written row so nobody is asked to tick off a
+phase name. The Word template branches on `isSection` with `{{IF}}`, which
+docx-templates does support, and takes a Heading3 style added for it.
+
+Two things worth recording about the work rather than the design:
+
+- The step description is now computed once per row. `describe` is a window
+  tracker that advances on every call, so `text_block` asking it a second time
+  would have given two different strings for one step - D-26's condensation
+  silently applied twice.
+- Notes deliberately keep the emphasis they have always had in templates. The
+  first cut of `text_block` restyled them in passing; a test asserting the old
+  output caught it. Changing how notes look was not what anybody asked for.
+
 ### D-27 · Marks are burned into the image, and are not redactions
-`(this change)` · [ui/src/renderer/annotate.js](../ui/src/renderer/annotate.js)
+`f02cba4` · [ui/src/renderer/annotate.js](../ui/src/renderer/annotate.js)
 
 A recorder can say where the click landed. It cannot say "this is the field
 that matters" - that is the author's knowledge, and without a way to add it
@@ -702,7 +775,7 @@ machine in use.
 
 | Suite | Runs | Covers |
 |---|---|---|
-| `tests/*_test.js` (11) | `node tests/<file>` | export rendering, templates, .docx, sessions, shortcut conversion, window fitting, screenshot sizing, build identity, click markers, renderer wiring |
+| `tests/*_test.js` (14) | `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
 | `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |
 | `tests/smoke.py` | `python tests/<file>` | engine protocol |

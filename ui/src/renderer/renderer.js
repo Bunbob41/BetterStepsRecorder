@@ -34,7 +34,7 @@ const el = {
   suGo: $('su-go'), suCancel: $('su-cancel'), suOpenTemplates: $('su-templates-open'),
   scopeBtn: $('btn-scope'), scopeDlg: $('scopedlg'), scopeList: $('scope-list'),
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
-  note: $('btn-note'), check: $('btn-check'),
+  note: $('btn-note'), check: $('btn-check'), section: $('btn-section'),
   exclude: $('chk-exclude'), frame: $('set-frame'),
   sessionName: $('session-name'), libraryList: $('library-list'),
   libraryEmpty: $('library-empty'),
@@ -84,23 +84,33 @@ function renderList() {
   el.count.textContent = String(steps.length);
   // Adding a note to nothing, or checking nothing, are not actions.
   el.note.disabled = steps.length === 0;
+  el.section.disabled = steps.length === 0;
   el.check.disabled = steps.length === 0;
   el.del.textContent = marked.size > 1 ? `Delete ${marked.size} steps` : 'Delete step';
-  const recorded = steps.filter((s) => s.action !== 'note').length;
+  const recorded = BsrSections.countSteps(steps);
   el.cCount.textContent = `${recorded} step${recorded === 1 ? '' : 's'}`;
   el.empty.hidden = steps.length > 0;
   el.list.replaceChildren();
 
+  // Offered where the recording changed application, which is usually - not
+  // always - where the work changed phase.
+  const suggested = new Map(
+    BsrSections.suggestions(steps).map((x) => [x.index, x]));
+
   let number = 0;
   steps.forEach((s, i) => {
-    const isNote = s.action === 'note';
+    if (suggested.has(i)) el.list.append(suggestionRow(suggested.get(i), i));
+
+    const isSection = BsrSections.isSection(s);
+    const isNote = s.action === 'note' || isSection;
 
     const li = document.createElement('li');
     li.className = 'step'
       + (s.id === selectedId ? ' selected' : '')
       + (marked.has(s.id) ? ' marked' : '')
       + (s.excluded ? ' excluded' : '')
-      + (isNote ? ' note' : '');
+      + (isSection ? ' section' : isNote ? ' note' : '')
+      + (isSection && !(s.text || '').trim() ? ' untitled' : '');
     li.dataset.id = s.id;
     li.dataset.index = String(i);
     li.draggable = true;
@@ -108,14 +118,16 @@ function renderList() {
     const n = document.createElement('div');
     n.className = 'n';
     // Notes carry no number: they are asides, not steps the reader counts.
-    n.textContent = isNote ? '•' : String(++number);
+    n.textContent = isSection ? '§' : isNote ? '•' : String(++number);
 
     const label = document.createElement('div');
     label.className = 'label';
 
     const title = document.createElement('div');
     title.className = 'title';
-    title.textContent = s.text || s.action;
+    title.textContent = isSection
+      ? (s.text || '').trim() || 'Untitled section'
+      : s.text || s.action;
 
     const v = s.verify;
     const stale = v && (v.status === 'missing');
@@ -123,7 +135,12 @@ function renderList() {
 
     const sub = document.createElement('div');
     sub.className = 'sub';
-    sub.textContent = isNote
+    // A heading says nothing useful underneath itself - the marker and the
+    // styling already say what it is, and the word only crowds a short name.
+    // A note keeps its label, which distinguishes it from a recorded step.
+    sub.textContent = isSection
+      ? (s.excluded ? 'excluded' : '')
+      : isNote
       ? (s.excluded ? 'note · excluded' : 'note')
       : [s.window?.process, s.action, s.excluded ? 'excluded' : null]
           .filter(Boolean).join(' · ');
@@ -179,12 +196,14 @@ async function select(id) {
   el.text.value = step.text || '';
   el.exclude.checked = !!step.excluded;
 
-  const isNote = step.action === 'note';
+  const isSection = BsrSections.isSection(step);
+  const isNote = step.action === 'note' || isSection;
   // A written step has no screenshot, so the tools that act on one are moot.
   for (const t of ['blur', 'box', 'ellipse', 'arrow', 'highlight']) el[t].hidden = isNote;
   if (isNote && armedTool) armTool(armedTool);   // disarm: nothing to draw on
   el.rerecord.hidden = isNote;
-  el.text.placeholder = isNote ? 'Describe what the reader should do' : '';
+  el.text.placeholder = isSection ? 'Name this phase of the procedure'
+                      : isNote ? 'Describe what the reader should do' : '';
   el.indicator.style.display = 'none';
   el.indicator.replaceChildren();
 
@@ -193,7 +212,9 @@ async function select(id) {
   // the PREVIOUS step's screenshot and details on screen.
   if (isNote) {
     el.shot.removeAttribute('src');
-    el.meta.textContent = 'Written step — appears in the guide without a screenshot';
+    el.meta.textContent = isSection
+      ? 'Section heading — groups the steps below it, and is not numbered'
+      : 'Written step — appears in the guide without a screenshot';
     return;
   }
 
@@ -858,6 +879,74 @@ el.note.addEventListener('click', async () => {
   select(r.step.id);
   el.text.focus();     // it is empty on purpose: the user types the instruction
 });
+
+// ---- sections ----------------------------------------------------------------
+// A heading groups the steps below it into a phase. It is inserted as a row of
+// its own rather than set as a property of the step it precedes, so it survives
+// that step being re-recorded or deleted.
+
+/** An application's name as a person would write it: "chrome.exe" -> "Chrome". */
+function phaseName(app) {
+  const base = String(app || '').replace(/\.exe$/i, '').replace(/[_-]+/g, ' ').trim();
+  return base ? base.charAt(0).toUpperCase() + base.slice(1) : '';
+}
+
+async function addSection(text, afterId) {
+  const r = await window.bsr.addSection(text, afterId);
+  if (!r) { alert('Open or start a recording first.'); return null; }
+
+  steps.splice(r.index, 0, r.step);
+  renderList();
+  await select(r.step.id);
+  // Selected, not merely focused: a suggested heading arrives named after the
+  // application, and the name of a program is rarely the name of a phase.
+  el.text.focus();
+  el.text.select();
+  return r.step;
+}
+
+el.section.addEventListener('click', () => addSection('', selectedId));
+
+/**
+ * The offer itself. Accepting inserts the heading above the step whose
+ * application changed; declining marks that step so the offer stops being made.
+ */
+function suggestionRow(hint, index) {
+  const row = document.createElement('li');
+  row.className = 'suggest';
+
+  const why = document.createElement('span');
+  why.className = 'why';
+  why.textContent = `Moves to ${phaseName(hint.app)} here`;
+
+  const add = document.createElement('button');
+  add.className = 'tiny';
+  add.textContent = '+ Section';
+  add.title = 'Add a heading above this step';
+  add.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // Anchored to the row before, because insertion is "after" - which puts the
+    // heading immediately above the step that changed application.
+    const before = steps[index - 1];
+    addSection(phaseName(hint.app), before && before.id);
+  });
+
+  const no = document.createElement('button');
+  no.className = 'no';
+  no.textContent = '\u00d7';
+  no.title = 'Not a phase boundary';
+  no.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const step = steps.find((x) => x.id === hint.id);
+    if (!step) return;
+    step.noSection = true;
+    await window.bsr.updateStep(step.id, { noSection: true });
+    renderList();
+  });
+
+  row.append(why, add, no);
+  return row;
+}
 
 // ---- exclude from export ------------------------------------------------------
 

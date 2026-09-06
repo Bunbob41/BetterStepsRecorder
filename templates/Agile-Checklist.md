@@ -15,7 +15,7 @@
 ### Execution checklist
 
 <!-- PARSER_HOOK: START_STEPS -->
-- [ ] **{{number_prefix}}{{description}}**
+{{checkbox}}{{text_block}}
       {{image_block}}
 
 <!-- PARSER_HOOK: END_STEPS -->

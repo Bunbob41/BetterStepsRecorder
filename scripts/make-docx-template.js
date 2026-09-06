@@ -68,9 +68,18 @@ const body = [
   p('2.2 Step-by-Step Instructions', { style: 'Heading2' }),
 
   // The repeated block. Everything between FOR and END-FOR is emitted per step.
+  //
+  // Two branches, because a heading is not a step: it takes the document's own
+  // Heading3 style so an author's phases sit inside this template's numbering
+  // rather than being printed as another bold line of body text.
   p('{{FOR s IN steps}}'),
+  p('{{IF $s.isSection}}'),
+  p('{{$s.description}}', { style: 'Heading3' }),
+  p('{{END-IF}}'),
+  p('{{IF !$s.isSection}}'),
   p('{{$s.label}}{{$s.description}}', { bold: true, spacing: 60 }),
   p('{{IMAGE shot($s)}}', { spacing: 240 }),
+  p('{{END-IF}}'),
   p('{{END-FOR s}}'),
 
   p('3. CONSISTENCY', { style: 'Heading1' }),
@@ -129,6 +138,9 @@ const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <w:rPr><w:b/><w:sz w:val="44"/></w:rPr></w:style>
   <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/>
     <w:rPr><w:b/><w:sz w:val="30"/><w:color w:val="1F3864"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/>
+    <w:pPr><w:spacing w:before="240" w:after="100"/><w:outlineLvl w:val="2"/></w:pPr>
+    <w:rPr><w:b/><w:sz w:val="24"/><w:color w:val="1F4E79"/></w:rPr></w:style>
   <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/>
     <w:rPr><w:b/><w:sz w:val="26"/><w:color w:val="2E5496"/></w:rPr></w:style>
   <w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/></w:style>

@@ -85,6 +85,38 @@ const appended = fresh.addNote('At the end');
 check('a note with no anchor goes last',
       fresh.steps[fresh.steps.length - 1].id === appended.step.id);
 
+// 6b. sections - a note with a rank, so they share this machinery.
+// Its own session: the checks below count the rows in `fresh`.
+const withSections = new Session(path.join(os.tmpdir(), 'bsr-sections-' + Date.now()));
+fs.mkdirSync(path.join(withSections.dir, 'steps'), { recursive: true });
+withSections.addStep(mk('x', 'Clicked x'));
+withSections.addStep(mk('y', 'Clicked y'));
+
+const sec = withSections.addSection('Preparation', 'x');
+check('a section is inserted after the chosen step',
+      withSections.steps[1].id === sec.step.id);
+check('a section is authored, so export never rewrites it',
+      sec.step.textEdited === true);
+check('a section has no screenshot', !sec.step.screenshot);
+check('a section is one level, with room to nest later', sec.step.level === 1);
+check('a section is distinguishable from a note', sec.step.action === 'section');
+check('a section survives a reload',
+      JSON.parse(fs.readFileSync(withSections.metaPath, 'utf8'))
+        .steps.some((x) => x.action === 'section' && x.text === 'Preparation'));
+
+const lastSec = withSections.addSection('At the end');
+check('a section with no anchor goes last',
+      withSections.steps[withSections.steps.length - 1].id === lastSec.step.id);
+
+// Renaming and deleting go through the ordinary paths, not special ones: that
+// is the whole reason a heading is a row rather than a property of a step.
+withSections.updateStep(sec.step.id, { text: 'Get the file ready' });
+check('a section is renamed like any other row',
+      withSections.steps.find((x) => x.id === sec.step.id).text === 'Get the file ready');
+check('and deleted like any other row',
+      Boolean(withSections.removeStep(lastSec.step.id))
+      && !withSections.steps.some((x) => x.id === lastSec.step.id));
+
 // 7. reorder
 const beforeOrder = fresh.steps.map((s) => s.id).join();
 check('reorder moves a step', fresh.reorder(0, 2) === true);

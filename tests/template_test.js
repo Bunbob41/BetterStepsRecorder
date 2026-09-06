@@ -140,5 +140,87 @@ console.log('\nimages:');
 check('only included steps are copied', copyImages(session, path.join(dir, 'out')) === 3);
 
 fs.rmSync(dir, { recursive: true, force: true });
+console.log('\nheadings through a template:');
+{
+  const sectioned = {
+    dir,
+    name: 'Provisioning',
+    steps: [
+      { id: 'h1', action: 'section', text: 'Raise the request', textEdited: true },
+      session.steps[0],
+      { id: 'h2', action: 'section', text: 'Approve it', textEdited: true },
+      session.steps[2],
+      { id: 'h3', action: 'section', text: 'Orphan', textEdited: true },
+    ],
+  };
+
+  const tpl = [
+    '<!-- PARSER_HOOK: INJECT_STEP_COUNT -->',
+    '<!-- PARSER_HOOK: START_STEPS -->',
+    '[{{is_section}}|{{section}}|{{number_prefix}}{{description}}]',
+    '<!-- PARSER_HOOK: END_STEPS -->',
+  ].join('\n');
+
+  const { text } = render(tpl, sectioned, { title: 'T' });
+
+  check('a heading is flagged so a template can style it',
+        text.includes('[true|Raise the request|Raise the request]'));
+  check('and carries no number', !/\[true\|[^|]*\|\d/.test(text));
+  check('a step says which phase it is in',
+        text.includes('[false|Raise the request|1. Click the "New User" button]'));
+  check('the next phase renames it', text.includes('|Approve it|2. '));
+
+  // The count a template prints must be of steps, not of rows.
+  check('the step count ignores headings', text.includes('2'));
+  check('a heading with nothing under it never reaches the template',
+        !text.includes('Orphan'));
+
+  // A recording with no headings must leave the new variables empty rather
+  // than absent, so an existing template does not start printing "{{section}}".
+  const { text: flat } = render(tpl, session, { title: 'T' });
+  check('a guide without headings leaves the phase blank',
+        flat.includes('[false||1. '));
+}
+
+console.log('\nthe ready-made row text, for a format with no conditionals:');
+{
+  const rows = {
+    dir,
+    name: 'P',
+    steps: [
+      { id: 'h', action: 'section', text: 'Raise the request', textEdited: true },
+      session.steps[0],
+      { id: 'n2', action: 'note', text: 'Wait for the batch.' },
+    ],
+  };
+
+  const tpl = ['<!-- PARSER_HOOK: START_STEPS -->',
+               '{{checkbox}}{{text_block}}',
+               '<!-- PARSER_HOOK: END_STEPS -->'].join('\n');
+  const { text } = render(tpl, rows, { title: 'T' });
+  const lines = text.split('\n').filter(Boolean);
+
+  // The whole point: a heading must not come out as another bold line, which
+  // is what every template produced before this existed.
+  check('a heading is a Markdown heading', lines[0] === '### Raise the request');
+  check('and carries no tick box', !lines[0].startsWith('- [ ]'));
+
+  check('a step is a numbered, emphasised line',
+        lines[1] === '- [ ] **1. Click the "New User" button**');
+  check('a note keeps the emphasis it has always had',
+        lines[2] === '**Wait for the batch.**');
+
+  // The window tracker advances on every call. Asking it once per field would
+  // give description and text_block two different strings for one step.
+  const both = ['<!-- PARSER_HOOK: START_STEPS -->',
+                '{{description}}|{{text_block}}',
+                '<!-- PARSER_HOOK: END_STEPS -->'].join('\n');
+  const pairs = render(both, session, { title: 'T' }).text
+    .split('\n').filter((l) => l.includes('|'))
+    .map((l) => l.split('|'));
+  check('the description is the same however it is asked for',
+        pairs.every(([d, b]) => b === d || b.includes(d)));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

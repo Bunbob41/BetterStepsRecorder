@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const marker = require('../renderer/marker');
+const sections = require('../renderer/sections');
 const path = require('node:path');
 
 /**
@@ -94,11 +95,13 @@ function dataUri(file) {
 
 /** Steps that survive into a document; excluded ones never reach the reader. */
 function exportable(session) {
-  return (session.steps || []).filter((s) => !s.excluded);
+  // Headings last, so a section whose every step was excluded goes with them.
+  return sections.withoutEmpty(
+    (session.steps || []).filter((s) => !s.excluded));
 }
 
-/** Non-note steps, i.e. the ones that carry a number in the finished guide. */
-const countSteps = (steps) => steps.filter((s) => s.action !== 'note').length;
+/** The rows that carry a number: not notes, not headings. */
+const countSteps = sections.countSteps;
 
 /**
  * Where the click happened, as a percentage of the screenshot, so the marker
@@ -162,6 +165,15 @@ function buildHtml(session, { title, embedImages = true, brand = null,
   let n = 0;
   const describe = windowTracker();
   const body = steps.map((step) => {
+    if (sections.isSection(step)) {
+      // Inside the <ol> rather than breaking the list in two, so the step
+      // numbering runs continuously across sections: someone who says "I am
+      // stuck on step 9" means the ninth step of the procedure, and four
+      // separate lists would give a document four step 3s.
+      return `
+    <li class="section"><h2>${escapeHtml(step.text || '')}</h2></li>`;
+    }
+
     if (step.action === 'note') {
       // An authored aside, not something that was clicked.
       return `
@@ -240,6 +252,17 @@ function buildHtml(session, { title, embedImages = true, brand = null,
     background: var(--accent); color: #fff; font-size: 15px; font-weight: 600;
     display: grid; place-items: center;
   }
+  .section { margin: 44px 0 24px; padding: 0; border-bottom: 0; }
+  .section:first-child { margin-top: 0; }
+  .section h2 {
+    margin: 0; font-size: 20px; letter-spacing: .01em;
+    padding-bottom: 8px; border-bottom: 2px solid var(--accent);
+  }
+  /* The step above a heading needs no rule of its own - the heading is already
+     the divider, and two lines a few pixels apart is just noise. Older browsers
+     without :has() simply keep the rule, which is what the page looked like
+     before headings existed. */
+  .step:has(+ .section) { border-bottom: 0; }
   .note .num { background: var(--panel); color: var(--muted); border: 1px solid var(--line); }
   .note .text { font-style: italic; }
   .text { margin: 2px 0 0; font-size: 17px; }
@@ -267,6 +290,9 @@ function buildHtml(session, { title, embedImages = true, brand = null,
   @media print {
     body { padding: 0; background: #fff; color: #000; }
     .step { break-inside: avoid; page-break-inside: avoid; }
+    /* A heading alone at the foot of a page announces a phase that is not
+       there. These guides get printed and put in folders. */
+    .section { break-after: avoid; page-break-after: avoid; break-inside: avoid; }
     .shot img { border-color: #ccc; }
   }
 </style>
@@ -309,16 +335,26 @@ function buildMarkdown(session, { title, imageDir, brand = null,
     lines.push('');
   }
 
+  // Steps drop a level when the guide has headings, so a wiki's contents list
+  // shows the phases with their steps beneath rather than forty flat entries.
+  // A guide without headings is untouched.
+  const stepRule = sections.hasSections(steps) ? '###' : '##';
+
   let n = 0;
   const describe = windowTracker();
   steps.forEach((step) => {
+    if (sections.isSection(step)) {
+      lines.push(`## ${step.text || ''}`, '');
+      return;
+    }
+
     if (step.action === 'note') {
       lines.push(`> ${step.text || ''}`, '');
       return;
     }
 
     const i = n++;
-    lines.push(`## ${i + 1}. ${describe(step, voice)}`, '');
+    lines.push(`${stepRule} ${i + 1}. ${describe(step, voice)}`, '');
 
     const context = (step.window && step.window.process) || '';
     // Only when the window changed: repeating it under every step is the same

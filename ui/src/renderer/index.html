@@ -56,7 +56,10 @@
       <div class="steps-head">
         <span>Steps</span>
         <button id="btn-check" class="tiny" title="Check whether the controls these steps refer to still exist">Check</button>
-        <button id="btn-note" class="tiny" title="Add a written step">+ Note</button>
+        <span class="insert">
+          <button id="btn-note" class="tiny" title="Add a written step - an instruction that was not a click">+ Note</button>
+          <button id="btn-section" class="tiny" title="Add a heading, to group the steps below it into a phase">+ Section</button>
+        </span>
         <span id="count" class="count">0</span>
       </div>
       <p id="empty" class="empty">No steps yet.</p>
@@ -388,6 +391,7 @@
 
   <script src="marker.js"></script>
   <script src="annotate.js"></script>
+  <script src="sections.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

@@ -232,5 +232,63 @@ console.log('\nand only when it really is repetition:');
         p(inWin('Clicked "New" in "Billing"', 'Billing'), 'past') === 'Clicked "New"');
 }
 
+console.log('\nheadings in the finished guide:');
+{
+  const sectioned = {
+    dir,
+    steps: [
+      { id: 'h1', action: 'section', text: 'Prepare the file', textEdited: true },
+      session.steps[0],
+      { id: 'h2', action: 'section', text: 'Submit it', textEdited: true },
+      session.steps[1],
+      { id: 'h3', action: 'section', text: 'Nothing under this', textEdited: true },
+    ],
+  };
+
+  const html = buildHtml(sectioned, { title: 'T' });
+
+  check('HTML prints the heading', html.includes('<h2>Prepare the file</h2>'));
+  check('as a row of the list, not a step',
+        html.includes('<li class="section"><h2>'));
+
+  // The reason for one list rather than one per section: someone who says "I am
+  // stuck on step 2" must mean the second step of the procedure.
+  check('numbering runs through the sections, not restarting at each',
+        html.includes('>1</span>') && html.includes('>2</span>')
+        && (html.match(/class="num">1</g) || []).length === 1);
+  check('the count is of steps, not rows', html.includes('2 steps'));
+
+  // A heading over nothing is a promise the document does not keep.
+  check('a heading with nothing under it is dropped',
+        !html.includes('Nothing under this'));
+
+  const md = buildMarkdown(sectioned, { title: 'T', imageDir: 'images' });
+  check('Markdown prints the heading at h2', md.includes('\n## Prepare the file\n'));
+  check('and drops the steps a level beneath it', md.includes('### 1. Click the'));
+  check('dropping the empty one too', !md.includes('Nothing under this'));
+
+  // A guide with no headings must read exactly as it did before.
+  const flat = buildMarkdown(session, { title: 'T', imageDir: 'images' });
+  check('a guide without headings keeps its steps at h2',
+        flat.includes('## 1. Click the') && !flat.includes('### 1.'));
+
+  // Excluding every step of a phase has to take the phase with them.
+  const emptied = {
+    dir,
+    steps: [
+      { id: 'h1', action: 'section', text: 'Cut entirely', textEdited: true },
+      { ...session.steps[0], excluded: true },
+      { id: 'h2', action: 'section', text: 'Kept', textEdited: true },
+      session.steps[1],
+    ],
+  };
+  const trimmed = buildHtml(emptied, { title: 'T' });
+  check('excluding a phase removes its heading', !trimmed.includes('Cut entirely'));
+  check('and leaves the phase that still has steps', trimmed.includes('Kept'));
+
+  check('exportable drops it before anything reads the list',
+        !exportable(emptied).some((r) => r.text === 'Cut entirely'));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

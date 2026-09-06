@@ -11,6 +11,7 @@ const { buildHtml, buildMarkdown, copyImages, exportable } = require('./export')
 const screenshots = require('./screenshots');
 const { toJpeg } = require('./transcode');
 const annotate = require('../renderer/annotate');
+const sections = require('../renderer/sections');
 const buildInfo = require('./build-info');
 const templating = require('./template');
 const docx = require('./docx');
@@ -500,6 +501,9 @@ ipcMain.handle('session:get', () => ({
 
 ipcMain.handle('step:addNote', (_e, { text, afterId }) =>
   session ? session.addNote(text, afterId) : null);
+
+ipcMain.handle('step:addSection', (_e, { text, afterId }) =>
+  session ? session.addSection(text, afterId) : null);
 
 ipcMain.handle('step:update', (_e, { id, patch }) =>
   session ? session.updateStep(id, patch) : null);
@@ -1046,7 +1050,7 @@ ipcMain.handle('session:verify', async () => {
   const booted = await ensureSidecar();
   if (!booted.ok) return booted;
 
-  const checkable = session.steps.filter((s) => s.action !== 'note');
+  const checkable = session.steps.filter((s) => sections.isStep(s));
   const items = checkable.map((s) => ({
     id: s.id,
     process: (s.window && s.window.process) || '',

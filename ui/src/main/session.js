@@ -170,6 +170,33 @@ class Session {
     return { index: at === -1 ? this.steps.length - 1 : at + 1, step: note };
   }
 
+  /**
+   * Inserts a heading. A recording of forty clicks is three or four phases of
+   * work, and a reader who cannot see the joins has to infer them.
+   *
+   * Deliberately the same shape as a note - authored text, no screenshot, no
+   * number - because that is what it is. `level` is fixed at 1: sections do not
+   * nest, and the field exists only so they could later without a migration.
+   */
+  addSection(text, afterId = null) {
+    const section = {
+      id: `sec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      action: 'section',
+      ts: new Date().toISOString(),
+      text: text || '',
+      level: 1,
+      // Authored, so export must never rewrite it into an instruction.
+      textEdited: true,
+    };
+
+    const at = afterId ? this.steps.findIndex((s) => s.id === afterId) : -1;
+    if (at === -1) this.steps.push(section);
+    else this.steps.splice(at + 1, 0, section);
+
+    this.flush();
+    return { index: at === -1 ? this.steps.length - 1 : at + 1, step: section };
+  }
+
   updateStep(id, patch) {
     const i = this.steps.findIndex((s) => s.id === id);
     if (i === -1) return null;

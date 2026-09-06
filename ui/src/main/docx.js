@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const { toImperative, windowTracker, legendLines } = require('./export');
+const sections = require('../renderer/sections');
 const path = require('node:path');
 const os = require('node:os');
 
@@ -53,15 +54,19 @@ function docId(session, when) {
 function buildData(session, { title, brand, redactionSummary, voice = 'imperative',
                               legend = [] }) {
   const all = session.steps || [];
-  const included = all.filter((s) => !s.excluded);
+  // Headings dropped last, so one left with nothing under it goes too.
+  const included = sections.withoutEmpty(all.filter((s) => !s.excluded));
   const when = new Date();
 
   const highlightLegend = legendLines(legend);
 
   let number = 0;
   const describe = windowTracker();
-  const steps = included.map((s) => {
-    const isNote = s.action === 'note';
+  const under = sections.sectionOf(included);
+  const steps = included.map((s, i) => {
+    const isSection = sections.isSection(s);
+    // A heading carries no number and no screenshot - it is a note with a rank.
+    const isNote = s.action === 'note' || isSection;
     if (!isNote) number += 1;
     return {
       number: isNote ? '' : String(number),
@@ -77,6 +82,10 @@ function buildData(session, { title, brand, redactionSummary, voice = 'imperativ
       target: (s.target && s.target.name) || '',
       typed: s.typed || '',
       isNote,
+      isSection,
+      // The heading this row sits under, for a template that would rather
+      // print the phase beside each step than as a row of its own.
+      section: under[i],
       hasImage: Boolean(s.screenshot),
       screenshot: s.screenshot || '',
     };
@@ -90,7 +99,7 @@ function buildData(session, { title, brand, redactionSummary, voice = 'imperativ
     target_app: dominantApp(included) || 'Not recorded',
     user_id: os.userInfo().username,
     os_environment: `${os.type()} ${os.release()}`,
-    step_count: String(steps.filter((s) => !s.isNote).length),
+    step_count: String(steps.filter((s) => !s.isNote && !s.isSection).length),
     organisation: (brand && brand.name) || '',
     footer: (brand && brand.footer) || '',
     redaction_summary: redactionSummary,

@@ -41,7 +41,7 @@ required by the target application.
 ### 2.2 Step-by-Step Instructions
 
 <!-- PARSER_HOOK: START_DYNAMIC_STEPS_LOOP -->
-**{{number_prefix}}{{description}}**
+{{text_block}}
 
 {{image_block}}
 

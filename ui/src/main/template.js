@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const { toImperative, windowTracker, legendLines } = require('./export');
+const sections = require('../renderer/sections');
 const path = require('node:path');
 const os = require('node:os');
 
@@ -99,7 +100,7 @@ function buildValues(session, steps, allSteps, opts) {
     INJECT_TARGET_APP: dominantApp(steps) || 'Not recorded',
     INJECT_USER_ID: opts.userId || os.userInfo().username,
     INJECT_OS_ENVIRONMENT: `${os.type()} ${os.release()}`,
-    INJECT_STEP_COUNT: String(steps.filter((s) => s.action !== 'note').length),
+    INJECT_STEP_COUNT: String(sections.countSteps(steps)),
     INJECT_ORGANISATION: opts.brand && opts.brand.name ? opts.brand.name : '',
     INJECT_REDACTION_SUMMARY: redactionSummary(allSteps),
     // Empty when no legend was asked for, so a template carrying the hook does
@@ -115,10 +116,19 @@ function fillRow(row, vars) {
   });
 }
 
-function stepVars(step, number, imageDir, voice = 'imperative', describe = null) {
+function stepVars(step, number, imageDir, voice = 'imperative', describe = null,
+                  section = '') {
   const file = step.screenshot ? path.basename(step.screenshot) : '';
   const rel = file ? `${imageDir}/${file}` : '';
-  const isNote = step.action === 'note';
+  const isSection = sections.isSection(step);
+  // A heading is not a step: it carries no number and no screenshot, the same
+  // bargain a note makes.
+  const isNote = step.action === 'note' || isSection;
+
+  // Once, not per field: `describe` is a window tracker that advances on every
+  // call, so asking it twice for one step yields two different strings.
+  const text = oneLine(describe ? describe(step, voice) : toImperative(step, voice));
+
   return {
     number: isNote ? '' : String(number),
     // "3. " for a step and "" for a note, so a row template can carry the
@@ -129,7 +139,7 @@ function stepVars(step, number, imageDir, voice = 'imperative', describe = null)
     // export came out in the engine's past tense regardless of what the
     // recording was for. A procedure handed to somebody then read as a report
     // of what one person once did rather than as instructions.
-    description: oneLine(describe ? describe(step, voice) : toImperative(step, voice)),
+    description: text,
     action: (step.action || '').toUpperCase(),
     window: oneLine(step.window && step.window.title),
     process: oneLine(step.window && step.window.process),
@@ -139,7 +149,27 @@ function stepVars(step, number, imageDir, voice = 'imperative', describe = null)
     // Ready-made Markdown, so a template author does not have to know whether a
     // given step has a screenshot at all.
     image_block: rel ? `![Step ${number}](${rel})` : '',
+    // Ready-made Markdown for the row's text, in the same spirit as
+    // image_block: a template's loop body is one string for every row and the
+    // engine has no conditionals, so without this a heading comes out as
+    // another bold line of body text - the one thing a heading must not be.
+    // A template that wants full control still has {{description}}.
+    // A note keeps the emphasis it has always had here: this change is about
+    // headings, and quietly restyling notes at the same time would alter every
+    // guide produced from these templates for no reason anybody asked for.
+    text_block: isSection ? `### ${oneLine(step.text)}`
+      : step.action === 'note' ? `**${text}**`
+      : `**${number}. ${text}**`,
+    // For checklist templates: the tick box belongs to a step someone performs,
+    // not to a heading over several of them. Empty for written rows so a
+    // checklist does not ask the reader to tick off a phase name.
+    checkbox: isNote ? '' : '- [ ] ',
     is_note: isNote ? 'true' : 'false',
+    is_section: isSection ? 'true' : 'false',
+    // The heading this row falls under, so a row template can print the phase
+    // beside a step without having to track headings itself. '' before the
+    // first one, and for a guide that has none.
+    section: oneLine(section),
   };
 }
 
@@ -152,7 +182,8 @@ function render(templateText, session, { title, imageDir = 'images', brand = nul
                                          docId: forcedId = null, userId = null,
                                          voice = 'imperative', legend = [] } = {}) {
   const allSteps = session.steps || [];
-  const steps = allSteps.filter((s) => !s.excluded);
+  // Headings dropped last, so one whose every step was excluded goes too.
+  const steps = sections.withoutEmpty(allSteps.filter((s) => !s.excluded));
   const values = buildValues(session, steps, allSteps,
                              { title, brand, docId: forcedId, userId, legend });
 
@@ -177,9 +208,11 @@ function render(templateText, session, { title, imageDir = 'images', brand = nul
       let number = 0;
       // One tracker per loop: a gallery and a step list each start afresh.
       const describe = windowTracker();
-      const rendered = source.map((step) => {
-        if (step.action !== 'note') number += 1;
-        return fillRow(row, stepVars(step, number, imageDir, voice, describe));
+      const under = sections.sectionOf(source);
+      const rendered = source.map((step, i) => {
+        if (sections.isStep(step)) number += 1;
+        return fillRow(row, stepVars(step, number, imageDir, voice, describe,
+                                     under[i]));
       }).join('');
 
       filledLoops.push({ hook: loop.start, rows: source.length,

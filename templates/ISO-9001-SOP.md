@@ -59,7 +59,7 @@ Add any terminology specific to your industry or system below.
 ## 5. STEP-BY-STEP PROCEDURE
 
 <!-- PARSER_HOOK: START_STEPS -->
-**{{number_prefix}}{{description}}**
+{{text_block}}
 
 {{image_block}}
 

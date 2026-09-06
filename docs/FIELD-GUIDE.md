@@ -303,6 +303,50 @@ misrepresent what the document is. And if you rewrote a step's wording yourself,
 your words are emitted exactly as you wrote them. Your prose is not ours to
 correct.
 
+### Grouping the steps into phases
+
+A procedure of forty clicks is really three or four pieces of work — get the
+file ready, put it through the system, file the paperwork — and a reader who
+cannot see where one ends has to work it out for themselves.
+
+**+ Section** in the step list adds a heading. It sits beside **+ Note**
+because it is the same act: inserting a row you wrote, rather than one that was
+recorded. A heading behaves like every other row — drag it to move it, delete
+it, rename it, exclude it — and carries no step number of its own.
+
+```mermaid
+flowchart TB
+    subgraph guide["The finished guide"]
+        direction TB
+        h1["<b>Prepare the invoice</b>"]
+        s1["1 · Click the New button"]
+        s2["2 · Click the Customer field"]
+        h2["<b>Submit it for approval</b>"]
+        s3["3 · Click Send"]
+        s4["4 · Click Confirm"]
+        h1 --- s1 --- s2 --- h2 --- s3 --- s4
+    end
+    linkStyle default stroke-width:0px
+```
+
+**The numbering keeps going across the headings** — 1, 2, 3, 4, not 1, 2 then
+1, 2 again. If it restarted, a guide with four phases would have four step 3s,
+and "I'm stuck on step 3" would stop meaning anything.
+
+**The app offers headings where it thinks they belong.** Wherever the recording
+moved to a different program, a dashed row appears in the list — *Moves to
+Excel here* — with a **+ Section** button. That is a guess, and only a guess:
+work can change phase without changing program, and change program in the
+middle of a phase. Accept it and it becomes a heading named after the program,
+selected so you can type over it. Dismiss it with the **×** and it stays
+dismissed.
+
+**A heading with nothing left under it is dropped from the export.** If you
+exclude every step of a phase, the heading goes with them, rather than
+promising the reader a section that is not there.
+
+Headings do not nest. One level, as many as the procedure needs.
+
 ### Marking where you clicked
 
 Every screenshot carries an indicator showing where the click landed. Settings
@@ -422,6 +466,22 @@ Two rules matter here:
 - **A slot we do not recognise is left alone and reported**, rather than quietly
   removed. A typo in a placeholder shows up as an untouched marker you can see —
   not as a silent gap somebody discovers during an audit.
+
+**Section headings in a template.** A repeating block is one piece of markup
+used for every row, and a heading is not a step - so if the block says
+"put this in bold", a heading comes out as another bold line rather than a
+heading. Two ready-made placeholders exist for this:
+
+| Placeholder | What it gives you |
+|---|---|
+| `{{text_block}}` | The row already marked up for what it is: a heading as a heading, a step as a numbered line |
+| `{{checkbox}}` | A tick box for a step, and nothing for a heading or a note — so a checklist never asks anyone to tick off a phase name |
+| `{{section}}` | The name of the phase a step falls under, if you would rather print it beside each step than as a row of its own |
+
+The templates that ship with the app use these, so copying one gives you
+working headings without having to know any of this. In a Word template the
+`{{IF $s.isSection}}` form is available too, which is how the stock Word
+template gives a heading the document's own heading style.
 
 There is one subtlety with Word. Word habitually splits typed text across
 several internal fragments — a spell-check mark is enough to do it — so
@@ -617,7 +677,11 @@ stepsrecorderproject/
 ├── ui/src/renderer/    The page you actually see
 │   ├── index.html
 │   ├── renderer.js
-│   └── styles.css
+│   ├── styles.css
+│   ├── marker.js           where the click landed  }  shared: the page loads
+│   ├── annotate.js         box, circle, arrow, highlight  }  these as scripts,
+│   └── sections.js         headings, and where to suggest them  }  and the
+│                           exporters require() the same files
 │
 ├── templates/          The SOP templates that ship with the app
 ├── tests/              See ENGINEERING.md — some of these take over the machine
