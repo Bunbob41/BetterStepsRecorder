@@ -1060,9 +1060,12 @@ waits out because it waits for the engine's `ready`.
   the image's width, matching what the HTML guide does, so a 1920x60 taskbar
   strip gets a marker sized for a 1920-wide picture. Consistent between the two
   formats, which is the property that matters, but larger than ideal on both.
-- **No automated coverage of the interface at all.** See §6: the suites that
-  drove it were retired as more misleading than useful. The gap is real, and the
-  replacement is a person following the manual checklist before a release.
+- **Interface coverage is partial, not absent.** `window_test.js` drives the
+  real page in a real window (the drag preview, find and replace, cropping) and
+  `composite_test.js` checks the Word marker at the pixel, but between them they
+  touch one screen. Recording, the compact strip, Settings, the export dialog
+  and the library are checked by a person following the manual checklist. What
+  is covered is covered honestly; most of the interface is not covered.
 - **No automated coverage of the installed artefact.** The installer is verified
   by hand.
 - **Monitor and full-screen framing still capture the recording strip.** They
