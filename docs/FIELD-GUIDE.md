@@ -502,7 +502,7 @@ Three deliberate choices:
 Open **Settings** and look at the bottom left:
 
 ```
-0.1.0 · 5dc2be5 · 5 Sep 2026, 3:41 pm · engine 3:41 pm
+Build: 0.1.0 · b43661a · 5 Sep 2026, 5:54 pm · engine 5:54 pm
 ```
 
 Four things, and the first is the least useful. The version number stays at

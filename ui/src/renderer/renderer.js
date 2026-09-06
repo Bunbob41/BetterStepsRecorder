@@ -1161,7 +1161,9 @@ async function paintBuild() {
   if (!b) return;
 
   const when = b.built ? new Date(b.built).toLocaleString() : b.source;
-  el.build.textContent = `${b.version} · ${b.commit} · ${when}`;
+  // Labelled, because a bare string of a version, a hash and two dates does not
+  // announce what it is - the first person to see it had to ask.
+  el.build.textContent = `Build: ${b.version} · ${b.commit} · ${when}`;
 
   const engine = b.engineReported || b.engineBuilt;
   if (engine) {
