@@ -827,8 +827,8 @@ machine in use.
 
 | Suite | Runs | Covers |
 |---|---|---|
-| `tests/preview_test.js` | `npx electron tests/preview_test.js` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
-| `tests/*_test.js` (14) | `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
+| `tests/preview_test.js` | `npm run test:window` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
+| `tests/*_test.js` (14) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
 | `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |
 | `tests/smoke.py` | `python tests/<file>` | engine protocol |

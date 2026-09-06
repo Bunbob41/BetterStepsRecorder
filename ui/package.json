@@ -9,7 +9,9 @@
     "build:capture": "dotnet publish ../capture -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o ../capture/bin/packed",
     "dist": "npm run stamp && npm run build:capture && electron-builder",
     "dist:dir": "npm run stamp && npm run build:capture && electron-builder --dir",
-    "stamp": "node ../scripts/stamp-build.js"
+    "stamp": "node ../scripts/stamp-build.js",
+    "test": "node ../scripts/run-tests.js",
+    "test:window": "electron ../tests/preview_test.js"
   },
   "devDependencies": {
     "electron": "^34.0.0",
@@ -64,6 +66,7 @@
     }
   },
   "dependencies": {
-    "docx-templates": "^4.15.0"
+    "docx-templates": "^4.15.0",
+    "jszip": "^3.10.1"
   }
 }

@@ -20,13 +20,20 @@ A modern replacement for the deprecated Windows PSR.exe.
   monitor, or every display.
 - **Blurs regions destructively.** The pixels in the file are replaced, so a
   redacted guide's source images do not still contain the data.
+- **Marks up a screenshot.** Box, circle, arrow and highlighter, for the things
+  a recorder cannot know: *this* is the field that matters, look here first.
+  Right-click the highlighter for a different colour, and a guide that uses
+  several can print a key explaining what each one means.
+- **Groups a long procedure into phases.** Headings break forty clicks into the
+  three or four pieces of work they actually are, and the app offers one
+  wherever the recording moved to a different application.
 - **Re-records a single step.** Guides rot when an application changes; refresh
   step 17 without touching the other forty.
 - **Tells you which steps have rotted.** Press **Check** and it asks the running
   application whether the controls each step refers to still exist, and marks
   the ones that do not - so maintaining a guide is a few minutes rather than a
   re-recording.
-- **Exports** to HTML (one portable file), PDF, or Markdown, rewritten as
+- **Exports** to HTML (one portable file), PDF, Markdown or Word, rewritten as
   instructions: *Click Save* rather than *Clicked the Save button*.
 - **Renders into your own SOP format.** Point it at your organisation's template
   and the output is their document - their headings, numbering, revision table
@@ -62,11 +69,12 @@ machine — there is no account, no telemetry and no network use of any kind.
    strip so it is not in your way. `Ctrl+Shift+F9` pauses, `Ctrl+Shift+F10`
    stops, from wherever you are.
 3. **Edit** — reword steps, drag to reorder them, add written steps for the
-   instructions that are not clicks, exclude ones you want kept but not
-   published, blur anything sensitive, re-record a step that came out wrong.
-   Arrow keys move between steps, Ctrl+click and Shift+click select several,
-   Delete removes them and Ctrl+Z puts them back.
-4. **Export** — HTML, PDF or Markdown.
+   instructions that are not clicks, add headings to group them into phases,
+   mark up a screenshot, exclude steps you want kept but not published, blur
+   anything sensitive, re-record a step that came out wrong. Arrow keys move
+   between steps, Ctrl+click and Shift+click select several, Delete removes
+   them and Ctrl+Z puts them back.
+4. **Export** — HTML, PDF, Markdown, Word, or your own template.
 
 Recordings save continuously to `Documents\StepRecordings` (configurable). There
 is no Save button because there is nothing to save: every step is on disk as it
@@ -79,6 +87,9 @@ Settings.
 ## Building from source
 
 Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) and Node 20+.
+
+Every command below is run from `ui/`, and works the same in PowerShell,
+`cmd` and a POSIX shell.
 
 ```
 cd ui
@@ -114,20 +125,38 @@ entirely. The protocol is documented in [docs/ipc-contract.md](docs/ipc-contract
 Every test here runs without touching the mouse or keyboard, so they can be run
 on a machine you are using.
 
+From `ui/`:
+
 ```
-for f in tests/*_test.js; do node "$f"; done   # 9 suites: export, templates,
-                                               # sessions, shortcuts, bounds,
-                                               # screenshot sizing, wiring
-python tests/smoke.py                          # engine protocol
-python tests/scope_test.py                     # window enumeration and scoping
-python tests/verify_test.py                    # rot detection
-cd tests/LogicTests && dotnet run              # redaction, wording, naming,
-                                               # scope rules, capture framing
+npm test              # 14 suites, ~470 checks, a few seconds
+npm run test:window   # the real page in a real Electron window
 ```
 
-The interface itself is checked by hand. There used to be a set of suites that
-drove it by synthesizing clicks at fixed pixel coordinates; they were retired
-because every layout change silently broke them, they could only be run on an
-idle machine and so were run rarely enough to rot unnoticed, and they exited
-successfully while reporting failures. `git log -- tests/ui_drive.py` has them
-if they are ever wanted back.
+`npm test` is a runner rather than a shell loop on purpose: the loop this
+replaced was bash, and this is a Windows project. It covers export rendering,
+templates, .docx, sessions, section headings, annotations, shortcut
+conversion, window fitting, screenshot sizing, the library, build identity,
+click markers and renderer wiring.
+
+`npm run test:window` loads the real `index.html`, `renderer.js` and stylesheet
+in an Electron window with the IPC bridge stubbed, and dispatches mouse events
+into the page — nothing is synthesized at the operating system. It exists
+because the drag preview shipped broken twice while every other test passed.
+
+The rest, from the repository root:
+
+```
+python tests/smoke.py                  # engine protocol
+python tests/scope_test.py             # window enumeration and scoping
+python tests/verify_test.py            # rot detection against a real app
+cd tests/LogicTests
+dotnet run                             # redaction, wording, naming, scope
+                                       # rules, capture framing
+```
+
+Beyond that the interface is checked by hand. There used to be a set of suites
+that drove it by synthesizing clicks at fixed pixel coordinates; they were
+retired because every layout change silently broke them, they could only be run
+on an idle machine and so were run rarely enough to rot unnoticed, and they
+exited successfully while reporting failures. `git log -- tests/ui_drive.py`
+has them if they are ever wanted back.
