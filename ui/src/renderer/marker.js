@@ -157,6 +157,75 @@
     return el;
   }
 
-  return { DEFAULTS, SIZES, direction, plan, declarations, toCss,
-           html, render, arrowSvg };
+  /**
+   * The width an exported screenshot is shown at in the HTML guide: a 900px
+   * column less the 44px the steps are indented by.
+   *
+   * The marker's sizes are in pixels ON THAT PAGE. Anywhere the picture is
+   * rendered at a different size - Word, where it is placed at a fixed width
+   * in centimetres - those pixels have to be scaled or the marker comes out a
+   * speck on a 4K screenshot and a blot on a small dialog.
+   */
+  const REFERENCE_WIDTH = 856;
+
+  /** How much to scale the marker when drawing into an image this wide. */
+  const scaleFor = (imageWidth) =>
+    Math.max(0.35, Math.min(6, (Number(imageWidth) || REFERENCE_WIDTH) / REFERENCE_WIDTH));
+
+  /**
+   * The marker as a standalone SVG, in the pixels of the image it will be
+   * drawn into, with where to put it.
+   *
+   * This exists because Word cannot layer anything over a picture: the marker
+   * has to be drawn into the image itself. Deriving it from the same `plan()`
+   * the window and the HTML export use is the whole point - a second
+   * implementation of "a 34px ring" is how the Word export starts quietly
+   * disagreeing with the guide beside it.
+   *
+   * `pos` is the click as a percentage of the image, as everywhere else.
+   */
+  function svg(pos, opts = {}, colour = '#e5484d', imageWidth = REFERENCE_WIDTH,
+               imageHeight = 0) {
+    const p = plan(pos, opts);
+    const k = scaleFor(imageWidth);
+    const size = Math.round(p.size * k);
+    const stroke = Math.max(1, Math.round(p.stroke * k));
+    // The white halo the CSS draws with box-shadow, in the same proportion.
+    const halo = Math.max(1, Math.round(2 * k));
+
+    // Where the element's top-left corner lands, in image pixels.
+    const cx = (pos.x / 100) * imageWidth;
+    const cy = (pos.y / 100) * (imageHeight || imageWidth);
+    const left = Math.round(cx - p.offsetX * k);
+    const top = Math.round(cy - p.offsetY * k);
+
+    let body;
+    let box = size;
+    if (p.style === 'circle') {
+      // The CSS box is `size` across INCLUDING its border, so the ring's centre
+      // line sits half a stroke inside that. The halo sits outside it, which is
+      // why the canvas is wider than the box.
+      box = size + halo * 2;
+      const c = box / 2;
+      const r = (size - stroke) / 2;
+      body = `<circle cx="${c}" cy="${c}" r="${r + stroke / 2 + halo / 2}" `
+           + `fill="none" stroke="rgba(255,255,255,.65)" stroke-width="${halo}"/>`
+           + `<circle cx="${c}" cy="${c}" r="${r}" fill="none" `
+           + `stroke="${colour}" stroke-width="${stroke}"/>`;
+      return {
+        svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${box}" height="${box}" `
+           + `viewBox="0 0 ${box} ${box}">${body}</svg>`,
+        width: box, height: box, left: left - halo, top: top - halo,
+      };
+    }
+
+    // The arrow is already an SVG; scale it by drawing the same geometry into a
+    // larger viewBox rather than by resizing the markup.
+    const scaled = { ...p, size, stroke,
+                     tipX: p.dx > 0 ? size : 0, tipY: p.dy > 0 ? size : 0 };
+    return { svg: arrowSvg(scaled, colour), width: size, height: size, left, top };
+  }
+
+  return { DEFAULTS, SIZES, REFERENCE_WIDTH, direction, plan, declarations,
+           toCss, html, render, arrowSvg, scaleFor, svg };
 }));

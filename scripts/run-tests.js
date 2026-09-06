@@ -15,7 +15,7 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const DIR = path.join(ROOT, 'tests');
-const NEEDS_A_WINDOW = new Set(['window_test.js']);
+const NEEDS_A_WINDOW = new Set(['window_test.js', 'composite_test.js']);
 
 const suites = fs.readdirSync(DIR)
   .filter((f) => f.endsWith('_test.js') && !NEEDS_A_WINDOW.has(f))
@@ -48,5 +48,5 @@ for (const file of suites) {
 
 console.log(`\n${suites.length - failed}/${suites.length} suites, ${checks} checks`
             + (failed ? ` — ${failed} FAILED` : ' — all passed'));
-console.log('The window itself: npx electron tests/window_test.js (from ui/)');
+console.log('Needing a window: npm run test:window, npm run test:composite (from ui/)');
 process.exit(failed ? 1 : 0);

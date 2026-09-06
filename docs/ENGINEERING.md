@@ -139,8 +139,54 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-31 · Word gets the marker drawn into the pixels
+`(this change)` · [ui/src/main/composite.js](../ui/src/main/composite.js)
+
+HTML and PDF lay the click marker over the picture in CSS, which is why it is
+free and restyleable. Word cannot: it embeds a picture and has no way to put
+anything on top of it. So in the format most likely to reach a company, the
+single most important thing on a screenshot - where to click - was absent.
+
+The only way in is to burn it into the pixels, which needs something that can
+draw. There is no image library here and a native one would cost the "no build
+tools, one file" install, so the drawing is done by the renderer already
+present: a hidden window with a canvas.
+
+**The geometry is the same geometry.** `marker.svg()` is derived from the same
+`plan()` the window and the HTML export use, scaled against the image's own
+width. A second implementation of "a 34px ring" is precisely how the Word export
+would start quietly disagreeing with the guide beside it - which is the reason
+[marker.js](../ui/src/renderer/marker.js) exists at all (D-21).
+
+**It arrives by the route the re-encoder already uses.** The composited buffers
+go into the same `images` map `screenshots.prepare` fills, so from `docx.js`'s
+side a marked screenshot and a shrunk one are indistinguishable. Marking happens
+*after* shrinking, so the marker is drawn at the size the reader will see rather
+than being resampled away.
+
+**It can never cost somebody their export.** A screenshot that cannot be drawn
+keeps whatever it had; if the window itself cannot be opened, every screenshot
+goes in unmarked and the document is still produced. A missing marker is a worse
+document. A thrown error is no document.
+
+Two things found by running it rather than reasoning about it:
+
+- **The second export failed.** Creating a window, destroying it and creating
+  another leaves the second `loadURL` returning ERR_FAILED forever, so a person
+  who exported to Word twice in one sitting got a marked document and then a
+  failure. One window is now kept for the life of the application.
+- **Which then would have stopped the application quitting.** Electron counts
+  that hidden window, so `window-all-closed` would never fire and closing the
+  app would leave an invisible process running. It is disposed with the main
+  window.
+
+Verified at the pixel: the ring is the marker's red where the ring belongs, the
+middle of it is still the screenshot, and both hold after the bytes have been
+through `docx.render` into `word/media/`. Then looked at, on two real
+screenshots, because a ring in the wrong place passes every colour test.
+
 ### D-30 · A replacement is not authorship, and it is one undo
-`(this change)` · [ui/src/renderer/find.js](../ui/src/renderer/find.js)
+`69fb39c` · [ui/src/renderer/find.js](../ui/src/renderer/find.js)
 
 A guide is written once and read for years. The system it documents gets
 renamed, a team changes, a button's label changes - and without find-and-replace
@@ -887,6 +933,7 @@ machine in use.
 
 | Suite | Runs | Covers |
 |---|---|---|
+| `tests/composite_test.js` | `npm run test:composite` (from `ui/`) | the click marker drawn into real pixels, and into a real .docx |
 | `tests/window_test.js` | `npm run test:window` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
 | `tests/*_test.js` (15) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
@@ -959,11 +1006,10 @@ waits out because it waits for the engine's `ready`.
 - **The compact strip's elapsed timer is visually unverified.** Its logic is
   wired and the element renders, but seeing it requires an actual recording,
   which captures the screen.
-- **The Word export draws no click indicator at all.** It embeds the screenshot
-  as-is, so the marker that HTML and PDF overlay in CSS is simply absent. Adding
-  it means compositing onto the image bytes rather than layering over them,
-  which is a different mechanism entirely. Pre-existing, and more visible now
-  that the indicator is something a user chooses.
+- **A wide, short screenshot gets an oversized marker.** The marker scales with
+  the image's width, matching what the HTML guide does, so a 1920x60 taskbar
+  strip gets a marker sized for a 1920-wide picture. Consistent between the two
+  formats, which is the property that matters, but larger than ideal on both.
 - **No automated coverage of the interface at all.** See §6: the suites that
   drove it were retired as more misleading than useful. The gap is real, and the
   replacement is a person following the manual checklist before a release.

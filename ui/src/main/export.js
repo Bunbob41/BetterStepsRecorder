@@ -388,4 +388,4 @@ function copyImages(session, targetDir) {
 }
 
 module.exports = { buildHtml, buildMarkdown, copyImages, toImperative,
-                   exportable, windowTracker, legendLines };
+                   exportable, windowTracker, legendLines, markerPosition };

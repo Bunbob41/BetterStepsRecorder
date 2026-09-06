@@ -401,6 +401,24 @@ export, because both are drawn by the same piece of code.
 > picture itself rather than layering anything on top of it, so the marker
 > cannot simply be drawn over it the way it is in a web page or PDF.
 
+### The marker in a Word document
+
+Word works differently from the other formats, and it is worth knowing why.
+
+HTML and PDF put the marker *on top of* the screenshot — it is a separate thing
+laid over the picture, which is why changing its style in Settings costs
+nothing. Word has no way to do that: it embeds a picture and cannot layer
+anything above it.
+
+So for Word the marker is **drawn into the picture itself**, at export time, on
+a copy. Your recording is not touched — the screenshots in the session folder
+stay exactly as they were captured.
+
+It is the same circle or arrow you chose in Settings, in the same place, scaled
+to the screenshot so it looks the same size on the page. If a screenshot cannot
+be drawn on for any reason, it goes into the document as it is rather than
+costing you the export.
+
 ### Why screenshots are sometimes re-encoded
 
 Screenshots are saved as PNG, which is the right choice for the usual subject: a

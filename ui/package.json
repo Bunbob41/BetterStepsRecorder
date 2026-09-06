@@ -15,7 +15,8 @@
     "dist:dir": "npm run stamp && npm run build:capture && electron-builder --dir",
     "stamp": "node ../scripts/stamp-build.js",
     "test": "node ../scripts/run-tests.js",
-    "test:window": "electron ../tests/window_test.js"
+    "test:window": "electron ../tests/window_test.js",
+    "test:composite": "electron ../tests/composite_test.js"
   },
   "devDependencies": {
     "electron": "^34.0.0",

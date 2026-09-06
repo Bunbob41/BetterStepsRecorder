@@ -7,7 +7,9 @@ const { Sidecar } = require('./sidecar');
 const { Session } = require('./session');
 const { Settings } = require('./settings');
 const log = require('./log');
-const { buildHtml, buildMarkdown, copyImages, exportable } = require('./export');
+const { buildHtml, buildMarkdown, copyImages, exportable,
+        markerPosition } = require('./export');
+const composite = require('./composite');
 const screenshots = require('./screenshots');
 const { toJpeg } = require('./transcode');
 const annotate = require('../renderer/annotate');
@@ -142,6 +144,12 @@ function createWindow() {
 
   // The display it opens on is not necessarily the one it was sized for.
   win.once('ready-to-show', () => fitToDisplay(win));
+
+  // The compositor keeps a hidden window alive between exports. Electron counts
+  // it, so leaving it open would stop 'window-all-closed' ever firing and the
+  // application would keep running with nothing on screen. It goes when this
+  // window does.
+  win.once('closed', () => composite.dispose());
 
   // A monitor unplugged mid-session can leave the window off-screen entirely.
   screen.on('display-removed', () => fitToDisplay(win));
@@ -732,6 +740,25 @@ function shotFiles(s) {
     .filter((f) => fs.existsSync(f));
 }
 
+/**
+ * Every screenshot that has a click to mark, with where the click fell.
+ *
+ * The same `markerPosition` the HTML export uses, so Word puts the marker in
+ * the place the guide beside it does. A step whose click landed outside the
+ * captured frame has no position and is skipped, exactly as it is in HTML.
+ */
+function markableShots(s) {
+  const out = [];
+  for (const step of exportable(s)) {
+    if (!step.screenshot || !step.point) continue;
+    const file = path.join(s.dir, step.screenshot);
+    if (!fs.existsSync(file)) continue;
+    const pos = markerPosition(step);
+    if (pos) out.push({ file, pos });
+  }
+  return out;
+}
+
 function dataUriFor(file, encoded) {
   if (encoded) {
     return `data:${encoded.mime};base64,${encoded.data.toString('base64')}`;
@@ -887,12 +914,28 @@ async function runExport({ format, title }) {
         // The same screenshots, prepared the same way: every byte of them
         // would otherwise go into the zip.
         const prep = screenshots.prepare(shotFiles(session), { transcode: toJpeg });
+
+        // Then the click marker, drawn INTO the pixels. Word embeds a picture
+        // and cannot lay anything over it, so a marker that HTML and PDF add in
+        // CSS has to be part of the image here or it is not in the document at
+        // all. Shrinking first and marking second, so the marker is drawn at
+        // the size the reader will see rather than being resampled away.
+        const marks = await composite.markAll(markableShots(session), {
+          images: prep.images,
+          markerOpts: markerOptions(),
+          onError: (file, err) =>
+            log.warn(`could not mark ${path.basename(file)}: ${err.message}`),
+        });
+        if (marks.failed) {
+          log.warn(`${marks.failed} screenshot(s) went into the document unmarked`);
+        }
+
         const { buffer, missing } = await docx.render(tpl, session, {
           title: safeTitle,
           brand,
           voice: voiceFor(session),
           legend: legendFor(session),
-          images: prep.images,
+          images: marks.images,
           redactionSummary: templating.redactionSummary(session.steps),
         });
         fs.writeFileSync(out, buffer);
