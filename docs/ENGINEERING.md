@@ -949,4 +949,4 @@ waits out because it waits for the engine's `ready`.
 `https://github.com/Bunbob41/BetterStepsRecorder` — **private**. Single branch,
 `master`, linear history.
 
-Build: `cd ui && npm run dist` → `dist/StepsRecorder-Setup-<version>.exe`.
+Build: `npm run dist` from `ui/` → `dist/StepsRecorder-Setup-<version>.exe`.
