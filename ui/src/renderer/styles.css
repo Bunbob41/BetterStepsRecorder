@@ -489,3 +489,48 @@ button.tool.active {
   border-color: var(--accent);
   color: #fff;
 }
+
+/* The shape that will actually be drawn, previewed over the screenshot. */
+.drag-preview {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.drag-preview[hidden] { display: none; }
+
+/* Right-clicking the highlighter raises this. A colour used consistently
+   through a guide carries meaning, so it is worth being able to choose. */
+.huemenu {
+  position: fixed;
+  z-index: 20;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 150px;
+}
+.huemenu[hidden] { display: none; }
+.huemenu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 5px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.huemenu button:hover { background: rgba(255,255,255,.07); }
+.huemenu .swatch {
+  width: 15px; height: 15px; border-radius: 3px;
+  border: 1px solid rgba(255,255,255,.35);
+}
+.huemenu button.chosen::after { content: '✓'; margin-left: auto; color: var(--muted); }

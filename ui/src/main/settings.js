@@ -32,6 +32,10 @@ const DEFAULTS = {
   // How the click is marked on each screenshot. A ring reads as an error to
   // some readers, or as part of the application being documented; an arrow
   // is unambiguously an annotation on the picture.
+  // Which highlighter colour is in force. Named rather than a hex value: a
+  // colour used consistently through a guide means something, and a legend can
+  // only refer to it by name.
+  highlightColour: 'yellow',
   markerStyle: 'circle',
   markerBold: false,
   hotkeyPause: '',    // blank means the built-in default

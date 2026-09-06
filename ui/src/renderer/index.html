@@ -49,6 +49,8 @@
     <button id="notice-close" class="notice-x" title="Dismiss">&times;</button>
   </div>
 
+  <div id="huemenu" class="huemenu" hidden></div>
+
   <main>
     <aside class="steps">
       <div class="steps-head">
@@ -80,8 +82,10 @@
           <span id="detail-meta"></span>
           <label class="exclude"><input id="chk-exclude" type="checkbox" /> Exclude from export</label>
           <button id="btn-box" class="tool" title="Draw a box around something">Box</button>
+          <button id="btn-ellipse" class="tool" title="Draw a circle or oval">Circle</button>
           <button id="btn-arrow" class="tool" title="Point at something">Arrow</button>
-          <button id="btn-highlight" class="tool" title="Highlight an area">Highlight</button>
+          <button id="btn-highlight" class="tool"
+                  title="Highlight an area — right-click to choose a colour">Highlight</button>
           <button id="btn-blur" class="tool">Blur area</button>
           <button id="btn-rerecord">Re-record step</button>
           <button id="btn-delete" class="danger">Delete step</button>
@@ -90,6 +94,10 @@
           <img id="shot" alt="" />
           <div id="indicator" class="indicator"></div>
           <div id="selection" class="selection" hidden></div>
+          <!-- A rectangle is the wrong preview for an arrow or an ellipse:
+               it shows the region dragged rather than the mark that will
+               be made. This draws the actual shape instead. -->
+          <svg id="drag-preview" class="drag-preview" hidden></svg>
         </div>
       </div>
     </section>

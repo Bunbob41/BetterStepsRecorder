@@ -79,9 +79,25 @@ console.log('\nwhat counts as a deliberate drag:');
         a.isDeliberate('arrow', rect(90, 1), { x: 0, y: 0 }, { x: 90, y: 1 }));
 }
 
+console.log('\nhighlighter colours:');
+{
+  check('there is more than one', a.HIGHLIGHTS.length >= 4);
+  check('each has a name a legend could print',
+        a.HIGHLIGHTS.every((h) => h.name && h.id));
+  check('each is translucent, so what is marked still shows through',
+        a.HIGHLIGHTS.every((h) => /rgba\([^)]+,\s*0\.\d+\)/.test(h.fill)));
+  check('and none is opaque enough to obscure it',
+        a.HIGHLIGHTS.every((h) => Number(h.fill.match(/([\d.]+)\)$/)[1]) <= 0.4));
+  check('a known colour resolves', a.highlightFill('green') === a.HIGHLIGHTS[1].fill);
+  check('an unknown one falls back rather than drawing nothing',
+        a.highlightFill('chartreuse') === a.HIGHLIGHTS[0].fill);
+  check('and so does none at all', a.highlightFill(undefined) === a.HIGHLIGHTS[0].fill);
+}
+
 console.log('\nthe tools on offer:');
 {
-  check('box, arrow and highlight', a.TOOLS.join() === 'box,arrow,highlight');
+  check('box, ellipse, arrow and highlight',
+        a.TOOLS.join() === 'box,ellipse,arrow,highlight');
   check('blur is not among them - it is a privacy act, not an annotation',
         !a.TOOLS.includes('blur'));
 }

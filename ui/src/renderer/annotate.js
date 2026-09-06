@@ -22,7 +22,23 @@
   else root.BsrAnnotate = api;
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
 
-  const TOOLS = ['box', 'arrow', 'highlight'];
+  const TOOLS = ['box', 'ellipse', 'arrow', 'highlight'];
+
+  /**
+   * Highlighter colours. Named, because a colour used consistently through a
+   * guide means something - and a reader can only be told what it means if it
+   * has a name to be told about.
+   */
+  const HIGHLIGHTS = [
+    { id: 'yellow', name: 'Yellow', fill: 'rgba(255, 224, 66, 0.32)' },
+    { id: 'green', name: 'Green', fill: 'rgba(96, 230, 130, 0.30)' },
+    { id: 'blue', name: 'Blue', fill: 'rgba(96, 176, 255, 0.32)' },
+    { id: 'pink', name: 'Pink', fill: 'rgba(255, 122, 190, 0.30)' },
+    { id: 'orange', name: 'Orange', fill: 'rgba(255, 158, 64, 0.32)' },
+  ];
+
+  const highlightFill = (id) =>
+    (HIGHLIGHTS.find((h) => h.id === id) || HIGHLIGHTS[0]).fill;
 
   /**
    * How thick a stroke should be on an image of this size.
@@ -85,7 +101,8 @@
    * `rect` is the dragged region, `from`/`to` the raw drag so an arrow knows
    * which end the reader should look at.
    */
-  function draw(ctx, tool, { rect, from, to, width, height, colour = '#e5484d' }) {
+  function draw(ctx, tool, { rect, from, to, width, height, colour = '#e5484d',
+                             highlight = HIGHLIGHTS[0].fill }) {
     const stroke = strokeFor(width, height);
 
     ctx.save();
@@ -97,14 +114,32 @@
     if (tool === 'highlight') {
       // Not multiply. Multiply is how a highlighter behaves on paper - it
       // darkens - so yellow over a dark interface came out as nothing at all,
-      // and the whole mark was invisible on exactly the screenshots this tool
-      // is most often pointed at. A translucent wash lightens a dark ground and
-      // tints a light one, and the outline keeps the edge findable on both.
-      ctx.fillStyle = 'rgba(255, 224, 66, 0.32)';
+      // on exactly the screenshots this tool is most often pointed at. A
+      // translucent wash lightens a dark ground and tints a light one.
+      //
+      // And no outline. One was added while the blend was broken and the wash
+      // could not be seen; a highlighter has no edge, and once the wash worked
+      // the border was just a line nobody asked for.
+      ctx.fillStyle = highlight;
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-      ctx.strokeStyle = 'rgba(255, 214, 0, 0.9)';
-      ctx.lineWidth = Math.max(2, stroke * 0.6);
-      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.restore();
+      return;
+    }
+
+    if (tool === 'ellipse') {
+      // Inscribed in the drag, so a square drag is a circle and a wider one an
+      // oval - the shape follows the thing being circled.
+      const cx = rect.x + rect.w / 2;
+      const cy = rect.y + rect.h / 2;
+      const ring = (style, width) => {
+        ctx.strokeStyle = style;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, Math.abs(rect.w) / 2, Math.abs(rect.h) / 2, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      };
+      ring('rgba(255,255,255,.85)', stroke + 4);
+      ring(colour, stroke);
       ctx.restore();
       return;
     }
@@ -156,5 +191,6 @@
     return rect.w >= 6 && rect.h >= 6;
   }
 
-  return { TOOLS, strokeFor, arrowGeometry, headArea, draw, isDeliberate };
+  return { TOOLS, HIGHLIGHTS, highlightFill, strokeFor, arrowGeometry,
+           headArea, draw, isDeliberate };
 }));

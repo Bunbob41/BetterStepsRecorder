@@ -491,10 +491,13 @@ that:
 
 Select a step and you get four tools above the picture:
 
-- **Box** — draw a rectangle around the thing that matters
-- **Arrow** — drag from where you want the arrow to start to the thing it should
-  point at
-- **Highlight** — a translucent wash over an area
+- **Box** — a rectangle around the thing that matters
+- **Circle** — an oval inscribed in what you drag, so a square drag gives a
+  circle and a wider one an oval
+- **Arrow** — drag *from* where the arrow should start *to* what it points at.
+  The preview shows the arrow itself, not the region dragged
+- **Highlight** — a translucent wash. **Right-click the button** to choose the
+  colour: yellow, green, blue, pink or orange
 - **Blur** — the privacy one, described below
 
 The first three are annotations: they say *look here*, which the recorder cannot

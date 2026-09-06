@@ -23,7 +23,9 @@ const el = {
   templateClear: $('set-template-clear'), templateInfo: $('template-info'),
   templateCopy: $('set-template-copy'), templateFolder: $('set-template-folder'),
   blur: $('btn-blur'), wrap: $('shot-wrap'), selection: $('selection'),
-  box: $('btn-box'), arrow: $('btn-arrow'), highlight: $('btn-highlight'),
+  box: $('btn-box'), ellipse: $('btn-ellipse'), arrow: $('btn-arrow'),
+  highlight: $('btn-highlight'), dragPreview: $('drag-preview'),
+  hueMenu: $('huemenu'),
   exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
   expTitle: $('exp-title'), expFormat: $('exp-format'),
   expGo: $('exp-go'), expCancel: $('exp-cancel'), expNote: $('exp-note'),
@@ -178,7 +180,7 @@ async function select(id) {
 
   const isNote = step.action === 'note';
   // A written step has no screenshot, so the tools that act on one are moot.
-  for (const t of ['blur', 'box', 'arrow', 'highlight']) el[t].hidden = isNote;
+  for (const t of ['blur', 'box', 'ellipse', 'arrow', 'highlight']) el[t].hidden = isNote;
   if (isNote && armedTool) armTool(armedTool);   // disarm: nothing to draw on
   el.rerecord.hidden = isNote;
   el.text.placeholder = isNote ? 'Describe what the reader should do' : '';
@@ -996,8 +998,12 @@ window.bsr.onHotkey(({ action }) => {
 let armedTool = null;
 
 const TOOL_BUTTONS = () => ({
-  blur: el.blur, box: el.box, arrow: el.arrow, highlight: el.highlight,
+  blur: el.blur, box: el.box, ellipse: el.ellipse,
+  arrow: el.arrow, highlight: el.highlight,
 });
+
+/** The highlighter colour in force, remembered between sessions. */
+let highlightId = 'yellow';
 
 function armTool(tool) {
   armedTool = armedTool === tool ? null : tool;
@@ -1006,10 +1012,104 @@ function armTool(tool) {
   }
   el.wrap.classList.toggle('selecting', Boolean(armedTool));
   el.selection.hidden = true;
+  el.dragPreview.hidden = true;
+}
+
+/**
+ * Shows the mark that will be made, rather than the region dragged.
+ *
+ * A rectangle is right for a box, a highlight and a blur, and wrong for the
+ * other two: dragging an arrow showed a box, which says nothing about which way
+ * the arrow will point, and dragging a circle showed its bounding rectangle.
+ */
+function previewDrag(from, to) {
+  const rectTools = armedTool === 'box' || armedTool === 'highlight'
+                 || armedTool === 'blur';
+  el.selection.hidden = !rectTools;
+  el.dragPreview.hidden = rectTools;
+  if (rectTools) return;
+
+  const svg = 'http://www.w3.org/2000/svg';
+  el.dragPreview.replaceChildren();
+
+  if (armedTool === 'ellipse') {
+    const e = document.createElementNS(svg, 'ellipse');
+    e.setAttribute('cx', (from.x + to.x) / 2);
+    e.setAttribute('cy', (from.y + to.y) / 2);
+    e.setAttribute('rx', Math.abs(to.x - from.x) / 2);
+    e.setAttribute('ry', Math.abs(to.y - from.y) / 2);
+    e.setAttribute('fill', 'none');
+    e.setAttribute('stroke', '#e5484d');
+    e.setAttribute('stroke-width', '2');
+    e.setAttribute('stroke-dasharray', '5 4');
+    el.dragPreview.append(e);
+    return;
+  }
+
+  // The arrow, drawn with the same geometry that will be burned in, so what is
+  // previewed is what is produced.
+  const g = BsrAnnotate.arrowGeometry(from, to, 3);
+  const line = document.createElementNS(svg, 'line');
+  line.setAttribute('x1', from.x); line.setAttribute('y1', from.y);
+  line.setAttribute('x2', g.shaft.x); line.setAttribute('y2', g.shaft.y);
+  line.setAttribute('stroke', '#e5484d');
+  line.setAttribute('stroke-width', '3');
+  line.setAttribute('stroke-linecap', 'round');
+
+  const head = document.createElementNS(svg, 'polygon');
+  head.setAttribute('points',
+    `${to.x},${to.y} ${g.barbs[0].x},${g.barbs[0].y} ${g.barbs[1].x},${g.barbs[1].y}`);
+  head.setAttribute('fill', '#e5484d');
+
+  el.dragPreview.append(line, head);
 }
 let dragStart = null;
 
-for (const name of ['blur', 'box', 'arrow', 'highlight']) {
+/**
+ * Right-clicking the highlighter offers its colours. A guide that uses more
+ * than one colour needs them chosen deliberately, and a menu on the tool is
+ * where a person looks for that rather than in Settings.
+ */
+el.highlight.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  el.hueMenu.replaceChildren();
+
+  for (const hue of BsrAnnotate.HIGHLIGHTS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    if (hue.id === highlightId) b.className = 'chosen';
+
+    const swatch = document.createElement('span');
+    swatch.className = 'swatch';
+    swatch.style.background = hue.fill;
+
+    const label = document.createElement('span');
+    label.textContent = hue.name;
+
+    b.append(swatch, label);
+    b.addEventListener('click', async () => {
+      highlightId = hue.id;
+      el.hueMenu.hidden = true;
+      await window.bsr.setSettings({ highlightColour: hue.id });
+      // Choosing a colour is choosing to use it.
+      if (armedTool !== 'highlight') armTool('highlight');
+    });
+    el.hueMenu.append(b);
+  }
+
+  el.hueMenu.style.left = `${e.clientX}px`;
+  el.hueMenu.style.top = `${e.clientY}px`;
+  el.hueMenu.hidden = false;
+});
+
+window.addEventListener('mousedown', (e) => {
+  if (!el.hueMenu.hidden && !el.hueMenu.contains(e.target)) el.hueMenu.hidden = true;
+});
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') el.hueMenu.hidden = true;
+});
+
+for (const name of ['blur', 'box', 'ellipse', 'arrow', 'highlight']) {
   el[name].addEventListener('click', () => armTool(name));
 }
 
@@ -1018,6 +1118,7 @@ el.wrap.addEventListener('mousedown', (e) => {
   e.preventDefault();
   const r = el.shot.getBoundingClientRect();
   dragStart = { x: e.clientX - r.left, y: e.clientY - r.top };
+  previewDrag(dragStart, { x, y });
   Object.assign(el.selection.style, { left: `${dragStart.x}px`, top: `${dragStart.y}px`,
                                       width: '0px', height: '0px' });
   el.selection.hidden = false;
@@ -1050,6 +1151,7 @@ window.addEventListener('mouseup', async (e) => {
   const to = { x, y };
   dragStart = null;
   el.selection.hidden = true;
+  el.dragPreview.hidden = true;
 
   // A box only needs the region; an arrow needs to know which end the reader
   // should be looking at, so the raw drag is kept as well.
@@ -1112,6 +1214,7 @@ async function applyMark(tool, { sel, from, to }, displayedWidth) {
       to: { x: Math.round(to.x * ratio), y: Math.round(to.y * ratio) },
       width: img.naturalWidth,
       height: img.naturalHeight,
+      highlight: BsrAnnotate.highlightFill(highlightId),
     });
   }
 
@@ -1178,6 +1281,7 @@ function paintSettings(v) {
   el.footer.value = v.brandFooter || '';
   el.template.value = v.templatePath || '';
   paintTemplates(v.templatePath || '');
+  highlightId = v.highlightColour || 'yellow';
   el.marker.value = v.markerStyle || 'circle';
   el.markerBold.checked = Boolean(v.markerBold);
   markerOpts = { style: el.marker.value, bold: el.markerBold.checked };
