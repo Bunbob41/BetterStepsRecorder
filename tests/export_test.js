@@ -171,5 +171,66 @@ check('hand-written wording is untouched either way',
         text: 'Approve it', textEdited: true }] }, { title: 'X' }).includes('Approve it'));
 
 fs.rmSync(dir, { recursive: true, force: true });
+console.log('\nthe window is worth saying once:');
+{
+  const { windowTracker } = require('../ui/src/main/export');
+  const inWin = (t, title) => ({ action: 'leftClick', text: t,
+                                 window: { title, process: 'x.exe' } });
+
+  const d = windowTracker();
+  const a = d(inWin('Clicked the "Save" button in "Billing"', 'Billing'), 'imperative');
+  const b = d(inWin('Clicked the "New" button in "Billing"', 'Billing'), 'imperative');
+  const c = d(inWin('Clicked the "OK" button in "Settings"', 'Settings'), 'imperative');
+  const e = d(inWin('Clicked the "Back" link in "Settings"', 'Settings'), 'imperative');
+
+  check('the first step in a window names it', a.endsWith('in "Billing"'));
+  check('the next one in the same window does not',
+        b === 'Click the "New" button');
+  check('a new window is named again', c.endsWith('in "Settings"'));
+  check('and then dropped again', e === 'Click the "Back" link');
+
+  // 69% of one recording's description text was this repetition.
+  const long = 'Rocket League (64-bit, DX11, Cooked)';
+  const t = windowTracker();
+  const first = t(inWin(`Clicked in "${long}"`, long), 'imperative');
+  const rest = [...Array(5)].map(() => t(inWin(`Clicked in "${long}"`, long), 'imperative'));
+  check('a title repeated six times is written once',
+        first.includes(long) && rest.every((x) => !x.includes(long)));
+  check('and what remains is still a sentence', rest[0] === 'Click');
+}
+
+console.log('\nand only when it really is repetition:');
+{
+  const { windowTracker } = require('../ui/src/main/export');
+  const inWin = (t, title) => ({ action: 'leftClick', text: t,
+                                 window: { title, process: 'x.exe' } });
+
+  // A note sits between two steps in the same window. It states no window of
+  // its own and must not make the next step repeat one.
+  const d = windowTracker();
+  d(inWin('Clicked "Save" in "Billing"', 'Billing'), 'imperative');
+  const note = d({ action: 'note', text: 'Check the ticket first.' }, 'imperative');
+  const after = d(inWin('Clicked "New" in "Billing"', 'Billing'), 'imperative');
+  check('a note is left exactly as written', note === 'Check the ticket first.');
+  check('and does not reintroduce the window', after === 'Click "New"');
+
+  // The title appearing mid-sentence is part of what was clicked.
+  const m = windowTracker();
+  m(inWin('Clicked "Billing" in "Billing"', 'Billing'), 'imperative');
+  const mid = m(inWin('Clicked the "Billing" tab in "Billing"', 'Billing'), 'imperative');
+  check('only the trailing clause is removed', mid === 'Click the "Billing" tab');
+
+  // A step whose window was never resolved is left alone.
+  const n = windowTracker();
+  check('a step with no window is untouched',
+        n({ action: 'leftClick', text: 'Clicked' }, 'imperative') === 'Click');
+
+  // Evidence records keep the past tense AND the same condensing.
+  const p = windowTracker();
+  p(inWin('Clicked "Save" in "Billing"', 'Billing'), 'past');
+  check('past tense condenses too',
+        p(inWin('Clicked "New" in "Billing"', 'Billing'), 'past') === 'Clicked "New"');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

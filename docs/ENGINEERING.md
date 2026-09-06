@@ -124,6 +124,31 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-26 · The window is named once, at render time
+`(this change)` · `windowTracker()` in [ui/src/main/export.js](../ui/src/main/export.js)
+
+92% of steps ended `in "<window title>"`, and in one recording that clause was
+**69% of all the description text** - the same 60 characters, 103 times.
+
+**Not fixed in the engine.** Every recorded step has to be true on its own:
+steps can be reordered, excluded and re-recorded individually, so a step meaning
+"the window mentioned two steps ago" would break silently the moment anything
+moved. The record keeps the full title; the *document* drops it.
+
+So the condensing happens at render, where the final order and the final set of
+included steps are both known. The title is written when it changes and omitted
+when it has not. A note carries no window and neither states nor clears one, so
+it does not make the following step repeat itself; a title quoted mid-sentence
+is part of what was clicked and is left alone.
+
+Found while measuring it: HTML and Markdown also printed the window title as a
+caption under **every** step, so condensing the description alone took one
+recording from 104 mentions to 2, not to 1. The caption now carries the process
+name only - the description names the window at exactly the points the caption
+appears, so the two had been saying the same thing on the same line.
+
+Measured on real recordings: description text down 79% and 45%.
+
 ### D-25 · Keys are transcribed only where text is entered
 `(this change)` · [capture/UiaResolver.cs](../capture/UiaResolver.cs),
 [capture/TypingState.cs](../capture/TypingState.cs)

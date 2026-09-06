@@ -1,5 +1,5 @@
 const fs = require('node:fs');
-const { toImperative } = require('./export');
+const { toImperative, windowTracker } = require('./export');
 const path = require('node:path');
 const os = require('node:os');
 
@@ -112,7 +112,7 @@ function fillRow(row, vars) {
   });
 }
 
-function stepVars(step, number, imageDir, voice = 'imperative') {
+function stepVars(step, number, imageDir, voice = 'imperative', describe = null) {
   const file = step.screenshot ? path.basename(step.screenshot) : '';
   const rel = file ? `${imageDir}/${file}` : '';
   const isNote = step.action === 'note';
@@ -126,7 +126,7 @@ function stepVars(step, number, imageDir, voice = 'imperative') {
     // export came out in the engine's past tense regardless of what the
     // recording was for. A procedure handed to somebody then read as a report
     // of what one person once did rather than as instructions.
-    description: oneLine(toImperative(step, voice)),
+    description: oneLine(describe ? describe(step, voice) : toImperative(step, voice)),
     action: (step.action || '').toUpperCase(),
     window: oneLine(step.window && step.window.title),
     process: oneLine(step.window && step.window.process),
@@ -172,9 +172,11 @@ function render(templateText, session, { title, imageDir = 'images', brand = nul
         : steps;
 
       let number = 0;
+      // One tracker per loop: a gallery and a step list each start afresh.
+      const describe = windowTracker();
       const rendered = source.map((step) => {
         if (step.action !== 'note') number += 1;
-        return fillRow(row, stepVars(step, number, imageDir, voice));
+        return fillRow(row, stepVars(step, number, imageDir, voice, describe));
       }).join('');
 
       filledLoops.push({ hook: loop.start, rows: source.length,

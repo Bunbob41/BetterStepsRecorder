@@ -40,6 +40,49 @@ function toImperative(step, voice = 'imperative') {
   return text;
 }
 
+/**
+ * A running note of which window the reader is in.
+ *
+ * The engine names the window on every step, because every step has to be true
+ * on its own: steps can be reordered, excluded and re-recorded individually, so
+ * one that meant "the window mentioned two steps ago" would quietly break the
+ * moment anything moved. That is right for the record and wrong for the
+ * document - in one recording the window title was 69% of all the description
+ * text, the same 60 characters repeated 103 times.
+ *
+ * So the title is dropped at RENDER time, where the final order and the final
+ * set of included steps are both known, and only when the previous rendered
+ * step was already in that window. It is said once, and again whenever it
+ * changes.
+ */
+function windowTracker() {
+  let current = null;
+
+  function describe(step, voice) {
+    const text = toImperative(step, voice);
+    const title = (step.window && step.window.title) || '';
+
+    // A written note belongs to wherever the reader already is; it neither
+    // states a window nor moves the reader out of one.
+    if (step.action === 'note' || !title) return text;
+
+    const repeated = title === current;
+    current = title;
+    describe.changed = !repeated;
+    if (!repeated) return text;
+
+    // Only the trailing clause, and only when it is exactly this window: a
+    // title quoted mid-sentence is part of what was clicked, not context.
+    const suffix = ` in "${title}"`;
+    return text.endsWith(suffix) ? text.slice(0, -suffix.length) : text;
+  }
+
+  // A note neither states a window nor moves out of one, so it leaves this
+  // alone; anything with no window of its own is not a change either.
+  describe.changed = true;
+  return describe;
+}
+
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ESCAPES[c]);
 
@@ -106,6 +149,7 @@ function buildHtml(session, { title, embedImages = true, brand = null,
   const generated = new Date().toLocaleString();
 
   let n = 0;
+  const describe = windowTracker();
   const body = steps.map((step) => {
     if (step.action === 'note') {
       // An authored aside, not something that was clicked.
@@ -129,16 +173,18 @@ function buildHtml(session, { title, embedImages = true, brand = null,
     const at = markerPosition(step);
     const markerHtml = at ? marker.html(at, markerOpts) : '';
 
-    const context = [step.window && step.window.title, step.window && step.window.process]
-      .filter(Boolean).map(escapeHtml).join(' — ');
+    // The process only: the description already names the window at exactly the
+    // points this caption appears, so repeating the title here said the same
+    // thing twice on the same line.
+    const context = escapeHtml((step.window && step.window.process) || '');
 
     return `
     <li class="step">
       <div class="step-head">
         <span class="num">${i + 1}</span>
-        <p class="text">${escapeHtml(toImperative(step, voice))}</p>
+        <p class="text">${escapeHtml(describe(step, voice))}</p>
       </div>
-      ${context ? `<p class="context">${context}</p>` : ''}
+      ${context && describe.changed ? `<p class="context">${context}</p>` : ''}
       ${src ? `<figure class="shot">
         <img src="${src}" alt="Step ${i + 1}" loading="lazy" />
         ${markerHtml}
@@ -232,6 +278,7 @@ function buildMarkdown(session, { title, imageDir, brand = null,
                  `${countSteps(steps)} step${countSteps(steps) === 1 ? '' : 's'}`, '']);
 
   let n = 0;
+  const describe = windowTracker();
   steps.forEach((step) => {
     if (step.action === 'note') {
       lines.push(`> ${step.text || ''}`, '');
@@ -239,11 +286,12 @@ function buildMarkdown(session, { title, imageDir, brand = null,
     }
 
     const i = n++;
-    lines.push(`## ${i + 1}. ${toImperative(step, voice)}`, '');
+    lines.push(`## ${i + 1}. ${describe(step, voice)}`, '');
 
-    const context = [step.window && step.window.title, step.window && step.window.process]
-      .filter(Boolean).join(' — ');
-    if (context) lines.push(`*${context}*`, '');
+    const context = (step.window && step.window.process) || '';
+    // Only when the window changed: repeating it under every step is the same
+    // noise the description just stopped carrying.
+    if (context && describe.changed) lines.push(`*${context}*`, '');
 
     if (step.screenshot && fs.existsSync(path.join(session.dir, step.screenshot))) {
       // Relative path so the document works in a git wiki or a docs folder.
@@ -271,4 +319,5 @@ function copyImages(session, targetDir) {
   return copied;
 }
 
-module.exports = { buildHtml, buildMarkdown, copyImages, toImperative, exportable };
+module.exports = { buildHtml, buildMarkdown, copyImages, toImperative,
+                   exportable, windowTracker };

@@ -1,5 +1,5 @@
 const fs = require('node:fs');
-const { toImperative } = require('./export');
+const { toImperative, windowTracker } = require('./export');
 const path = require('node:path');
 const os = require('node:os');
 
@@ -56,6 +56,7 @@ function buildData(session, { title, brand, redactionSummary, voice = 'imperativ
   const when = new Date();
 
   let number = 0;
+  const describe = windowTracker();
   const steps = included.map((s) => {
     const isNote = s.action === 'note';
     if (!isNote) number += 1;
@@ -66,7 +67,7 @@ function buildData(session, { title, brand, redactionSummary, voice = 'imperativ
       label: isNote ? '' : `${number}. `,
       // Word had no notion of voice at all, so the format most likely to be
       // handed to a company was the one that read as a diary entry.
-      description: toImperative(s, voice).replace(/\s*\n\s*/g, ' ').trim(),
+      description: describe(s, voice).replace(/\s*\n\s*/g, ' ').trim(),
       action: (s.action || '').toUpperCase(),
       window: (s.window && s.window.title) || '',
       process: (s.window && s.window.process) || '',
