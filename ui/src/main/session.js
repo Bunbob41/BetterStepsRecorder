@@ -201,7 +201,15 @@ class Session {
     const i = this.steps.findIndex((s) => s.id === id);
     if (i === -1) return null;
     // Remember that the wording is the user's, so a later re-record keeps it.
-    if (patch.text !== undefined) patch = { ...patch, textEdited: true };
+    //
+    // Unless the caller says otherwise. Find-and-replace swaps a word inside a
+    // sentence the engine wrote; that is not authorship of the sentence, and
+    // marking it as such would stop the export rewriting "Clicked" into
+    // "Click" - so renaming a button would silently put those steps, and only
+    // those steps, into the past tense.
+    if (patch.text !== undefined && patch.textEdited === undefined) {
+      patch = { ...patch, textEdited: true };
+    }
     this.steps[i] = { ...this.steps[i], ...patch };
     this.flush();
     return this.steps[i];

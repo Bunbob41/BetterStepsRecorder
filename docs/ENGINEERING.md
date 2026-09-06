@@ -127,6 +127,11 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 14. **A heading that has no name, or nothing under it, never reaches the
     reader.** Applied after exclusion, so holding back a phase's last step
     takes the phase too.
+15. **Every edit that can touch more than one step is one undo entry.** Bulk
+    delete and replace-all both; twenty presses of Ctrl+Z is not undo.
+16. **`textEdited` means a person wrote those words.** Only an explicit claim
+    sets it. Inferring it from a mechanical substitution freezes that step's
+    tense at export.
 
 ---
 
@@ -134,8 +139,63 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-30 · A replacement is not authorship, and it is one undo
+`(this change)` · [ui/src/renderer/find.js](../ui/src/renderer/find.js)
+
+A guide is written once and read for years. The system it documents gets
+renamed, a team changes, a button's label changes - and without find-and-replace
+the choice is retyping forty steps or letting the guide go stale, which in
+practice means stale.
+
+Two things had to be true before it was safe to add, and neither was.
+
+**Nothing in the undo history covered text.** The stack held `delete`,
+`deleteMany` and `redact` only, so every text edit in the application was
+already irreversible - unnoticed while edits were one step at a time, fatal the
+moment one action could rewrite forty. There is now a `retext` entry holding
+the previous wording of every row it touched, pushed as **one** entry: replacing
+a term across forty steps and pressing Ctrl+Z forty times is not undo, the same
+bargain `deleteMany` makes.
+
+**`updateStep` claimed authorship of any text it was given.** Setting
+`textEdited` is right when a person rewrites a step - export must then leave
+their words alone. It is wrong for a mechanical substitution inside a sentence
+the engine wrote: it would stop the export rewriting "Clicked" into "Click", so
+renaming a button would silently put those steps, and only those steps, into
+the past tense. The flag is now only inferred when the caller does not say, and
+replace passes the row's existing value through.
+
+**The query is a literal string, not a pattern.** Everything a person searches
+for in a procedure - `(draft)`, `step 1.`, `C:\Users`, `a+b` - is made of regex
+syntax. Unescaped, `(` throws and `.` matches every character in the recording.
+Whole-word uses lookarounds rather than `\b`, which anchors to a word character
+and so matches nothing at all for a query starting with punctuation.
+
+**Notes and headings are searched too.** A reader sees them; a rename that
+skipped them would leave the guide contradicting itself.
+
+The count shown is occurrences *and* rows, because "Replace all" against a
+number that only counts rows is a guess. A replacement that changes nothing is
+refused rather than filling the undo history with a no-op - though a case-only
+change does count as a change.
+
+Three things the window test caught that no unit test could:
+
+- The stub returned `null` for `shotData`, so every completed drag hit
+  `alert('Could not read the screenshot.')` - a modal that never resolves in a
+  hidden window. The test had never reached the marking path at all, and now
+  serves a real PNG at a real size ([tests/png-fixture.js](../tests/png-fixture.js)),
+  because every ratio in that code is degenerate against a 1x1 placeholder.
+  `window.alert` is now recorded rather than raised, and "nothing gave up and
+  raised a dialog" is an assertion.
+- The test window was sandboxed where the application's is not, so its preload
+  could not `require` anything. Matching the app made it more faithful, not
+  less.
+- In a sidebar this narrow the find bar's two text fields came out about two
+  characters wide. It is two rows now. Only the screenshot showed it.
+
 ### D-29 · The window is driven in a test, not only reasoned about
-`(this change)` · [tests/preview_test.js](../tests/preview_test.js)
+`ca9e946` · [tests/window_test.js](../tests/window_test.js)
 
 The drag preview shipped broken twice and nothing caught it. `previewDrag` was
 called as `previewDrag(dragStart, { x, y })` from a scope where `x` and `y` do
@@ -827,8 +887,8 @@ machine in use.
 
 | Suite | Runs | Covers |
 |---|---|---|
-| `tests/preview_test.js` | `npm run test:window` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
-| `tests/*_test.js` (14) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
+| `tests/window_test.js` | `npm run test:window` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
+| `tests/*_test.js` (15) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
 | `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |
 | `tests/smoke.py` | `python tests/<file>` | engine protocol |

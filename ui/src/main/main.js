@@ -12,6 +12,7 @@ const screenshots = require('./screenshots');
 const { toJpeg } = require('./transcode');
 const annotate = require('../renderer/annotate');
 const sections = require('../renderer/sections');
+const find = require('../renderer/find');
 const buildInfo = require('./build-info');
 const templating = require('./template');
 const docx = require('./docx');
@@ -555,6 +556,13 @@ ipcMain.handle('edit:undo', () => {
     return { ok: true, action: 'deleteMany', steps: session.steps };
   }
 
+  if (entry.type === 'retext') {
+    for (const c of entry.changes) {
+      session.updateStep(c.id, { text: c.was, textEdited: c.wasEdited });
+    }
+    return { ok: true, action: 'retext', steps: session.steps };
+  }
+
   if (entry.type === 'redact') {
     if (!session.restore(entry.token, entry.step.screenshot)) {
       return { ok: false, error: 'The original screenshot is no longer available.' };
@@ -572,6 +580,44 @@ ipcMain.handle('edit:undo', () => {
 });
 
 ipcMain.handle('edit:undoDepth', () => ({ depth: undoStack.length }));
+
+/**
+ * Replaces a word everywhere it appears, as ONE undoable action.
+ *
+ * One entry, not one per step: replacing a term across forty steps and
+ * pressing Ctrl+Z forty times is not undo. This is the same bargain
+ * `step:removeMany` makes.
+ *
+ * Until this existed nothing in the undo history covered text at all - only
+ * deletions and redactions - so a bulk edit was the one irreversible thing in
+ * the application.
+ */
+ipcMain.handle('steps:replaceAll', (_e, { query, replacement, options }) => {
+  if (!session) return { ok: false, error: 'No recording is open.' };
+
+  const changes = find.plan(session.steps, query, replacement, options || {});
+  if (!changes.length) return { ok: true, changes: 0, message: find.describe([]) };
+
+  // Read the prior state before writing any of it. Gathering it afterwards
+  // would report whatever the write left behind, which is only the right
+  // answer while the write happens to preserve it.
+  const before = changes.map((c) => {
+    const step = session.steps.find((s) => s.id === c.id);
+    return { id: c.id, was: c.was, wasEdited: Boolean(step && step.textEdited) };
+  });
+
+  for (const b of before) {
+    const c = changes.find((x) => x.id === b.id);
+    // Whether this row's wording was already the author's own is preserved
+    // rather than set: see the note in Session.updateStep.
+    session.updateStep(c.id, { text: c.text, textEdited: b.wasEdited });
+  }
+
+  pushUndo({ type: 'retext', changes: before });
+
+  return { ok: true, changes: changes.length, message: find.describe(changes),
+           steps: session.steps };
+});
 
 ipcMain.handle('step:reorder', (_e, { from, to }) =>
   session ? session.reorder(from, to) : false);

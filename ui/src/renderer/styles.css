@@ -602,3 +602,37 @@ button.tool.active {
   font-size: 14px; line-height: 1; padding: 0 4px; cursor: pointer;
 }
 .suggest .no:hover { color: var(--ink); }
+
+/* Find and replace. Sits under the step list's header rather than floating
+   over it: it changes what the list below means, so it belongs above it in
+   the same column.
+
+   Two rows, not one. In a sidebar this narrow, a single row left each text
+   field about two characters wide - you could not see what you had typed,
+   which is most of what a find field is for. */
+.findbar {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 7px 8px; border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.findbar[hidden] { display: none; }
+.findrow { display: flex; align-items: center; gap: 6px; }
+.findbar input[type="text"] { min-width: 0; flex: 1; font-size: 12px; padding: 3px 6px; }
+.findopt {
+  display: flex; align-items: center; gap: 3px;
+  color: var(--muted); font-size: 11px; white-space: nowrap; cursor: pointer;
+}
+.findopt input { accent-color: var(--accent); margin: 0; }
+.findcount { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.findbar button.tiny { margin: 0; }
+.findx {
+  background: transparent; border: 0; color: var(--muted);
+  font-size: 15px; line-height: 1; padding: 0 4px; cursor: pointer;
+}
+.findx:hover { color: var(--text); }
+
+/* A row the search found. Not the selection colour - a match is not a
+   selection, and confusing the two makes Replace all look like it would only
+   touch the highlighted one. */
+.step.matched { box-shadow: inset 3px 0 0 #d6a02a; }
+.step.matched .title { color: #f0c866; }

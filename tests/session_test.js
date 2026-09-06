@@ -206,5 +206,36 @@ check('restore after purge reports failure', t.restore(s2, 'steps/a.png') === fa
 fs.rmSync(t.dir, { recursive: true, force: true });
 
 fs.rmSync(dir, { recursive: true, force: true });
+console.log('\nwhose words a step carries:');
+{
+  const w = new Session(path.join(os.tmpdir(), 'bsr-words-' + Date.now()));
+  fs.mkdirSync(path.join(w.dir, 'steps'), { recursive: true });
+  w.addStep(mk('p', 'Clicked the "Save" button'));
+
+  // Rewriting a step by hand is authorship: export must leave those words
+  // exactly as typed, in whatever tense they were typed.
+  w.updateStep('p', { text: 'Press Save twice' });
+  check('editing a step marks the words as the author\u2019s own',
+        w.steps[0].textEdited === true);
+
+  // But swapping one word inside the engine's own sentence is not. If that set
+  // the flag, renaming a button would stop the export rewriting "Clicked" into
+  // "Click" - putting those steps, and only those, into the past tense.
+  const q = new Session(path.join(os.tmpdir(), 'bsr-words2-' + Date.now()));
+  fs.mkdirSync(path.join(q.dir, 'steps'), { recursive: true });
+  q.addStep(mk('r', 'Clicked the "Save" button'));
+  q.updateStep('r', { text: 'Clicked the "Store" button', textEdited: false });
+
+  check('a mechanical replacement does not claim authorship',
+        q.steps[0].textEdited === false);
+  check('and the new wording is kept',
+        q.steps[0].text === 'Clicked the "Store" button');
+
+  // An explicit claim is still honoured, so the ordinary edit path works when
+  // it says what it means.
+  q.updateStep('r', { text: 'Press Store', textEdited: true });
+  check('an explicit claim is honoured', q.steps[0].textEdited === true);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('bsr', {
   updateStep: (id, patch) => ipcRenderer.invoke('step:update', { id, patch }),
   addNote: (text, afterId) => ipcRenderer.invoke('step:addNote', { text, afterId }),
   addSection: (text, afterId) => ipcRenderer.invoke('step:addSection', { text, afterId }),
+  replaceAll: (query, replacement, options) =>
+    ipcRenderer.invoke('steps:replaceAll', { query, replacement, options }),
   removeStep: (id) => ipcRenderer.invoke('step:remove', { id }),
   removeSteps: (ids) => ipcRenderer.invoke('step:removeMany', { ids }),
   rerecordStep: (id) => ipcRenderer.invoke('step:rerecord', { id }),

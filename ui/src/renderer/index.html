@@ -62,6 +62,19 @@
         </span>
         <span id="count" class="count">0</span>
       </div>
+      <div id="findbar" class="findbar" hidden>
+        <div class="findrow">
+          <input id="find-query" type="text" placeholder="Find in steps" />
+          <span id="find-count" class="findcount"></span>
+          <button id="find-close" class="findx" title="Close (Esc)">&times;</button>
+        </div>
+        <div class="findrow">
+          <input id="find-replacement" type="text" placeholder="Replace with" />
+          <label class="findopt" title="Match case"><input id="find-case" type="checkbox" /><span>Aa</span></label>
+          <label class="findopt" title="Whole words only"><input id="find-word" type="checkbox" /><span>Word</span></label>
+          <button id="find-go" class="tiny">Replace all</button>
+        </div>
+      </div>
       <p id="empty" class="empty">No steps yet.</p>
       <ol id="step-list"></ol>
     </aside>
@@ -392,6 +405,7 @@
   <script src="marker.js"></script>
   <script src="annotate.js"></script>
   <script src="sections.js"></script>
+  <script src="find.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

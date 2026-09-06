@@ -35,6 +35,10 @@ const el = {
   scopeBtn: $('btn-scope'), scopeDlg: $('scopedlg'), scopeList: $('scope-list'),
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
   note: $('btn-note'), check: $('btn-check'), section: $('btn-section'),
+  findBar: $('findbar'), findQuery: $('find-query'),
+  findReplacement: $('find-replacement'), findCase: $('find-case'),
+  findWord: $('find-word'), findCount: $('find-count'),
+  findGo: $('find-go'), findClose: $('find-close'),
   exclude: $('chk-exclude'), frame: $('set-frame'),
   sessionName: $('session-name'), libraryList: $('library-list'),
   libraryEmpty: $('library-empty'),
@@ -92,6 +96,8 @@ function renderList() {
   el.empty.hidden = steps.length > 0;
   el.list.replaceChildren();
 
+  const matching = matchingIds();
+
   // Offered where the recording changed application, which is usually - not
   // always - where the work changed phase.
   const suggested = new Map(
@@ -106,6 +112,7 @@ function renderList() {
 
     const li = document.createElement('li');
     li.className = 'step'
+      + (matching.has(s.id) ? ' matched' : '')
       + (s.id === selectedId ? ' selected' : '')
       + (marked.has(s.id) ? ' marked' : '')
       + (s.excluded ? ' excluded' : '')
@@ -419,12 +426,24 @@ window.bsr.onHotkeys(paintShortcuts);
 // ---- advisory notices ----------------------------------------------------------
 // Shown after a recording ends, dismissed by the user, and never modal.
 
-function showNotice(message) {
+/**
+ * The strip under the toolbar.
+ *
+ * `settings` decides whether the link to Settings comes with it. The strip was
+ * written for one message - the one about screenshot size, which is only
+ * actionable in Settings - and offering that link beside "Replaced 3
+ * occurrences" points the reader at a page that has nothing to do with what
+ * just happened.
+ */
+function showNotice(message, { settings = false } = {}) {
   el.noticeText.textContent = message;
+  el.noticeSettings.hidden = !settings;
   el.notice.hidden = false;
 }
 
-window.bsr.onNotice(({ message }) => showNotice(message));
+// The engine's notices are about capture settings, which is where the link
+// earns its place.
+window.bsr.onNotice(({ message }) => showNotice(message, { settings: true }));
 
 el.noticeClose.addEventListener('click', () => { el.notice.hidden = true; });
 
@@ -608,6 +627,20 @@ document.addEventListener('keydown', async (e) => {
   // A modal is a modal: undoing behind Settings or Export changes the recording
   // where the user cannot see it happen.
   if (document.querySelector('dialog[open]')) return;
+
+  // Ctrl+F wherever you are, including inside the find fields themselves, so
+  // pressing it twice re-selects the query rather than doing nothing.
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+    e.preventDefault();
+    openFind();
+    return;
+  }
+
+  if (e.key === 'Escape' && !el.findBar.hidden) {
+    e.preventDefault();
+    closeFind();
+    return;
+  }
 
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) {
     e.preventDefault();
@@ -954,6 +987,73 @@ function suggestionRow(hint, index) {
   row.append(why, add, no);
   return row;
 }
+
+// ---- find and replace ---------------------------------------------------------
+// A guide is written once and read for years. A system gets renamed, a team
+// changes, a button's label changes - and without this the choice is retyping
+// forty steps or letting the guide go stale, which in practice means stale.
+
+const findOptions = () =>
+  ({ caseSensitive: el.findCase.checked, wholeWord: el.findWord.checked });
+
+/** The rows the current query matches, for marking them in the list. */
+function matchingIds() {
+  if (el.findBar.hidden) return new Set();
+  const q = el.findQuery.value;
+  if (!q) return new Set();
+  return new Set(BsrFind.matches(steps, q, findOptions()).map((m) => m.id));
+}
+
+/** The running count under the query, so Replace all is never a guess. */
+function paintFindCount() {
+  const q = el.findQuery.value;
+  if (!q) { el.findCount.textContent = ''; el.findGo.disabled = true; return; }
+
+  const hits = BsrFind.matches(steps, q, findOptions());
+  const rows = hits.length;
+  const total = hits.reduce((n, h) => n + h.count, 0);
+  el.findCount.textContent = rows
+    ? `${total} in ${rows} step${rows === 1 ? '' : 's'}`
+    : 'none';
+  el.findGo.disabled = rows === 0;
+}
+
+function openFind() {
+  el.findBar.hidden = false;
+  el.findQuery.focus();
+  el.findQuery.select();
+  paintFindCount();
+  renderList();
+}
+
+function closeFind() {
+  el.findBar.hidden = true;
+  renderList();          // clears the match marks
+}
+
+for (const node of [el.findQuery, el.findCase, el.findWord]) {
+  node.addEventListener('input', () => { paintFindCount(); renderList(); });
+  node.addEventListener('change', () => { paintFindCount(); renderList(); });
+}
+
+el.findClose.addEventListener('click', closeFind);
+
+el.findGo.addEventListener('click', async () => {
+  const q = el.findQuery.value;
+  if (!q) return;
+
+  const r = await window.bsr.replaceAll(q, el.findReplacement.value, findOptions());
+  if (!r || !r.ok) { alert((r && r.error) || 'Could not replace.'); return; }
+
+  if (r.steps) steps = r.steps;
+  renderList();
+  // The selected step's text may have changed under the detail pane.
+  if (selectedId && steps.some((s) => s.id === selectedId)) select(selectedId);
+  paintFindCount();
+  // Only when there is something to say: an empty strip is a notice that the
+  // user has to dismiss and learns nothing from.
+  if (r.message) showNotice(r.message);
+});
 
 // ---- exclude from export ------------------------------------------------------
 
@@ -1387,7 +1487,9 @@ el.expGo.addEventListener('click', async () => {
   // routine outcome must not freeze the window. Being told the screenshots were
   // re-encoded is worth knowing and not worth a click to dismiss before
   // carrying on.
-  if (r.warning) showNotice(r.warning);
+  // With the link: what it warns about - screenshots too large to embed - is
+  // changed in Settings, under capture format.
+  if (r.warning) showNotice(r.warning, { settings: true });
 });
 
 // ---- settings ----------------------------------------------------------------

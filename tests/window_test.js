@@ -1,5 +1,6 @@
 /**
- * The drag preview, exercised in a real window.
+ * The real page, exercised in a real window: the drag preview, and finding and
+ * replacing across a recording.
  *
  * This tier exists because of a bug that shipped twice without anything
  * noticing. `previewDrag` was called as `previewDrag(dragStart, { x, y })` from
@@ -23,7 +24,7 @@
  * input is synthesized at the operating system, and nothing outside this
  * window is touched.
  *
- *   npx electron tests/preview_test.js
+ *   npx electron tests/window_test.js
  */
 const { app, BrowserWindow } = require('electron');
 const fs = require('node:fs');
@@ -39,15 +40,28 @@ const check = (n, c) => { c ? (pass++, console.log('  PASS ' + n)) : (fail++, co
 const PRELOAD = `
 const { contextBridge } = require('electron');
 
-const SESSION = {
-  ok: true, dir: 'C:/fake/session-1', name: 'Preview test',
-  steps: [{
-    id: 's1', action: 'leftClick', text: 'Click the "New" button',
-    point: { x: 300, y: 200 }, frame: { x: 0, y: 0, w: 600, h: 400 },
-    window: { title: 'App', process: 'app.exe', rect: { x: 0, y: 0, w: 600, h: 400 } },
-    screenshot: 'steps/0001.png',
-  }],
+const shot = {
+  point: { x: 300, y: 200 }, frame: { x: 0, y: 0, w: 600, h: 400 },
+  window: { title: 'App', process: 'app.exe', rect: { x: 0, y: 0, w: 600, h: 400 } },
+  screenshot: 'steps/0001.png',
 };
+
+const SESSION = {
+  ok: true, dir: 'C:/fake/session-1', name: 'Window test',
+  steps: [
+    { id: 's1', action: 'leftClick', text: 'Click the "New" button', ...shot },
+    { id: 's2', action: 'leftClick', text: 'Click Save, then Save again', ...shot },
+    { id: 'n1', action: 'note', text: 'Save first', textEdited: true },
+    { id: 's3', action: 'leftClick', text: 'Click Cancel', ...shot },
+  ],
+};
+
+// The real handler lives in main.js; here it only has to be faithful enough
+// that the page's own behaviour - the count, the marks, the notice - is what
+// is under test.
+const find = require(PROJECT + '/ui/src/renderer/find.js');
+const { solidPngDataUrl } = require(PROJECT + '/tests/png-fixture.js');
+const SHOT = solidPngDataUrl(600, 400);
 
 const ANSWERS = {
   getSettings: () => ({ markerStyle: 'circle', markerBold: false,
@@ -64,10 +78,25 @@ const ANSWERS = {
   // A 1x1 transparent GIF: the screenshot never has to decode, because every
   // measurement the drag makes comes from the <img> element's box, which the
   // test sizes explicitly.
-  shotUrl: () => 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==',
-  shotData: () => null,
+  shotUrl: () => SHOT,
+  // A real image at a real size. Returning null here sent every completed drag
+  // into alert('Could not read the screenshot.') - a modal that never resolves
+  // in a hidden window, and a run that never ended. It also meant the marking
+  // path was never actually reached.
+  shotData: () => SHOT,
   updateStep: () => ({ ok: true }),
-  redactStep: () => ({ ok: true, steps: SESSION.steps }),
+  // The page assigns r.step back into its list, so a stub that omits it puts
+  // undefined where a step should be and the next render dies.
+  redactStep: (id) => ({ ok: true, step: SESSION.steps.find((x) => x.id === id) }),
+  replaceAll: (query, replacement, options) => {
+    const changes = find.plan(SESSION.steps, query, replacement, options || {});
+    for (const c of changes) {
+      const step = SESSION.steps.find((x) => x.id === c.id);
+      if (step) step.text = c.text;
+    }
+    return { ok: true, changes: changes.length, message: find.describe(changes),
+             steps: SESSION.steps };
+  },
 };
 
 // A plain object, built from the names the real preload exposes. contextBridge
@@ -141,23 +170,40 @@ const DRAG = (tool, dx, dy) => `(async () => {
 // A run that never settles must not sit there holding the machine. Electron
 // shows a modal dialog for an uncaught main-process error, and on a hidden
 // window that dialog is invisible and waits forever.
+const consoleLog = [];
+
 const watchdog = setTimeout(() => {
   console.log('\nTIMED OUT - the run never reached the end');
+  // Without this a hang is a dead end: the page is hidden, so its errors are
+  // the only account of what happened.
+  if (consoleLog.length) {
+    console.log('the page said:');
+    for (const line of consoleLog.slice(-12)) console.log('    ' + line);
+  }
   app.exit(2);
-}, 90000);
+}, 45000);
 
 app.whenReady().then(async () => {
   const preloadPath = path.join(os.tmpdir(), `bsr-preview-preload-${Date.now()}.js`);
   fs.writeFileSync(preloadPath,
-    `const NAMES = ${JSON.stringify(bridgeNames())};\n` + PRELOAD);
+    `const NAMES = ${JSON.stringify(bridgeNames())};\n`
+    + `const PROJECT = ${JSON.stringify(path.join(__dirname, '..').replace(/\\/g, '/'))};\n`
+    + PRELOAD);
 
   const win = new BrowserWindow({
     width: 1280, height: 900, show: false,
-    webPreferences: { preload: preloadPath, contextIsolation: true, nodeIntegration: false },
+    // Matched to the application's own window, sandbox included: the default
+    // is sandboxed, where a preload cannot require anything but electron - so
+    // the stub failed to load and the page came up with no bridge at all.
+    webPreferences: {
+      preload: preloadPath, contextIsolation: true,
+      nodeIntegration: false, sandbox: false,
+    },
   });
 
   const errors = [];
   win.webContents.on('console-message', (_e, level, message) => {
+    consoleLog.push(`[${level}] ${message}`);
     if (level >= 2) errors.push(message);
   });
 
@@ -176,6 +222,12 @@ app.whenReady().then(async () => {
     const shotEl = document.getElementById('shot');
     shotEl.style.width = '600px';
     shotEl.style.height = '400px';
+
+    // A modal dialog in a window nobody can see waits forever, and that is how
+    // this run hung. Recording them instead both keeps the run finite and
+    // turns "the page gave up and told the user" into something assertable.
+    window.__alerts = [];
+    window.alert = (m) => { window.__alerts.push(String(m)); };
     // The page boots asynchronously - the library is fetched over the bridge -
     // so wait for the row rather than assuming it is there.
     const until = async (sel) => {
@@ -222,9 +274,107 @@ app.whenReady().then(async () => {
   console.log('\nand nothing is left behind:');
   check('releasing clears both', ellipse.clearedAfterRelease && arrow.clearedAfterRelease);
 
-  // The original defect was a ReferenceError, which is invisible to every
-  // assertion above if it happens to leave the page in a passable state.
+  // ---- find and replace ----------------------------------------------------
+  console.log('\nfinding and replacing across the recording:');
+
+  const find1 = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const bar = document.getElementById('findbar');
+    const q = document.getElementById('find-query');
+
+    // Ctrl+F is the only way in, so it is part of what is being tested.
+    document.dispatchEvent(new KeyboardEvent('keydown',
+      { key: 'f', ctrlKey: true, bubbles: true }));
+    await sleep(60);
+    const opened = !bar.hidden;
+
+    q.value = 'Save';
+    q.dispatchEvent(new Event('input', { bubbles: true }));
+    await sleep(80);
+
+    const marked = [...document.querySelectorAll('#step-list li.matched')]
+      .map((li) => li.dataset.id);
+
+    return {
+      opened,
+      focused: document.activeElement === q,
+      count: document.getElementById('find-count').textContent,
+      marked,
+      canReplace: !document.getElementById('find-go').disabled,
+    };
+  })()`);
+
+  check('Ctrl+F opens it', find1.opened);
+  check('with the cursor already in the query', find1.focused);
+  // Three occurrences: two in one step, one in a note. The count has to be of
+  // occurrences AND rows, or Replace all is a guess.
+  check('the count is occurrences and rows', find1.count === '3 in 2 steps');
+  check('matching rows are marked in the list', find1.marked.join() === 's2,n1');
+  check('a note is searched, because a reader sees it',
+        find1.marked.includes('n1'));
+  check('and rows that do not match are not marked', !find1.marked.includes('s3'));
+  check('Replace all is offered', find1.canReplace);
+
+  const find2 = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    document.getElementById('find-query').value = 'nowhere-at-all';
+    document.getElementById('find-query').dispatchEvent(new Event('input', { bubbles: true }));
+    await sleep(60);
+    return { count: document.getElementById('find-count').textContent,
+             disabled: document.getElementById('find-go').disabled,
+             marked: document.querySelectorAll('#step-list li.matched').length };
+  })()`);
+
+  check('a query that matches nothing says so', find2.count === 'none');
+  check('and Replace all is refused rather than doing nothing', find2.disabled);
+  check('with no rows marked', find2.marked === 0);
+
+  const find3 = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const q = document.getElementById('find-query');
+    q.value = 'Save';
+    q.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('find-replacement').value = 'Store';
+    await sleep(60);
+    document.getElementById('find-go').click();
+    await sleep(200);
+
+    const titles = [...document.querySelectorAll('#step-list li.step .title')]
+      .map((t) => t.textContent);
+    return {
+      titles,
+      notice: (document.getElementById('notice-text') || {}).textContent || '',
+      countNow: document.getElementById('find-count').textContent,
+    };
+  })()`);
+
+  check('every occurrence is replaced, including two in one step',
+        find3.titles.some((t) => t === 'Click Store, then Store again'));
+  check('and in a note', find3.titles.some((t) => t === 'Store first'));
+  check('rows that did not match are untouched',
+        find3.titles.some((t) => t === 'Click Cancel'));
+  check('the author is told what happened',
+        /Replaced 3 occurrences in 2 steps/.test(find3.notice));
+  check('and the count reflects the new text', find3.countNow === 'none');
+
+  const find4 = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(60);
+    return { hidden: document.getElementById('findbar').hidden,
+             marked: document.querySelectorAll('#step-list li.matched').length };
+  })()`);
+
+  check('Escape closes it', find4.hidden);
+  check('and the marks go with it', find4.marked === 0);
+
+  // Last, so it covers everything above it. The original defect here was a
+  // ReferenceError, which is invisible to every other assertion if it happens
+  // to leave the page in a passable state.
   console.log('\nthe page ran clean:');
+  const alerts = await win.webContents.executeJavaScript('window.__alerts');
+  check('nothing gave up and raised a dialog', alerts.length === 0);
+  if (alerts.length) for (const a of alerts.slice(0, 5)) console.log('    ' + a);
   check('no errors on the console', errors.length === 0);
   if (errors.length) for (const e of errors.slice(0, 5)) console.log('    ' + e);
 

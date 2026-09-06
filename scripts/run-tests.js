@@ -6,7 +6,7 @@
  * Windows project whose author uses PowerShell 5.1, where it is a parse error.
  * `node scripts/run-tests.js` is the same command in every shell.
  *
- * preview_test.js is deliberately not here: it needs a real Electron window,
+ * window_test.js is deliberately not here: it needs a real Electron window,
  * so it is run separately (see the README).
  */
 const { spawnSync } = require('node:child_process');
@@ -15,7 +15,7 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const DIR = path.join(ROOT, 'tests');
-const NEEDS_A_WINDOW = new Set(['preview_test.js']);
+const NEEDS_A_WINDOW = new Set(['window_test.js']);
 
 const suites = fs.readdirSync(DIR)
   .filter((f) => f.endsWith('_test.js') && !NEEDS_A_WINDOW.has(f))
@@ -48,5 +48,5 @@ for (const file of suites) {
 
 console.log(`\n${suites.length - failed}/${suites.length} suites, ${checks} checks`
             + (failed ? ` — ${failed} FAILED` : ' — all passed'));
-console.log('The window itself: npx electron tests/preview_test.js (from ui/)');
+console.log('The window itself: npx electron tests/window_test.js (from ui/)');
 process.exit(failed ? 1 : 0);

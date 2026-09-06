@@ -303,6 +303,31 @@ misrepresent what the document is. And if you rewrote a step's wording yourself,
 your words are emitted exactly as you wrote them. Your prose is not ours to
 correct.
 
+### Changing a word everywhere
+
+**Ctrl+F** opens a find bar above the step list. Type what you are looking for
+and the steps containing it are marked in amber, with a count: *3 in 2 steps* —
+occurrences first, then how many steps they are spread across.
+
+Fill in the second field and press **Replace all**. **Aa** makes it match case;
+**Word** stops *Save* matching *Saved*. **Escape** closes it.
+
+It searches your written notes and your section headings as well as the
+recorded steps, because a reader sees all three — a rename that skipped them
+would leave the guide contradicting itself.
+
+Two things it deliberately does *not* do:
+
+- **It does not treat what you type as a pattern.** Searching for `(draft)` or
+  `C:\Users` finds exactly that, not a wildcard.
+- **It does not claim you wrote the step.** Swapping one word inside a sentence
+  the recorder wrote is not the same as rewriting the step yourself, so those
+  steps still get turned into instructions on the way out — *Click Save* rather
+  than *Clicked the Save button*. If it counted as your wording, renaming a
+  button would quietly put those steps, and only those, into the past tense.
+
+The whole replacement is **one** undo. Ctrl+Z puts every step back at once.
+
 ### Grouping the steps into phases
 
 A procedure of forty clicks is really three or four pieces of work — get the
