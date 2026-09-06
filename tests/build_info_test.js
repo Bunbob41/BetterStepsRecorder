@@ -42,26 +42,49 @@ console.log('a packaged build:');
   check('an engine built alongside it is not stale', info.engineStale === false);
 }
 
-console.log('\nthe mismatch worth catching:');
+console.log('\nstaleness is about the engine and its own source:');
 {
-  // The interface was rebuilt this afternoon; the engine is from the morning.
-  stamp('2026-09-05T14:40:00.000Z');
-  const info = b.describe({
+  // The first version asked "is the engine older than the app?", which is wrong
+  // twice over. In a package they ship together, and `dotnet publish` rightly
+  // skips a rebuild when nothing changed - so a perfectly current engine keeps
+  // an older timestamp than the packaging run around it. The freshly built
+  // installer accused itself of shipping a stale engine, in red, on first open.
+  stamp('2026-09-05T17:51:00.000Z');
+  const packaged = b.describe({
     version: '0.1.0', projectRoot: tmp,
-    engineExe: engineAt('2026-09-05T12:43:00.000Z'),
+    engineExe: engineAt('2026-09-05T16:16:00.000Z'),
   });
-  check('an engine older than the app is flagged', info.engineStale === true);
+  check('a packaged build never calls its own engine stale',
+        packaged.engineStale === false);
+  check('even though the engine is older than the package',
+        new Date(packaged.engineBuilt) < new Date(packaged.built));
 }
 
-console.log('\nand the near-miss that is not one:');
+console.log('\nin a source tree, where it does matter:');
 {
-  // Built seconds apart by the same command - not a mismatch.
-  stamp('2026-09-05T14:40:30.000Z');
-  const info = b.describe({
-    version: '0.1.0', projectRoot: tmp,
-    engineExe: engineAt('2026-09-05T14:40:00.000Z'),
-  });
-  check('thirty seconds apart is the same build', info.engineStale === false);
+  // The case worth catching: the C# was edited and not rebuilt.
+  const src = path.join(tmp, 'capture');
+  fs.mkdirSync(src, { recursive: true });
+  const cs = path.join(src, 'Recorder.cs');
+
+  fs.rmSync(path.join(stampDir, 'build-info.json'), { force: true });
+
+  fs.writeFileSync(cs, '// edited');
+  fs.utimesSync(cs, new Date('2026-09-05T15:40:00.000Z'), new Date('2026-09-05T15:40:00.000Z'));
+  const current = b.describe({ version: '0.1.0', projectRoot: tmp,
+                               engineExe: engineAt('2026-09-05T16:16:00.000Z') });
+  check('an engine built after its source is current', current.engineStale === false);
+
+  fs.utimesSync(cs, new Date('2026-09-05T18:00:00.000Z'), new Date('2026-09-05T18:00:00.000Z'));
+  const stale = b.describe({ version: '0.1.0', projectRoot: tmp,
+                             engineExe: engineAt('2026-09-05T16:16:00.000Z') });
+  check('an engine older than its source is stale', stale.engineStale === true);
+
+  fs.rmSync(src, { recursive: true, force: true });
+  const noSource = b.describe({ version: '0.1.0', projectRoot: tmp,
+                                engineExe: engineAt('2026-09-05T16:16:00.000Z') });
+  check('no source to compare against is not evidence of staleness',
+        noSource.engineStale === false);
 }
 
 console.log('\nwhen there is no engine to look at:');

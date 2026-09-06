@@ -171,10 +171,16 @@ tree was dirty, because the commit alone does not then describe what was built.
 
 **The engine is reported separately** because the two halves compile
 independently and drift. A rebuilt interface talking to a stale engine looks
-exactly like a fix that did not work. Its build time comes from its own file,
-and from the engine itself in the `ready` message once it has started, so a
-stale one is caught even if the file was touched. More than a minute of skew is
-called out in red.
+exactly like a fix that did not work.
+
+Staleness compares the engine to **its own source**, not to the app. The obvious
+check - is the engine older than the app? - is wrong twice over: in a package
+the two ship together inside one installer, and `dotnet publish` rightly skips a
+rebuild when nothing changed, so a perfectly current engine keeps an older
+timestamp than the packaging run around it. Written the obvious way, the freshly
+built installer accused itself of shipping a stale engine, in red, on first
+open. The case actually worth catching only exists in a source tree: the C# was
+edited and not rebuilt.
 
 Shown at the bottom of Settings and written to the log at startup - the latter
 in plain ASCII, since a log is opened with whatever tool is to hand and a middot

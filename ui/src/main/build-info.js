@@ -68,12 +68,42 @@ function describe({ version, projectRoot, engineExe }) {
     built: stamp.built || null,
     source: stamp.source || 'packaged',
     engineBuilt,
-    // True when the interface was rebuilt after the engine, which is the
-    // mismatch worth warning about: the fix is in one half only.
-    engineStale: Boolean(stamp.built && engineBuilt
-                         && new Date(engineBuilt) < new Date(stamp.built)
-                            - 60 * 1000),
+    engineStale: engineIsStale({
+      projectRoot, engineBuilt, source: stamp.source || 'packaged',
+    }),
   };
+}
+
+/**
+ * Whether the engine binary predates the engine's own source.
+ *
+ * The obvious check - is the engine older than the app? - is wrong twice over.
+ * In a package the two ship together inside one installer, so the engine cannot
+ * meaningfully be stale; and `dotnet publish` rightly skips a rebuild when
+ * nothing has changed, so an engine that is perfectly current keeps an older
+ * timestamp than the packaging run around it. That comparison had the freshly
+ * built installer accusing itself of shipping a stale engine.
+ *
+ * What actually matters, and only in a source tree, is whether the engine was
+ * built since the last time its source changed - the "I edited the C# and
+ * forgot to rebuild" case, which is a genuinely confusing afternoon.
+ */
+function engineIsStale({ projectRoot, engineBuilt, source }) {
+  if (source === 'packaged' || !engineBuilt || !projectRoot) return false;
+
+  try {
+    const dir = path.join(projectRoot, 'capture');
+    const newest = fs.readdirSync(dir)
+      .filter((f) => f.endsWith('.cs'))
+      .map((f) => fs.statSync(path.join(dir, f)).mtimeMs)
+      .reduce((a, b) => Math.max(a, b), 0);
+
+    // A second of slack: a build writes the binary moments after reading source.
+    return newest > new Date(engineBuilt).getTime() + 1000;
+  } catch {
+    // No source to compare against is not evidence of staleness.
+    return false;
+  }
 }
 
 /**
