@@ -647,3 +647,32 @@ button.tool.active {
   background: transparent;
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, .45);
 }
+
+/* Searching the whole archive, from the screen you already land on. */
+.library-search { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.library-search input {
+  flex: 1; min-width: 0; font-size: 13px; padding: 6px 10px;
+}
+.library-found { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+/* A result is a recording plus the lines that matched, so you can tell which
+   recording it is without opening it. */
+.lib-hits { margin: 6px 0 0; padding: 0; list-style: none; grid-column: 1 / -1; }
+.lib-hit {
+  display: flex; gap: 8px; align-items: baseline;
+  color: var(--muted); font-size: 11px; padding: 2px 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lib-hit .n {
+  flex: none; min-width: 18px; text-align: right; opacity: .6;
+}
+/* Every match in this list, not only the ones in a snippet. Scoped to the
+   snippets alone, a match in the recording's NAME fell through to the
+   browser's own <mark> - a solid yellow block with black text, in the middle
+   of a dark interface. */
+.library-list mark {
+  background: transparent;
+  color: #f0c866;
+  font-weight: 600;
+}
+.lib-more { color: var(--muted); font-size: 11px; opacity: .7; padding-top: 2px; }

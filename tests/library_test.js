@@ -82,5 +82,28 @@ console.log('\nedge cases:');
 }
 
 fs.rmSync(root, { recursive: true, force: true });
+console.log('\nthe count on a card is the number of things to do:');
+{
+  // It asked "is it not a note", which was the whole question until headings
+  // existed - and then counted every heading as a step, so a card promised
+  // more work than the recording held.
+  const withRows = library.list("C:/R", {
+    exists: () => true,
+    readdir: () => ['one'],
+    readFile: () => JSON.stringify({
+      name: 'Mixed', savedAt: '2026-01-01Z',
+      steps: [
+        { id: 'h', action: 'section', text: 'Prepare' },
+        { id: 'a', action: 'leftClick', text: 'Click', window: { process: 'a.exe' } },
+        { id: 'n', action: 'note', text: 'Wait' },
+        { id: 'b', action: 'leftClick', text: 'Click', window: { process: 'a.exe' } },
+        { id: 'h2', action: 'section', text: 'Finish' },
+      ],
+    }),
+  });
+
+  check('headings and notes are not steps', withRows[0].steps === 2);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

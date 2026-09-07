@@ -29,6 +29,25 @@ const exportJs = read('ui/src/main/export.js');
 const renderer = read('ui/src/renderer/renderer.js');
 const preload = read('ui/src/main/preload.js');
 
+/**
+ * Every module that could count steps, found rather than listed.
+ *
+ * The listed version named three files and missed `library.js`, which had been
+ * counting headings as steps since headings existed. A check that has to be
+ * remembered is a check that will be forgotten.
+ */
+function sourceFiles() {
+  const roots = ['ui/src/main', 'ui/src/renderer'];
+  const out = [];
+  for (const root of roots) {
+    const dir = path.join(__dirname, '..', root);
+    for (const f of fs.readdirSync(dir)) {
+      if (f.endsWith('.js')) out.push([`${root}/${f}`, read(`${root}/${f}`)]);
+    }
+  }
+  return out;
+}
+
 console.log('every undo entry can actually be undone:');
 {
   // An entry whose type the handler does not match falls through to
@@ -114,12 +133,12 @@ console.log('\nheadings are not counted as steps:');
   // The count a reader is given has to be the number of things to do. Before
   // headings existed the test for "is this a step" was action !== 'note', and
   // any survivor of that counts a heading.
-  const survivors = [
-    ['main.js', [...main.matchAll(/action !== 'note'/g)].length],
-    ['export.js', [...exportJs.matchAll(/action !== 'note'/g)].length],
-    ['renderer.js', [...renderer.matchAll(/action !== 'note'/g)].length],
-  ].filter(([, n]) => n > 0);
+  const survivors = sourceFiles()
+    .map(([name, src]) => [name, [...src.matchAll(/action !== 'note'/g)].length])
+    .filter(([, n]) => n > 0);
 
+  check(`every module was looked at (${sourceFiles().length})`,
+        sourceFiles().length >= 15);
   check('nothing still asks "is it not a note"', survivors.length === 0,
         survivors.map(([f, n]) => `${f}: ${n}`).join(', '));
 }

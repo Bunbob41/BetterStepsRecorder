@@ -36,6 +36,8 @@ const el = {
   scopeBtn: $('btn-scope'), scopeDlg: $('scopedlg'), scopeList: $('scope-list'),
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
   note: $('btn-note'), check: $('btn-check'), section: $('btn-section'),
+  libraryQuery: $('library-query'), libraryFound: $('library-found'),
+  libraryHeading: $('library-heading'),
   findBar: $('findbar'), findQuery: $('find-query'),
   findReplacement: $('find-replacement'), findCase: $('find-case'),
   findWord: $('find-word'), findCount: $('find-count'),
@@ -798,49 +800,177 @@ el.check.addEventListener('click', async () => {
 // The empty state used to say "select a step" over nothing at all. Opening onto
 // your own recordings is the difference between an app and a blank window.
 
-async function renderLibrary() {
-  const rows = await window.bsr.listLibrary();
-  el.libraryList.replaceChildren();
-  el.libraryEmpty.hidden = rows.length > 0;
+/**
+ * Opens a recording, and lands on a particular step when one is named.
+ *
+ * `at` is what makes a search result a way in rather than a filter: finding the
+ * recording is half the job, and the other half is not then scrolling forty
+ * steps looking for the line you searched for.
+ */
+async function openRecording(dir, at = null) {
+  const res = await window.bsr.openLibrary(dir);
+  if (!res.ok) { showNotice(res.error); renderLibrary(); return false; }
 
-  for (const r of rows.slice(0, 12)) {
-    const row = document.createElement('div');
-    row.className = 'lib-row';
+  steps = res.steps;
+  selectedId = null;
+  el.sessionName.value = res.name || '';
+  el.saveState.textContent = `${res.steps.length} steps · ${res.dir}`;
+  el.reveal.disabled = false;
+  renderList();
 
-    const name = document.createElement('div');
-    name.className = 'lib-name';
-    name.textContent = r.name || 'Untitled recording';
-
-    // The application, not the date: a recording named by default already
-    // carries its timestamp, and printing it twice reads as a mistake.
-    const meta = document.createElement('div');
-    meta.className = 'lib-meta';
-    meta.textContent = r.app || 'No application recorded';
-
-    const count = document.createElement('div');
-    count.className = 'lib-count';
-    const n = document.createElement('div');
-    n.textContent = `${r.steps} step${r.steps === 1 ? '' : 's'}`;
-    const when = document.createElement('div');
-    when.className = 'lib-when';
-    when.textContent = r.savedAt ? new Date(r.savedAt).toLocaleString() : '';
-    count.append(n, when);
-
-    row.append(name, meta, count);
-    row.addEventListener('click', async () => {
-      const res = await window.bsr.openLibrary(r.dir);
-      if (!res.ok) { alert(res.error); renderLibrary(); return; }
-      steps = res.steps;
-      selectedId = null;
-      el.sessionName.value = res.name || '';
-      el.saveState.textContent = `${res.steps.length} steps · ${res.dir}`;
-      el.reveal.disabled = false;
-      renderList();
-      if (steps.length) select(steps[0].id);
-    });
-    el.libraryList.append(row);
+  const wanted = at && steps.some((s) => s.id === at) ? at
+               : steps.length ? steps[0].id : null;
+  if (wanted) {
+    await select(wanted);
+    const row = el.list.querySelector(`li[data-id="${CSS.escape(wanted)}"]`);
+    if (row) row.scrollIntoView({ block: 'center' });
   }
+  return true;
 }
+
+/**
+ * The matched words picked out of a line.
+ *
+ * Built as nodes rather than markup: the text is whatever was recorded from
+ * somebody's screen, and putting that through innerHTML would be handing a
+ * window title the ability to write elements.
+ */
+function highlighted(text, query) {
+  const frag = document.createDocumentFragment();
+  const source = String(text == null ? '' : text);
+  const re = BsrFind.pattern(query, findOptionsFor(query));
+  if (!re) { frag.append(source); return frag; }
+
+  let last = 0;
+  for (const m of source.matchAll(re)) {
+    if (m.index > last) frag.append(source.slice(last, m.index));
+    const mark = document.createElement('mark');
+    mark.textContent = m[0];
+    frag.append(mark);
+    last = m.index + m[0].length;
+  }
+  frag.append(source.slice(last));
+  return frag;
+}
+
+/** The archive search is always plain and case-insensitive; the find bar owns
+ *  the options, and borrowing them here would make one box change the other. */
+const findOptionsFor = () => ({ caseSensitive: false, wholeWord: false });
+
+/** One row on the library screen, for a recent recording or a search result. */
+function libraryRow(r, query) {
+  const row = document.createElement('div');
+  row.className = 'lib-row' + (r.inName ? ' hit-name' : '');
+
+  const name = document.createElement('div');
+  name.className = 'lib-name';
+  const label = r.name || 'Untitled recording';
+  if (query) name.append(highlighted(label, query));
+  else name.textContent = label;
+
+  // The application, not the date: a recording named by default already
+  // carries its timestamp, and printing it twice reads as a mistake.
+  const meta = document.createElement('div');
+  meta.className = 'lib-meta';
+  meta.textContent = r.app || 'No application recorded';
+
+  const count = document.createElement('div');
+  count.className = 'lib-count';
+  const n = document.createElement('div');
+  n.textContent = `${r.steps} step${r.steps === 1 ? '' : 's'}`;
+  const when = document.createElement('div');
+  when.className = 'lib-when';
+  when.textContent = r.savedAt ? new Date(r.savedAt).toLocaleString() : '';
+  count.append(n, when);
+
+  row.append(name, meta, count);
+  row.addEventListener('click', () => openRecording(r.dir));
+
+  // The lines that matched, so a recording can be recognised without opening
+  // it, and each one opens the recording at that step.
+  if (query && r.hits && r.hits.length) {
+    const list = document.createElement('ul');
+    list.className = 'lib-hits';
+    for (const hit of r.hits) {
+      const li = document.createElement('li');
+      li.className = 'lib-hit';
+      const num = document.createElement('span');
+      num.className = 'n';
+      num.textContent = String(hit.index + 1);
+      const text = document.createElement('span');
+      text.append(highlighted(hit.text, query));
+      li.append(num, text);
+      li.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openRecording(r.dir, hit.id);
+      });
+      list.append(li);
+    }
+    if (r.more) {
+      const more = document.createElement('li');
+      more.className = 'lib-more';
+      more.textContent = `and ${r.more} more in this recording`;
+      list.append(more);
+    }
+    row.append(list);
+  }
+
+  return row;
+}
+
+let librarySearchAt = 0;
+
+async function renderLibrary() {
+  const query = el.libraryQuery.value.trim();
+
+  // Each search is stamped, and a reply that is not the newest is dropped:
+  // typing quickly starts several reads of the folder and they can finish in
+  // any order, which without this leaves the results of an earlier, shorter
+  // query on screen.
+  const stamp = ++librarySearchAt;
+
+  if (!query) {
+    const rows = await window.bsr.listLibrary();
+    if (stamp !== librarySearchAt) return;
+    el.libraryHeading.textContent = 'Recent recordings';
+    el.libraryFound.textContent = '';
+    el.libraryList.replaceChildren();
+    el.libraryEmpty.hidden = rows.length > 0;
+    for (const r of rows.slice(0, 12)) el.libraryList.append(libraryRow(r, ''));
+    return;
+  }
+
+  const res = await window.bsr.searchLibrary(query);
+  if (stamp !== librarySearchAt) return;
+  if (!res || !res.ok) { showNotice((res && res.error) || 'Could not search.'); return; }
+
+  const results = res.results || [];
+  // The heading was still saying "Recent recordings" over a list of search
+  // results, which is a small lie the eye notices before the mind does.
+  el.libraryHeading.textContent = 'Recordings matching your search';
+  el.libraryFound.textContent = results.length
+    ? `${results.length} recording${results.length === 1 ? '' : 's'}`
+    : 'nothing found';
+  el.libraryEmpty.hidden = true;
+  el.libraryList.replaceChildren();
+  for (const r of results) el.libraryList.append(libraryRow(r, query));
+}
+
+let librarySearchTimer = null;
+el.libraryQuery.addEventListener('input', () => {
+  // A search reads every recording on disk; doing that per keystroke is
+  // wasteful for an answer nobody has finished asking for.
+  clearTimeout(librarySearchTimer);
+  librarySearchTimer = setTimeout(renderLibrary, 150);
+});
+
+el.libraryQuery.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && el.libraryQuery.value) {
+    e.stopPropagation();
+    el.libraryQuery.value = '';
+    renderLibrary();
+  }
+});
 
 let renameTimer = null;
 el.sessionName.addEventListener('input', () => {

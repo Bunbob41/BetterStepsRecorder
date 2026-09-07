@@ -82,7 +82,12 @@
     <section class="detail">
       <div id="detail-empty" class="detail-empty">
         <div class="library">
-          <h2>Recent recordings</h2>
+          <h2 id="library-heading">Recent recordings</h2>
+          <div class="library-search">
+            <input id="library-query" type="search"
+                   placeholder="Search every recording" />
+            <span id="library-found" class="library-found"></span>
+          </div>
           <div id="library-list" class="library-list"></div>
           <p id="library-empty" class="library-none" hidden>
             Nothing recorded yet. Press <strong>Start recording</strong>, say what

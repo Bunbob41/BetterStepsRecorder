@@ -24,6 +24,7 @@ const shortcuts = require('./shortcuts');
 const bounds = require('./bounds');
 const paths = require('./paths');
 const library = require('./library');
+const archive = require('./archive');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
 
@@ -1192,6 +1193,23 @@ ipcMain.handle('step:rerecord', async (_e, { id }) => {
  * correct even for sessions this process never opened.
  */
 ipcMain.handle('library:list', () => library.list(settings.values.saveRoot));
+
+/**
+ * Searches every recording, not the open one.
+ *
+ * Reads from disk on each search rather than keeping an index: a few hundred
+ * small JSON files is milliseconds, and an index would be wrong the moment a
+ * recording is edited outside the application.
+ */
+ipcMain.handle('library:search', (_e, { query, options } = {}) => {
+  const root = settings.values.saveRoot;
+  try {
+    return { ok: true, results: archive.search(root, query, options || {}) };
+  } catch (err) {
+    log.error(err);
+    return { ok: false, error: `Could not search: ${err.message}` };
+  }
+});
 
 ipcMain.handle('library:open', (_e, { dir }) => {
   if (!dir || !fs.existsSync(path.join(dir, 'session.json'))) {

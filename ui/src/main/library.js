@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const sections = require('../renderer/sections');
 
 /**
  * The recordings on disk.
@@ -31,7 +32,11 @@ function list(root, { readdir = fs.readdirSync, readFile = fs.readFileSync,
         dir,
         // Falls back to the folder's name so a recording never lists as blank.
         name: data.name || name,
-        steps: steps.filter((s) => s.action !== 'note').length,
+        // Steps, not rows. This asked "is it not a note", which was the whole
+        // question until headings existed - and then quietly counted every
+        // heading as a step, so a card promised more work than the recording
+        // held.
+        steps: sections.countSteps(steps),
         savedAt: data.savedAt || null,
         // From the first step that names one, so the card says what the
         // recording is actually about.

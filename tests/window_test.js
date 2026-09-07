@@ -73,6 +73,17 @@ const ANSWERS = {
   getSession: () => SESSION,
   openLibrary: () => SESSION,
   listLibrary: () => [{ dir: SESSION.dir, name: 'Preview test', steps: 1, savedAt: null }],
+  // The real handler runs archive.search over the folder; here it only has to
+  // be faithful enough that the page's own behaviour is what is under test.
+  searchLibrary: (query) => {
+    if (String(query).toLowerCase() !== 'save') return { ok: true, results: [] };
+    return { ok: true, results: [{
+      dir: SESSION.dir, name: 'Preview test', app: 'app.exe', steps: 3,
+      savedAt: null, total: 3, inName: false, more: 2,
+      hits: [{ id: 's2', index: 1, count: 2, text: 'Click Save, then Save again' },
+             { id: 'n1', index: 2, count: 1, text: 'Save first' }],
+    }] };
+  },
   listTemplates: () => ({ templates: [] }),
   effectiveTemplate: () => ({ name: '' }),
   getBuild: () => ({ version: '0', build: 0, commit: 'test', source: 'dev' }),
@@ -198,7 +209,19 @@ const watchdog = setTimeout(() => {
 }, 45000);
 
 app.whenReady().then(async () => {
-  const preloadPath = path.join(os.tmpdir(), `bsr-preview-preload-${Date.now()}.js`);
+  // Its own directory, with its own package.json beside it.
+  //
+  // The preload used to be written straight into the system temp folder, and
+  // Node resolves a module by walking UP looking for a package.json - so an
+  // unrelated program that had dropped a malformed one in there made Electron
+  // refuse to load this preload at all, and the page came up with no bridge.
+  // Declaring the module type here stops the walk at the first step and makes
+  // the test independent of whatever else is in temp.
+  const preloadDir = path.join(os.tmpdir(), `bsr-window-test-${Date.now()}`);
+  fs.mkdirSync(preloadDir, { recursive: true });
+  fs.writeFileSync(path.join(preloadDir, 'package.json'), '{"type":"commonjs"}');
+
+  const preloadPath = path.join(preloadDir, 'preload.js');
   fs.writeFileSync(preloadPath,
     `const NAMES = ${JSON.stringify(bridgeNames())};\n`
     + `const PROJECT = ${JSON.stringify(path.join(__dirname, '..').replace(/\\/g, '/'))};\n`
@@ -430,6 +453,71 @@ app.whenReady().then(async () => {
   // region dragged - so nothing should have been asked.
   check('a crop that keeps the click asks nothing', cropped.confirms === 0);
 
+  // ---- searching every recording -------------------------------------------
+  console.log('\nsearching the whole archive:');
+
+  const arch = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const q = document.getElementById('library-query');
+
+    // Back to the library screen first.
+    document.getElementById('detail-empty').hidden = false;
+    q.value = 'Save';
+    q.dispatchEvent(new Event('input', { bubbles: true }));
+    await sleep(400);
+
+    const rows = [...document.querySelectorAll('#library-list .lib-row')];
+    const hits = [...document.querySelectorAll('.lib-hit')];
+    return {
+      found: document.getElementById('library-found').textContent,
+      rows: rows.length,
+      hits: hits.filter((h) => !h.classList.contains('lib-more')).length,
+      firstHit: hits.length ? hits[0].textContent : '',
+      marks: document.querySelectorAll('#library-list mark').length,
+      more: (document.querySelector('.lib-more') || {}).textContent || '',
+    };
+  })()`);
+
+  check('a query finds the recording', arch.rows === 1);
+  check('and says how many', arch.found === '1 recording');
+  check('the matching lines are shown', arch.hits === 2);
+  check('numbered by their place in the recording', /^2/.test(arch.firstHit.trim()));
+  check('with the matched words picked out', arch.marks >= 3);
+  check('and it says what it did not show', /2 more/.test(arch.more));
+
+  const opened = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    // Clicking a line, not the row: this is what makes it a way in rather than
+    // a filter - it should open the recording ON that step.
+    document.querySelectorAll('.lib-hit')[1].click();
+    await sleep(400);
+    const sel = document.querySelector('#step-list li.step.selected');
+    return { id: sel ? sel.dataset.id : null,
+             query: document.getElementById('library-query').value };
+  })()`);
+
+  check('clicking a line opens the recording at that step', opened.id === 'n1');
+
+  const cleared = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const q = document.getElementById('library-query');
+    q.value = 'nothing-like-this';
+    q.dispatchEvent(new Event('input', { bubbles: true }));
+    await sleep(400);
+    const none = document.getElementById('library-found').textContent;
+
+    q.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(400);
+    return { none, after: q.value,
+             rows: document.querySelectorAll('#library-list .lib-row').length,
+             found: document.getElementById('library-found').textContent };
+  })()`);
+
+  check('a query that matches nothing says so', cleared.none === 'nothing found');
+  check('Escape clears the box', cleared.after === '');
+  check('and the recent recordings come back', cleared.rows === 1);
+  check('with the count cleared', cleared.found === '');
+
   // Last, so it covers everything above it. The original defect here was a
   // ReferenceError, which is invisible to every other assertion if it happens
   // to leave the page in a passable state.
@@ -440,7 +528,7 @@ app.whenReady().then(async () => {
   check('no errors on the console', errors.length === 0);
   if (errors.length) for (const e of errors.slice(0, 5)) console.log('    ' + e);
 
-  fs.rmSync(preloadPath, { force: true });
+  fs.rmSync(preloadDir, { recursive: true, force: true });
   clearTimeout(watchdog);
   console.log(`\n${pass} passed, ${fail} failed`);
   app.exit(fail ? 1 : 0);

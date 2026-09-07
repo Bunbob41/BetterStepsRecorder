@@ -303,6 +303,23 @@ misrepresent what the document is. And if you rewrote a step's wording yourself,
 your words are emitted exactly as you wrote them. Your prose is not ours to
 correct.
 
+### Finding the recording you mean
+
+The screen the app opens on has a search box above your recent recordings. Type
+into it and it looks through **every recording you have** — the step text, your
+written notes, your section headings, and the recording's own name.
+
+Each result shows the recording and the lines that matched, with the words
+picked out. **Click a line and it opens that recording on that step**, which is
+the point: finding the guide is half the job, and not then scrolling forty steps
+looking for the line is the other half.
+
+Results are ordered by how much a recording is about what you searched for, and
+recent ones win ties. Only the first few matching lines are shown per recording,
+with a note saying how many more there are.
+
+**Escape** clears the box and your recent recordings come back.
+
 ### Changing a word everywhere
 
 **Ctrl+F** opens a find bar above the step list. Type what you are looking for

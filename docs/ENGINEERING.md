@@ -144,8 +144,59 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-35 · The archive is searched, not just the open recording
+`(this change)` · [ui/src/main/archive.js](../ui/src/main/archive.js)
+
+A recording is written once and read months later. After forty of them the
+question stops being "what does this guide say" and becomes "which of these is
+the one where I set up the VPN" - and without an answer to that, an archive is
+a pile rather than a record. This is the feature that decides which of the two
+the application is.
+
+**The same matcher as the find bar**, unchanged. A search across the archive and
+a search inside one recording must never disagree about what matches, so the
+literal-not-a-pattern rule and the whole-word behaviour come from `find.js`
+rather than being written twice.
+
+**Read on every search rather than indexed.** An index would be faster and would
+be wrong the moment a recording is edited outside the application; a few hundred
+small JSON files is milliseconds, and being right without having to be
+invalidated is worth more than being fast. Revisit only when somebody has enough
+recordings for it to be slow.
+
+**A result opens the recording at the matched step.** That is what separates a
+search from a filter: finding the recording is half the job, and the other half
+is not then scrolling forty steps looking for the line you searched for.
+
+**Ranked by how much a recording matches, then by recency.** Someone searching
+an archive wants the recording that is most *about* the thing, and falls back to
+the most recent when several are equally about it. Only a few lines come back
+per recording, with a true total, because a result is a way in and the recording
+itself is one click away.
+
+Two things found by looking at it rather than asserting: a match in a
+recording's *name* fell through to the browser's own `<mark>` - a solid yellow
+block with black text in the middle of a dark interface, because the highlight
+rule was scoped to the snippets. And the heading still read "Recent recordings"
+over a list of search results, which is a small lie the eye catches before the
+mind does.
+
+Found while building it: `library.js` counted a card's steps with
+`action !== 'note'`, so every heading counted as a step and a card promised more
+work than the recording held. The invariants suite was supposed to catch exactly
+that and named three files by hand, missing this one - it now finds every module
+in `ui/src` rather than being told where to look. A check that has to be
+remembered is a check that will be forgotten.
+
+Also here: `window_test.js` wrote its preload straight into the system temp
+folder. Node resolves a module by walking UP looking for a `package.json`, so an
+unrelated program that had dropped a malformed one in there made Electron refuse
+to load the preload at all and the page came up with no bridge. The test now
+writes into its own directory with its own `package.json` beside it, which stops
+the walk at the first step.
+
 ### D-34 · Scope is a property of the focused field, decided before anything is kept
-`(this change)` · [capture/TypingState.cs](../capture/TypingState.cs)
+`a1f249b` · [capture/TypingState.cs](../capture/TypingState.cs)
 
 Invariant 2 says out-of-scope events are discarded *before* capture, not
 captured and filtered. That held for the mouse - `InScope` is checked before any
@@ -1057,7 +1108,7 @@ machine in use.
 |---|---|---|
 | `tests/composite_test.js` | `npm run test:composite` (from `ui/`) | the click marker drawn into real pixels, and into a real .docx |
 | `tests/window_test.js` | `npm run test:window` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
-| `tests/*_test.js` (18) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
+| `tests/*_test.js` (19) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
 | `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |
 | `tests/smoke.py` | `python tests/<file>` | engine protocol |
