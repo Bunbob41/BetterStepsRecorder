@@ -37,7 +37,8 @@ const el = {
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
   note: $('btn-note'), check: $('btn-check'), section: $('btn-section'),
   libraryQuery: $('library-query'), libraryFound: $('library-found'),
-  libraryHeading: $('library-heading'),
+  libraryHeading: $('library-heading'), libraryUsage: $('library-usage'),
+  rootUsage: $('set-root-usage'),
   findBar: $('findbar'), findQuery: $('find-query'),
   findReplacement: $('find-replacement'), findCase: $('find-case'),
   findWord: $('find-word'), findCount: $('find-count'),
@@ -703,7 +704,7 @@ window.bsr.onStep(({ replaced, index, step }) => {
 
 // There is no Save button by design: every step is flushed to disk as it is
 // recorded. This bar exists so that is visible rather than merely true.
-window.bsr.onSaved(({ dir, count }) => {
+function savedState(count, dir) {
   el.saveState.replaceChildren();
   const tick = document.createElement('span');
   tick.className = 'ok';
@@ -715,7 +716,9 @@ window.bsr.onSaved(({ dir, count }) => {
   path.textContent = dir;
   el.saveState.append(tick, rest, path);
   el.reveal.disabled = false;
-});
+}
+
+window.bsr.onSaved(({ dir, count }) => savedState(count, dir));
 
 el.reveal.addEventListener('click', () => window.bsr.revealSession());
 
@@ -815,7 +818,11 @@ async function openRecording(dir, at = null) {
   steps = res.steps;
   selectedId = null;
   el.sessionName.value = res.name || '';
-  el.saveState.textContent = `${res.steps.length} steps · ${res.dir}`;
+  // Saying it here too. The tick only appeared while recording, so editing an
+  // existing recording gave no sign that every change was already on disk -
+  // which is the moment somebody is most likely to look for a Save button and
+  // worry when there is not one.
+  savedState(res.steps.length, res.dir);
   el.reveal.disabled = false;
   renderList();
 
@@ -882,7 +889,14 @@ function libraryRow(r, query) {
   const when = document.createElement('div');
   when.className = 'lib-when';
   when.textContent = r.savedAt ? new Date(r.savedAt).toLocaleString() : '';
-  count.append(n, when);
+
+  // What this one costs. A single recording of anything animated can be most
+  // of a folder, and without this the only way to find it is Explorer.
+  const size = document.createElement('div');
+  size.className = 'lib-size';
+  size.textContent = r.bytes ? BsrBytes.human(r.bytes) : '';
+
+  count.append(n, size, when);
 
   row.append(name, meta, count);
   row.addEventListener('click', () => openRecording(r.dir));
@@ -919,6 +933,46 @@ function libraryRow(r, query) {
   return row;
 }
 
+/**
+ * What the recordings folder holds, and the fact that it fills itself.
+ *
+ * Both halves are transparency. There is no Save button, which is only
+ * reassuring if somebody can see that saving is happening; and screenshots
+ * stack up faster than anybody expects, which is only actionable if somebody
+ * can see the total before a disk fills rather than after.
+ */
+async function paintUsage() {
+  const u = await window.bsr.libraryUsage();
+  if (!u || !u.ok) { el.libraryUsage.textContent = ''; return; }
+
+  el.libraryUsage.replaceChildren();
+  el.libraryUsage.append('Recordings save as you go to ');
+
+  const path = document.createElement('span');
+  path.className = 'path';
+  path.textContent = u.root;
+  el.libraryUsage.append(path);
+
+  const size = document.createElement('span');
+  // Amber past a gigabyte. Not a warning - just the point at which somebody
+  // would want to know without having gone looking.
+  if (u.bytes >= 1024 * 1024 * 1024) size.className = 'heavy';
+  size.textContent = ` \u2014 ${u.recordings} recording${u.recordings === 1 ? '' : 's'}, `
+                   + BsrBytes.human(u.bytes);
+  el.libraryUsage.append(size);
+
+  // Settings says the same thing beside the folder it is about.
+  if (el.rootUsage) {
+    const held = u.recordings
+      ? `Currently ${u.recordings} recording${u.recordings === 1 ? '' : 's'}, `
+        + `${BsrBytes.human(u.bytes)}. `
+      : 'No recordings yet. ';
+    el.rootUsage.textContent = held
+      + 'Recordings save as you go, so there is no Save button - there is '
+      + 'nothing to save.';
+  }
+}
+
 let librarySearchAt = 0;
 
 async function renderLibrary() {
@@ -933,6 +987,7 @@ async function renderLibrary() {
   if (!query) {
     const rows = await window.bsr.listLibrary();
     if (stamp !== librarySearchAt) return;
+    paintUsage();
     el.libraryHeading.textContent = 'Recent recordings';
     el.libraryFound.textContent = '';
     el.libraryList.replaceChildren();

@@ -19,10 +19,29 @@ const step = (text, app = 'chrome.exe') =>
 const note = (text) => ({ id: 'n' + Math.random(), action: 'note', text });
 const head = (text) => ({ id: 'h' + Math.random(), action: 'section', text });
 
-/** A fake disk: folder name -> session.json contents, or null for unreadable. */
+/**
+ * A fake disk: folder name -> session.json contents, or null for unreadable.
+ *
+ * `readdir` answers two different questions, as the real one does: the
+ * recordings in the root, and the entries inside one when asked for types. A
+ * fake that only answered the first made every recording measure as zero
+ * bytes, which looked like a bug in the code rather than in the fake.
+ */
 function disk(folders) {
   return {
-    readdir: () => Object.keys(folders),
+    readdir: (dir, opts) => {
+      if (!opts || !opts.withFileTypes) return Object.keys(folders);
+      // Inside `steps`, the screenshots. Anywhere else, a recording's own
+      // contents. Reporting a `steps` folder from inside `steps` is an
+      // infinite folder, which the walk faithfully followed.
+      if (String(dir).endsWith('steps')) {
+        return [{ name: '0001.png', isDirectory: () => false }];
+      }
+      return [
+        { name: 'session.json', isDirectory: () => false },
+        { name: 'steps', isDirectory: () => true },
+      ];
+    },
     exists: (p) => {
       const norm = String(p).replace(/\\/g, '/');
       if (norm === ROOT) return true;
@@ -30,6 +49,7 @@ function disk(folders) {
       if (m) return Object.prototype.hasOwnProperty.call(folders, m[1]);
       return Object.prototype.hasOwnProperty.call(folders, norm.split('/').pop());
     },
+    statOf: () => ({ size: 1000 }),
     readFile: (p) => {
       const folder = String(p).replace(/\\/g, '/').split('/').slice(-2)[0];
       const data = folders[folder];
@@ -140,6 +160,15 @@ console.log('\nnothing costs you the search:');
   check('a missing folder is not an error',
         search('C:/nowhere', 'x', { ...disk(FOLDERS), exists: () => false }).length === 0);
   check('and neither is no folder at all', search(null, 'x', disk(FOLDERS)).length === 0);
+}
+
+console.log('\na search result says what the recording costs:');
+{
+  // The same card as a library row, so it says the same things - finding a
+  // recording by searching is exactly when somebody wants to know its size.
+  const r = search(ROOT, 'VPN', disk(FOLDERS));
+  check('it carries a size', r[0].bytes > 0);
+  check('measured rather than guessed', typeof r[0].bytes === 'number');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

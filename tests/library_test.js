@@ -144,5 +144,52 @@ console.log('\nwhich application a recording is called after:');
         o && o.app === 'File Explorer');
 }
 
+console.log('\nwhat a recording costs on disk:');
+{
+  // Screenshots stack up faster than anybody expects: nine real recordings came
+  // to 479 MB, and one of them was 403 MB of it. Somebody who cannot see that
+  // finds out when a disk fills.
+  const dir = makeSession('sized', {
+    name: 'Sized', savedAt: '2026-07-01T00:00:00.000Z',
+    steps: [{ action: 'leftClick', window: win('chrome.exe', 'Google Chrome') }],
+  });
+  fs.mkdirSync(path.join(dir, 'steps'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'steps', 'a.png'), Buffer.alloc(3000));
+  fs.writeFileSync(path.join(dir, 'steps', 'b.png'), Buffer.alloc(5000));
+
+  const found = library.list(root).find((e) => path.basename(e.dir) === 'sized');
+  check('the screenshots are counted', found && found.bytes >= 8000);
+  // session.json is part of what the folder costs, so the total is more than
+  // the pictures alone.
+  check('and so is everything else in the folder', found && found.bytes > 8000);
+
+  // Nested folders count too - the trash a blur leaves behind lives in one.
+  fs.mkdirSync(path.join(dir, '.trash'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.trash', 'old.png'), Buffer.alloc(4000));
+  const after = library.list(root).find((e) => path.basename(e.dir) === 'sized');
+  check('including in folders inside it', after.bytes >= found.bytes + 4000);
+}
+
+console.log('\nmeasuring must not cost a recording its place in the list:');
+{
+  // The size walk used to build a path before guarding it, so one entry it
+  // could not make sense of threw past the caller and the whole recording
+  // vanished from the listing - the exact failure the folder-name bug caused
+  // once already.
+  const odd = library.list('C:/anywhere', {
+    exists: () => true,
+    readdir: () => ['one'],            // strings, not directory entries
+    readFile: () => JSON.stringify({
+      name: 'Still here', savedAt: '2026-01-01Z',
+      steps: [{ action: 'leftClick', window: win('a.exe') }],
+    }),
+    statOf: () => { throw new Error('no'); },
+  });
+
+  check('the recording is still listed', odd.length === 1);
+  check('with its name', odd[0].name === 'Still here');
+  check('and a size of nothing rather than no recording', odd[0].bytes === 0);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

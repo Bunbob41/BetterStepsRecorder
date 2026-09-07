@@ -1201,6 +1201,22 @@ ipcMain.handle('library:list', () => library.list(settings.values.saveRoot));
  * small JSON files is milliseconds, and an index would be wrong the moment a
  * recording is edited outside the application.
  */
+/** What the recordings folder holds, so its cost is never a surprise. */
+ipcMain.handle('library:usage', () => {
+  const root = settings.values.saveRoot;
+  try {
+    const rows = library.list(root);
+    return {
+      ok: true, root,
+      recordings: rows.length,
+      bytes: rows.reduce((n, r) => n + (r.bytes || 0), 0),
+    };
+  } catch (err) {
+    log.error(err);
+    return { ok: false, root, recordings: 0, bytes: 0 };
+  }
+});
+
 ipcMain.handle('library:search', (_e, { query, options } = {}) => {
   const root = settings.values.saveRoot;
   try {

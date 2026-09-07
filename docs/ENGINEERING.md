@@ -144,8 +144,47 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-37 · Autosaving and disk use are shown, not merely true
+`(this change)` · [ui/src/renderer/bytes.js](../ui/src/renderer/bytes.js)
+
+Two properties of this application were true and invisible, and a true thing
+nobody can see is not a promise - it is a thing they find out later.
+
+**There is no Save button.** Every mutation flushes to disk (invariant 9), and
+a `✓ Saved` tick said so - but only while recording. Open an existing
+recording and edit it and the bar read "12 steps · C:\...", which is the
+moment somebody is most likely to go looking for a Save button and worry when
+there isn't one. It now says the same thing in both places, and the screen the
+application opens on says it outright.
+
+**Screenshots stack up faster than anybody expects.** Nine real recordings came
+to 479 MB, and one of them - a game - was 403 MB of that: 84% of the archive in
+a single entry, findable only through Explorer. The landing screen now carries
+the folder, the count and the total; every card and every search result carries
+its own size. That is what makes the 403 MB one findable.
+
+**Measured, not remembered.** The screenshots are written by the capture engine,
+so a stored total would be wrong the moment anything touched them. Walking every
+folder took 12ms for nine recordings and 289 files, which is a price worth
+paying to never be wrong.
+
+Amber past a gigabyte. Not a warning - the application has no business telling
+somebody their own disk is too full - just the point at which they would want
+to know without having gone looking.
+
+Two things found while building it:
+
+- `folderBytes` built a path *before* its guard, so a directory entry it could
+  not make sense of threw past the caller and dropped that recording from the
+  listing entirely. The same class of fault as the folder-name bug in D-24: a
+  measurement problem costing somebody a recording.
+- And the reason it took two attempts to see any of it on screen: a patch
+  script threw on its last edit and, because it writes the file at the end,
+  silently discarded the four edits before it. Everything reported as applied
+  had been applied to a string that was never saved.
+
 ### D-36 · An application is called what Windows calls it
-`(this change)` · [ui/src/renderer/appname.js](../ui/src/renderer/appname.js)
+`e15ff4d` · [ui/src/renderer/appname.js](../ui/src/renderer/appname.js)
 
 A recording of Gemini in Chrome listed as **explorer.exe**. Two faults at once.
 
@@ -1143,7 +1182,7 @@ machine in use.
 |---|---|---|
 | `tests/composite_test.js` | `npm run test:composite` (from `ui/`) | the click marker drawn into real pixels, and into a real .docx |
 | `tests/window_test.js` | `npm run test:window` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
-| `tests/*_test.js` (20) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
+| `tests/*_test.js` (21) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
 | `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |
 | `tests/smoke.py` | `python tests/<file>` | engine protocol |

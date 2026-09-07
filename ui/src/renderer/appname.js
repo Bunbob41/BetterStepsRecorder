@@ -41,6 +41,7 @@
     'powershell.exe': 'PowerShell',
     'pwsh.exe': 'PowerShell',
     'windowsterminal.exe': 'Windows Terminal',
+    'mstsc.exe': 'Remote Desktop',
     'rundll32.exe': 'a Windows dialog',
     'dllhost.exe': 'a Windows dialog',
   };

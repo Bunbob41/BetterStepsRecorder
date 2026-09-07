@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('bsr', {
   openLibrary: (dir) => ipcRenderer.invoke('library:open', { dir }),
   searchLibrary: (query, options) =>
     ipcRenderer.invoke('library:search', { query, options }),
+  libraryUsage: () => ipcRenderer.invoke('library:usage'),
   renameSession: (name) => ipcRenderer.invoke('session:rename', { name }),
   undo: () => ipcRenderer.invoke('edit:undo'),
   undoDepth: () => ipcRenderer.invoke('edit:undoDepth'),

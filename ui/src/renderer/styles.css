@@ -676,3 +676,14 @@ button.tool.active {
   font-weight: 600;
 }
 .lib-more { color: var(--muted); font-size: 11px; opacity: .7; padding-top: 2px; }
+
+/* What the recordings folder costs, said before somebody has to find out by
+   running out of room. */
+.library-usage {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.library-usage .path { color: var(--text); opacity: .85; }
+.library-usage .heavy { color: #d6a02a; }
+.lib-size { color: var(--muted); font-size: 11px; }

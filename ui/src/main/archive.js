@@ -20,6 +20,7 @@ const path = require('node:path');
 const find = require('../renderer/find');
 const sections = require('../renderer/sections');
 const appName = require('../renderer/appname');
+const { folderBytes } = require('./library');
 
 /** How many matching steps to carry back per recording. */
 const SNIPPETS = 4;
@@ -33,7 +34,7 @@ const SNIPPETS = 4;
  */
 function search(root, query, { caseSensitive = false, wholeWord = false,
                                readdir = fs.readdirSync, readFile = fs.readFileSync,
-                               exists = fs.existsSync } = {}) {
+                               exists = fs.existsSync, statOf = fs.statSync } = {}) {
   const q = String(query == null ? '' : query).trim();
   if (!q || !root || !exists(root)) return [];
 
@@ -69,6 +70,10 @@ function search(root, query, { caseSensitive = false, wholeWord = false,
       name,
       savedAt: data.savedAt || null,
       app: appName.forRecording(steps),
+      // A search result is the same card as a library row, so it says the same
+      // things - a recording found by searching is exactly when somebody wants
+      // to know what it costs.
+      bytes: folderBytes(dir, { readdir, statOf }),
       steps: sections.countSteps(steps),
       total,
       inName: inName > 0,

@@ -8,6 +8,12 @@ Notable changes, newest first. The reasoning behind each decision lives in
 - **Search every recording**, not just the open one, from the screen the app
   opens on. Searches step text, notes, headings and the recording's name; a
   result opens that recording on the matching step.
+- **The app says it saves as you go**, and where. It always did save
+  continuously; the tick only appeared while recording, so editing an existing
+  recording gave no sign of it.
+- **Disk use is visible**: the landing screen shows the recordings folder, how
+  many recordings it holds and how much room they take, and every recording
+  shows its own size. One recording of a game can be most of an archive.
 - **Recordings are labelled with the application they are about**, named the way
   Windows names it — "Google Chrome", not `chrome.exe`. Previously it took the
   first step's application, which is nearly always the taskbar, so recordings

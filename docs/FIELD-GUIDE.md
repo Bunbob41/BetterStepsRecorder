@@ -303,6 +303,41 @@ misrepresent what the document is. And if you rewrote a step's wording yourself,
 your words are emitted exactly as you wrote them. Your prose is not ours to
 correct.
 
+### There is no Save button
+
+Because there is nothing to save. Every step is written to disk as it is
+captured, and every edit you make afterwards — rewording, reordering, a
+heading, a crop, a blur — is written the moment you make it.
+
+You will see **✓ Saved** in the bar at the bottom, both while recording and
+while editing, along with the folder it went to. The screen the app opens on
+says the same thing above your recordings.
+
+It is written carefully, too: each save goes to a temporary file and is then
+renamed over the real one, so a crash halfway through leaves the previous good
+version rather than a half-written one.
+
+The one thing that is *not* kept is the undo history. **Ctrl+Z** covers a slip
+while you are working; close the app and that history goes, along with the
+copies of pre-blur screenshots it was holding — deliberately, so redacted
+pixels do not linger.
+
+### What recordings cost you
+
+Screenshots add up much faster than people expect. The landing screen tells you
+where recordings are kept, how many there are and how much room they take, and
+every recording shows its own size.
+
+That last part matters more than it sounds. In one real archive of nine
+recordings totalling 479 MB, a single recording of a game was 403 MB of it —
+84% of everything, in one entry. Sizes on each recording are how you find that
+one and decide what to do about it.
+
+If you record anything animated — a game, a video, a 3D view — expect
+roughly **85 MB a minute**. Ordinary application windows are a tiny fraction of
+that. Settings has a capture format option if you want to trade some quality
+for a lot of room.
+
 ### What a recording is called after
 
 Each recording is labelled with the application it is about — **Google Chrome**,
