@@ -30,10 +30,16 @@ internal static class WindowResolver
         var title = len > 0 ? new string(buffer, 0, len) : "";
 
         var process = "";
+        var product = "";
         try
         {
             Win32.GetWindowThreadProcessId(hwnd, out var pid);
-            if (pid != 0) process = Process.GetProcessById((int)pid).ProcessName + ".exe";
+            if (pid != 0)
+            {
+                var p = Process.GetProcessById((int)pid);
+                process = p.ProcessName + ".exe";
+                product = ProductNameOf(p);
+            }
         }
         catch
         {
@@ -42,7 +48,63 @@ internal static class WindowResolver
         }
 
         return new WindowInfo(title, process,
-            new RectInfo(bounds.X, bounds.Y, bounds.Width, bounds.Height));
+            new RectInfo(bounds.X, bounds.Y, bounds.Width, bounds.Height), product);
+    }
+
+    /// <summary>
+    /// What an executable calls itself: "Google Chrome" for chrome.exe.
+    /// </summary>
+    /// <remarks>
+    /// Windows already knows the good name - it is the FileDescription every
+    /// executable carries - and "explorer.exe" is nobody's idea of an answer
+    /// when somebody is trying to remember which recording is which.
+    ///
+    /// Cached by process id. This runs once per captured step, and reading
+    /// version information means opening the file on disk; a recording of four
+    /// hundred steps in one application would otherwise do it four hundred
+    /// times for the same answer.
+    /// </remarks>
+    private static readonly Dictionary<int, string> ProductCache = new();
+
+    internal static string ProductNameOf(Process p)
+    {
+        int id;
+        try
+        {
+            // Even reading the id throws for a Process object with nothing
+            // behind it, so the cache lookup cannot sit outside the guard.
+            id = p.Id;
+        }
+        catch
+        {
+            return "";
+        }
+
+        if (ProductCache.TryGetValue(id, out var cached)) return cached;
+
+        var name = "";
+        try
+        {
+            // MainModule throws for a protected or elevated process, and for a
+            // 64-bit process seen from a 32-bit one. Failing here costs the
+            // friendly name and nothing else.
+            var file = p.MainModule?.FileName;
+            if (!string.IsNullOrEmpty(file))
+            {
+                var info = FileVersionInfo.GetVersionInfo(file);
+                name = (info.FileDescription ?? "").Trim();
+                if (name.Length == 0) name = (info.ProductName ?? "").Trim();
+            }
+        }
+        catch
+        {
+            // Left empty; the interface falls back to the filename.
+        }
+
+        // Cached either way, including the empty answer: a process that will
+        // not tell us will not tell us on the next step either.
+        ProductCache[id] = name;
+        return name;
     }
 
     /// <summary>Monitor index and DPI scale for the monitor the click landed on.</summary>

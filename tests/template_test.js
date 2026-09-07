@@ -54,7 +54,9 @@ const { text, report } = render(tpl, session, { title: 'User Provisioning', imag
 check('the template file itself is untouched', fs.statSync(tplPath).mtimeMs === before);
 check('title injected', text.includes('**SOP Name:** User Provisioning'));
 check('document id generated', /\*\*Document ID:\*\* SOP-\d{8}-[0-9A-F]{4}/.test(text));
-check('target application derived from the steps', text.includes('chrome.exe'));
+// Named for a reader rather than for a filesystem.
+check('target application derived from the steps, and named for a reader',
+      text.includes('Chrome'));
 check('step count counts steps, not notes', text.includes('3 steps') || text.includes('| 3 '));
 check('no hook comments survive for filled values', !text.includes('INJECT_TITLE'));
 

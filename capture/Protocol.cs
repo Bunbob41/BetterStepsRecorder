@@ -36,7 +36,11 @@ internal static class Protocol
 internal sealed record Point2(int X, int Y);
 internal sealed record MonitorInfo(int Index, double Scale);
 internal sealed record RectInfo(int X, int Y, int W, int H);
-internal sealed record WindowInfo(string Title, string Process, RectInfo Rect);
+/// <param name="Product">What the executable calls itself - "Google Chrome"
+/// for chrome.exe. Empty when Windows will not say, which is the case for a
+/// protected process or one that has already exited.</param>
+internal sealed record WindowInfo(string Title, string Process, RectInfo Rect,
+                                  string Product = "");
 internal sealed record TargetInfo(string? Name, string? ControlType, string? AutomationId);
 
 internal sealed record StepMessage

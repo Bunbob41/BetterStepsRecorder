@@ -19,6 +19,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const find = require('../renderer/find');
 const sections = require('../renderer/sections');
+const appName = require('../renderer/appname');
 
 /** How many matching steps to carry back per recording. */
 const SNIPPETS = 4;
@@ -67,7 +68,7 @@ function search(root, query, { caseSensitive = false, wholeWord = false,
       dir,
       name,
       savedAt: data.savedAt || null,
-      app: (steps.find((s) => s.window && s.window.process) || {}).window?.process || '',
+      app: appName.forRecording(steps),
       steps: sections.countSteps(steps),
       total,
       inName: inName > 0,

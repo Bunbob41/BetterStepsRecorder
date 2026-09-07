@@ -22,7 +22,8 @@ function makeSession(folder, { name, steps = [], savedAt = null } = {}) {
   return dir;
 }
 
-const win = (p) => ({ title: 'w', process: p, rect: { x: 0, y: 0, w: 1, h: 1 } });
+const win = (p, product) =>
+  ({ title: 'w', process: p, product, rect: { x: 0, y: 0, w: 1, h: 1 } });
 
 makeSession('session-2026-09-05T21-13-14-778Z', {
   name: '9/5/2026, 2:13:14 PM', savedAt: '2026-09-05T21:20:00.000Z',
@@ -43,7 +44,11 @@ console.log('a folder the user renamed:');
   check('and keeps the name it was given inside the app',
         rl && rl.name === '9/5/2026, 1:19:13 PM');
   check('with its steps counted', rl && rl.steps === 2);
-  check('and the application it was about', rl && rl.app === 'RocketLeague.exe');
+  // Not the filename. A person scanning a list of recordings is trying to
+  // remember which is which, and "RocketLeague.exe" is the truth without being
+  // an answer.
+  check('and the application it was about, named for a person',
+        rl && rl.app === 'RocketLeague');
 }
 
 console.log('\nthe rest of the listing:');
@@ -52,7 +57,7 @@ console.log('\nthe rest of the listing:');
   check('both recordings are listed', found.length === 2);
   check('newest first', found[0].savedAt > found[1].savedAt);
   check('notes are not counted as steps',
-        found.find((e) => e.app === 'explorer.exe').steps === 1);
+        found.find((e) => e.app === 'File Explorer').steps === 1);
 }
 
 console.log('\nwhat is not a recording:');
@@ -103,6 +108,40 @@ console.log('\nthe count on a card is the number of things to do:');
   });
 
   check('headings and notes are not steps', withRows[0].steps === 2);
+}
+
+console.log('\nwhich application a recording is called after:');
+{
+  // A recording almost always begins by clicking something on the taskbar, so
+  // taking the FIRST step that named a process labelled every recording
+  // "explorer.exe" - naming the way in rather than the thing documented. This
+  // is the case from a real recording of Gemini in Chrome.
+  makeSession('gemini', {
+    name: 'Ask Gemini', savedAt: '2026-09-06T03:10:00.000Z',
+    steps: [
+      { action: 'leftClick', window: win('explorer.exe') },
+      { action: 'leftClick', window: win('chrome.exe', 'Google Chrome') },
+      { action: 'leftClick', window: win('chrome.exe', 'Google Chrome') },
+      { action: 'leftClick', window: win('chrome.exe', 'Google Chrome') },
+    ],
+  });
+
+  const found = library.list(root);
+  const g = found.find((e) => path.basename(e.dir) === 'gemini');
+
+  check('is the one it spent its time in', g && g.app === 'Google Chrome');
+  check('and not the one it started in', g && g.app !== 'File Explorer');
+
+  // A recording made before the engine recorded product names still has to
+  // read well, from the filename alone.
+  makeSession('older', {
+    name: 'Older recording', savedAt: '2026-04-01T00:00:00.000Z',
+    steps: [{ action: 'leftClick', window: win('explorer.exe') },
+            { action: 'leftClick', window: win('explorer.exe') }],
+  });
+  const o = library.list(root).find((e) => path.basename(e.dir) === 'older');
+  check('an older recording is still named readably',
+        o && o.app === 'File Explorer');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

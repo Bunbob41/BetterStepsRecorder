@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const { toImperative, windowTracker, legendLines } = require('./export');
 const sections = require('../renderer/sections');
+const appName = require('../renderer/appname');
 const path = require('node:path');
 const os = require('node:os');
 
@@ -29,16 +30,14 @@ const os = require('node:os');
 const DEFAULT_IMAGE_WIDTH_CM = 14;
 
 /** The application a recording is mostly about. */
-function dominantApp(steps) {
-  const tally = new Map();
-  for (const s of steps) {
-    const p = s.window && s.window.process;
-    if (p) tally.set(p, (tally.get(p) || 0) + 1);
-  }
-  let best = '', n = 0;
-  for (const [p, c] of tally) if (c > n) { best = p; n = c; }
-  return best;
-}
+/**
+ * The application a recording is mostly about, as a person would name it.
+ *
+ * A cover sheet reading "Target application: chrome.exe" is a filename where a
+ * reader wanted an answer. Each step still carries `process` for a template
+ * that would rather have the filename.
+ */
+const dominantApp = (steps) => appName.forRecording(steps);
 
 function docId(session, when) {
   const stamp = when.toISOString().slice(0, 10).replace(/-/g, '');
@@ -79,6 +78,8 @@ function buildData(session, { title, brand, redactionSummary, voice = 'imperativ
       action: (s.action || '').toUpperCase(),
       window: (s.window && s.window.title) || '',
       process: (s.window && s.window.process) || '',
+      application: appName.friendly(s.window && s.window.process,
+                                    s.window && s.window.product),
       target: (s.target && s.target.name) || '',
       typed: s.typed || '',
       isNote,

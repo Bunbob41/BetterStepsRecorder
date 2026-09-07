@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const sections = require('../renderer/sections');
+const appName = require('../renderer/appname');
 
 /**
  * The recordings on disk.
@@ -38,9 +39,11 @@ function list(root, { readdir = fs.readdirSync, readFile = fs.readFileSync,
         // held.
         steps: sections.countSteps(steps),
         savedAt: data.savedAt || null,
-        // From the first step that names one, so the card says what the
-        // recording is actually about.
-        app: (steps.find((s) => s.window && s.window.process) || {}).window?.process || '',
+        // The application it spent its time in, named the way Windows names
+        // it. This took the FIRST step that named a process - and a recording
+        // almost always begins by clicking something on the taskbar, so every
+        // card said "explorer.exe": the way in, not the thing documented.
+        app: appName.forRecording(steps),
       });
     } catch {
       // A half-written session is skipped, not fatal.

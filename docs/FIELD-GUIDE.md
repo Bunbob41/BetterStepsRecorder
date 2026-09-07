@@ -303,6 +303,18 @@ misrepresent what the document is. And if you rewrote a step's wording yourself,
 your words are emitted exactly as you wrote them. Your prose is not ours to
 correct.
 
+### What a recording is called after
+
+Each recording is labelled with the application it is about — **Google Chrome**,
+not `chrome.exe`, and not `explorer.exe` just because you started by clicking
+the taskbar.
+
+Two small things make that work. The application is the one the recording spent
+its time in, counted across every step rather than taken from the first one. And
+the name is the one Windows itself uses: every program on your machine carries a
+description, and that is what you see. Recordings made before this arrived fall
+back to a tidied-up filename, so they read reasonably too.
+
 ### Finding the recording you mean
 
 The screen the app opens on has a search box above your recent recordings. Type

@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const marker = require('../renderer/marker');
 const sections = require('../renderer/sections');
+const appName = require('../renderer/appname');
 const path = require('node:path');
 
 /**
@@ -199,7 +200,9 @@ function buildHtml(session, { title, embedImages = true, brand = null,
     // The process only: the description already names the window at exactly the
     // points this caption appears, so repeating the title here said the same
     // thing twice on the same line.
-    const context = escapeHtml((step.window && step.window.process) || '');
+    const context = escapeHtml(
+      appName.friendly(step.window && step.window.process,
+                       step.window && step.window.product));
 
     return `
     <li class="step">
@@ -356,7 +359,8 @@ function buildMarkdown(session, { title, imageDir, brand = null,
     const i = n++;
     lines.push(`${stepRule} ${i + 1}. ${describe(step, voice)}`, '');
 
-    const context = (step.window && step.window.process) || '';
+    const context = appName.friendly(step.window && step.window.process,
+                                     step.window && step.window.product);
     // Only when the window changed: repeating it under every step is the same
     // noise the description just stopped carrying.
     if (context && describe.changed) lines.push(`*${context}*`, '');

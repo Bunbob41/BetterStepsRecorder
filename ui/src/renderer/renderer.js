@@ -154,7 +154,8 @@ function renderList() {
          : '')
       : isNote
       ? (s.excluded ? 'note · excluded' : 'note')
-      : [s.window?.process, s.action, s.excluded ? 'excluded' : null]
+      : [BsrAppName.friendly(s.window?.process, s.window?.product),
+         s.action, s.excluded ? 'excluded' : null]
           .filter(Boolean).join(' · ');
 
     if (v && !isNote) {

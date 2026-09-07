@@ -144,8 +144,43 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-36 · An application is called what Windows calls it
+`(this change)` · [ui/src/renderer/appname.js](../ui/src/renderer/appname.js)
+
+A recording of Gemini in Chrome listed as **explorer.exe**. Two faults at once.
+
+**It was the first step's application, not the recording's.** A recording almost
+always begins by clicking something on the taskbar, so "the first step that
+names a process" named the way IN rather than the thing being documented. It is
+a tally now, which is what `template.js` had been doing all along - the listing
+was simply the one place that never got it.
+
+**And it was a filename.** Windows already knows the good name: every executable
+carries a FileDescription, which is where "Google Chrome" and "Windows Explorer"
+come from. The engine now reads it per window - cached by process id, because
+this runs once per captured step and reading version information means opening
+the file on disk - and records it as `window.product`.
+
+Recordings made before that only have the filename, so there is a fallback: a
+short list of Windows' own executables whose names are genuinely opaque
+(`explorer.exe`, `taskmgr.exe`, `rundll32.exe`), and otherwise the filename
+tidied - `chrome.exe` becomes `Chrome`. Deliberately short: a list of every
+application anybody might record is a thing to maintain forever and would still
+be missing whatever the next person uses. The FileDescription is the general
+answer; the list only covers the past.
+
+Applied everywhere a person reads it - the library, search results, the step
+list, the per-step line in HTML and Markdown, and `INJECT_TARGET_APP`. Templates
+keep `{{process}}` as the filename for anyone who wants it, and gain
+`{{application}}` for the readable one.
+
+Found by writing the test for it: `ProductNameOf` read `p.Id` for its cache key
+*outside* its own guard, and a `Process` object with nothing behind it throws on
+that. It would have been caught by `Describe`'s own catch and cost the process
+name as well as the product name.
+
 ### D-35 · The archive is searched, not just the open recording
-`(this change)` · [ui/src/main/archive.js](../ui/src/main/archive.js)
+`a2463b9` · [ui/src/main/archive.js](../ui/src/main/archive.js)
 
 A recording is written once and read months later. After forty of them the
 question stops being "what does this guide say" and becomes "which of these is
@@ -1108,7 +1143,7 @@ machine in use.
 |---|---|---|
 | `tests/composite_test.js` | `npm run test:composite` (from `ui/`) | the click marker drawn into real pixels, and into a real .docx |
 | `tests/window_test.js` | `npm run test:window` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
-| `tests/*_test.js` (19) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
+| `tests/*_test.js` (20) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
 | `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |
 | `tests/smoke.py` | `python tests/<file>` | engine protocol |

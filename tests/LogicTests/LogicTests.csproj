@@ -19,6 +19,9 @@
     <Compile Include="../../capture/Win32.cs" />
     <Compile Include="../../capture/ScreenCapture.cs" />
     <Compile Include="../../capture/StepDescriber.cs" />
+    <!-- Window queries and process information: no hooks, no COM, so it
+         belongs here by the same rule as the rest. -->
+    <Compile Include="../../capture/WindowResolver.cs" />
     <Compile Include="../../capture/Protocol.cs" />
   </ItemGroup>
 </Project>

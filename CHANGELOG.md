@@ -8,6 +8,10 @@ Notable changes, newest first. The reasoning behind each decision lives in
 - **Search every recording**, not just the open one, from the screen the app
   opens on. Searches step text, notes, headings and the recording's name; a
   result opens that recording on the matching step.
+- **Recordings are labelled with the application they are about**, named the way
+  Windows names it — "Google Chrome", not `chrome.exe`. Previously it took the
+  first step's application, which is nearly always the taskbar, so recordings
+  listed as `explorer.exe`.
 - Fixed: a library card counted section headings as steps, so it promised more
   work than the recording held.
 

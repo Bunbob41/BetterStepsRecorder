@@ -53,7 +53,15 @@ const tpl = path.join(__dirname, '..', 'templates', 'corporate-sop.docx');
   check('steps are numbered around notes',
         d.steps[0].label === '1. ' && d.steps[2].label === '2. ');
   check('step count ignores notes', d.step_count === '3');
-  check('target application derived', d.target_app === 'chrome.exe');
+  // Named for a reader, not for a filesystem: a cover sheet reading
+  // "Target application: chrome.exe" is a filename where somebody wanted an
+  // answer. Each step still carries `process` for a template that wants it.
+  check('target application derived, and named for a reader',
+        d.target_app === 'Chrome');
+  check('and the filename is still there for a template that wants it',
+        d.steps.some((s) => s.process === 'chrome.exe'));
+  check('beside the readable name',
+        d.steps.some((s) => s.application === 'Chrome'));
 
   console.log('\nrendering:');
   const before = fs.statSync(tpl).mtimeMs;

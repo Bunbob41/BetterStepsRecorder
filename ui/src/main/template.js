@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const { toImperative, windowTracker, legendLines } = require('./export');
 const sections = require('../renderer/sections');
+const appName = require('../renderer/appname');
 const path = require('node:path');
 const os = require('node:os');
 
@@ -75,17 +76,14 @@ function redactionSummary(allSteps) {
   return parts.join('; ') + '.';
 }
 
-/** The application a recording is mostly about. */
-function dominantApp(steps) {
-  const tally = new Map();
-  for (const s of steps) {
-    const p = s.window && s.window.process;
-    if (p) tally.set(p, (tally.get(p) || 0) + 1);
-  }
-  let best = '', n = 0;
-  for (const [p, c] of tally) if (c > n) { best = p; n = c; }
-  return best;
-}
+/**
+ * The application a recording is mostly about, as a person would name it.
+ *
+ * A compliance section reading "Target application: chrome.exe" is a filename
+ * where a reader wanted an answer. `{{process}}` still carries the filename for
+ * a template that wants it.
+ */
+const dominantApp = (steps) => appName.forRecording(steps);
 
 function docId(session, when) {
   const stamp = when.toISOString().slice(0, 10).replace(/-/g, '');
@@ -148,6 +146,10 @@ function stepVars(step, number, imageDir, voice = 'imperative', describe = null,
     action: (step.action || '').toUpperCase(),
     window: oneLine(step.window && step.window.title),
     process: oneLine(step.window && step.window.process),
+    // The same application, named the way Windows names it. `process` stays
+    // the filename, for a template that would rather have it.
+    application: oneLine(appName.friendly(step.window && step.window.process,
+                                          step.window && step.window.product)),
     target: oneLine(step.target && step.target.name),
     typed: oneLine(step.typed),
     image: rel,

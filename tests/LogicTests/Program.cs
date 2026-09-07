@@ -363,5 +363,36 @@ Check("screen framing covers the whole virtual desktop",
 Check("monitor framing starts at a real monitor origin",
     mon.Width > 100 && mon.Height > 100);
 
+// ---- what an application is called -------------------------------------------
+// Windows already knows the good name - it is the FileDescription every
+// executable carries - and "explorer.exe" is nobody's idea of an answer when
+// somebody is trying to remember which recording is which.
+{
+    var explorer = System.Diagnostics.Process.GetProcessesByName("explorer");
+    if (explorer.Length > 0)
+    {
+        var name = WindowResolver.ProductNameOf(explorer[0]);
+        Check("Windows is asked what an executable calls itself",
+              !string.IsNullOrWhiteSpace(name));
+        Check("and the answer is not the filename",
+              !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
+
+        // Cached: this runs once per captured step, and reading version
+        // information means opening the file on disk.
+        var again = WindowResolver.ProductNameOf(explorer[0]);
+        Check("and it is remembered rather than read again", again == name);
+    }
+    else
+    {
+        Console.WriteLine("  SKIP  explorer is not running");
+    }
+
+    // A process that has exited cannot be asked, and that must cost the
+    // friendly name and nothing else.
+    using var gone = new System.Diagnostics.Process();
+    Check("a process that cannot be asked yields nothing, not an exception",
+          WindowResolver.ProductNameOf(gone) == "");
+}
+
 Console.WriteLine($"\n{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;
