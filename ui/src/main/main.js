@@ -1231,8 +1231,17 @@ ipcMain.handle('library:open', (_e, { dir }) => {
   if (!dir || !fs.existsSync(path.join(dir, 'session.json'))) {
     return { ok: false, error: 'That recording is no longer there.' };
   }
+
+  const opened = Session.load(dir);
+  if (opened.unreadable) {
+    // Deliberately not adopted as the current session: a recording this
+    // version must not write to is one it must not hold open either.
+    log.warn(`refused ${dir}: ${opened.unreadable}`);
+    return { ok: false, error: opened.unreadable };
+  }
+
   closeSession();
-  session = Session.load(dir);
+  session = opened;
   return { ok: true, dir: session.dir, name: session.name, steps: session.steps };
 });
 

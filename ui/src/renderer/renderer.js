@@ -868,7 +868,11 @@ const findOptionsFor = () => ({ caseSensitive: false, wholeWord: false });
 /** One row on the library screen, for a recent recording or a search result. */
 function libraryRow(r, query) {
   const row = document.createElement('div');
-  row.className = 'lib-row' + (r.inName ? ' hit-name' : '');
+  row.className = 'lib-row' + (r.inName ? ' hit-name' : '')
+                            + (r.unreadable ? ' unreadable' : '');
+  // Listed, but marked. Hiding a recording this version cannot open would look
+  // exactly like having lost it.
+  if (r.unreadable) row.title = r.unreadable;
 
   const name = document.createElement('div');
   name.className = 'lib-name';
@@ -880,7 +884,9 @@ function libraryRow(r, query) {
   // carries its timestamp, and printing it twice reads as a mistake.
   const meta = document.createElement('div');
   meta.className = 'lib-meta';
-  meta.textContent = r.app || 'No application recorded';
+  meta.textContent = r.unreadable
+    ? 'Made by a newer version — cannot be opened here'
+    : (r.app || 'No application recorded');
 
   const count = document.createElement('div');
   count.className = 'lib-count';

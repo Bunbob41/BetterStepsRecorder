@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { safeReference, safeJoin } = require('./paths');
+const format = require('./format');
 
 /**
  * A recording session on disk:
@@ -253,7 +254,8 @@ class Session {
 
   flush() {
     const payload = {
-      v: 1, name: this.name, purpose: this.purpose, templatePath: this.templatePath,
+      v: format.CURRENT,
+      name: this.name, purpose: this.purpose, templatePath: this.templatePath,
       savedAt: new Date().toISOString(), steps: this.steps,
     };
     // Write-then-rename: a crash mid-write leaves the previous good file intact
@@ -263,12 +265,29 @@ class Session {
     fs.renameSync(tmp, this.metaPath);
   }
 
+  /**
+   * Reads a recording from disk.
+   *
+   * Never throws: a recording that cannot be read comes back with
+   * `unreadable` set to the reason, so the caller can say it rather than
+   * having to guess.
+   */
   static load(dir) {
     const s = new Session(dir);
     const meta = path.join(dir, 'session.json');
     if (fs.existsSync(meta)) {
       try {
         const data = JSON.parse(fs.readFileSync(meta, 'utf8'));
+
+        // From a later version of the application. Not opened - and the
+        // reason is not that its steps cannot be shown. It is that opening
+        // it, editing one step and flushing would write the whole file back
+        // in THIS version's shape and silently discard whatever this version
+        // has never heard of.
+        if (!format.canRead(data)) {
+          s.unreadable = format.refusal(data);
+          return s;
+        }
 
         // A recording is a folder people hand to each other, so this file
         // arrived from outside and every path in it is a claim rather than a

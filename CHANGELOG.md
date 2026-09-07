@@ -8,6 +8,9 @@ Notable changes, newest first. The reasoning behind each decision lives in
 - **Search every recording**, not just the open one, from the screen the app
   opens on. Searches step text, notes, headings and the recording's name; a
   result opens that recording on the matching step.
+- **Recordings carry a format version.** One made by a newer version of the app
+  is listed but not opened, with an explanation — opening it would rewrite it in
+  the older shape and discard what that version does not understand.
 - **The app says it saves as you go**, and where. It always did save
   continuously; the tick only appeared while recording, so editing an existing
   recording gave no sign of it.

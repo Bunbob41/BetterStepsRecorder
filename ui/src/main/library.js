@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const sections = require('../renderer/sections');
 const appName = require('../renderer/appname');
+const format = require('./format');
 
 /**
  * The recordings on disk.
@@ -85,6 +86,9 @@ function list(root, { readdir = fs.readdirSync, readFile = fs.readFileSync,
         // expects, and somebody who cannot see that finds out when a disk
         // fills - which is the worst possible moment to learn it.
         bytes: folderBytes(dir, { readdir, statOf }),
+        // Listed either way - a recording this version cannot open is still
+        // one somebody has, and hiding it would look like it had been lost.
+        unreadable: format.canRead(data) ? '' : format.refusal(data),
       });
     } catch {
       // A half-written session is skipped, not fatal.

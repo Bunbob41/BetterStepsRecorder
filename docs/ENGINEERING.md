@@ -119,22 +119,25 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     D-9; this is not optional, it is how Windows dispatches hook callbacks.
 11. **A capture never fails.** If a window cannot draw itself, the screen is
     copied instead; a step is never lost for want of a screenshot.
-12. **Nothing in a `session.json` may name a file outside its own folder.** A
+12. **A recording from a newer version is never written to.** Refused at load
+    and never adopted as the session: flushing it would rewrite the whole file
+    in this version's shape and discard what it does not understand.
+13. **Nothing in a `session.json` may name a file outside its own folder.** A
     recording is something people send each other, so its paths are claims.
     Rejected at load and re-checked at every read, write and delete.
-13. **A screenshot is exactly the size of the `frame` recorded with its step.**
+14. **A screenshot is exactly the size of the `frame` recorded with its step.**
     The click marker is a percentage of that rectangle, so any mismatch
     misplaces the marker on every step of the guide.
-14. **Step numbers run through the whole guide, never restarting at a heading.**
+15. **Step numbers run through the whole guide, never restarting at a heading.**
     A reader who says "step 9" must mean the ninth step of the procedure. Every
     format counts rows that are neither notes nor headings, via
     `sections.countSteps`.
-15. **A heading that has no name, or nothing under it, never reaches the
+16. **A heading that has no name, or nothing under it, never reaches the
     reader.** Applied after exclusion, so holding back a phase's last step
     takes the phase too.
-16. **Every edit that can touch more than one step is one undo entry.** Bulk
+17. **Every edit that can touch more than one step is one undo entry.** Bulk
     delete and replace-all both; twenty presses of Ctrl+Z is not undo.
-17. **`textEdited` means a person wrote those words.** Only an explicit claim
+18. **`textEdited` means a person wrote those words.** Only an explicit claim
     sets it. Inferring it from a mechanical substitution freezes that step's
     tense at export.
 
@@ -144,8 +147,43 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-38 · A recording from a newer version is refused, not rewritten
+`(this change)` · [ui/src/main/format.js](../ui/src/main/format.js)
+
+`session.json` has carried `v: 1` since the beginning and nothing ever read it,
+which is a version number that means nothing. That was fine while every
+recording belonged to the person who made it. It stops being fine the moment
+this is published: the shape of that file becomes a promise to somebody else.
+
+Three cases, and only one is interesting.
+
+**Older** is migrated forward silently. Nothing has ever been *removed* from a
+step, only added, so a recording made before headings existed is simply a
+recording with no headings in it.
+
+**Newer is refused.** Not because its steps cannot be shown - because opening
+it, editing one step and flushing would write the whole file back in *this*
+version's shape and silently discard everything this version has never heard
+of. A recording that cannot be written to safely is one that must not be held
+open at all, so it is never adopted as the current session.
+
+The refusal names both versions and says the recording was left alone. "Cannot
+open this recording", with no reason, is the kind of message that makes people
+delete things.
+
+**A version that is not a number counts as newer.** It means "something I do
+not understand wrote this", which is precisely when not to write over it.
+
+The listing still shows such a recording, dimmed and flagged. One that vanished
+from the list would look exactly like one that had been lost - the same
+reasoning as D-24, where a renamed folder disappeared from the application while
+sitting untouched on disk.
+
+Verified by removing the guard: three checks in `format_test.js` go red, and the
+one that matters is that none of the newer recording is taken in.
+
 ### D-37 · Autosaving and disk use are shown, not merely true
-`(this change)` · [ui/src/renderer/bytes.js](../ui/src/renderer/bytes.js)
+`833c3e8` · [ui/src/renderer/bytes.js](../ui/src/renderer/bytes.js)
 
 Two properties of this application were true and invisible, and a true thing
 nobody can see is not a promise - it is a thing they find out later.
@@ -1182,7 +1220,7 @@ machine in use.
 |---|---|---|
 | `tests/composite_test.js` | `npm run test:composite` (from `ui/`) | the click marker drawn into real pixels, and into a real .docx |
 | `tests/window_test.js` | `npm run test:window` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
-| `tests/*_test.js` (21) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
+| `tests/*_test.js` (22) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
 | `tests/verify_test.py` | `python tests/<file>` | rot detection against a real target app |
 | `tests/smoke.py` | `python tests/<file>` | engine protocol |

@@ -303,6 +303,17 @@ misrepresent what the document is. And if you rewrote a step's wording yourself,
 your words are emitted exactly as you wrote them. Your prose is not ours to
 correct.
 
+### Recordings made by a different version
+
+Every recording records which version of the app made it. An older one opens
+normally — nothing has ever been taken away from a recording, only added.
+
+A recording made by a **newer** version is deliberately not opened. It appears
+in your list, dimmed, saying so. The reason is not that its steps cannot be
+shown; it is that opening it and changing one thing would rewrite the whole
+file in this version's shape and quietly throw away whatever this version has
+never heard of. Updating the app is the fix, and the message says so.
+
 ### There is no Save button
 
 Because there is nothing to save. Every step is written to disk as it is
