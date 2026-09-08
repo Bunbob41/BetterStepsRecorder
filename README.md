@@ -20,6 +20,10 @@ nothing leaves your machine
 
 </div>
 
+<img src="docs/images/hero.png" alt="A recording open in Steps Recorder: eight
+numbered steps down the left, each naming the control that was clicked, and the
+screenshot for the selected step on the right with the click marked on it.">
+
 ---
 
 ## In one paragraph
@@ -32,6 +36,16 @@ page, a PDF, a Word document or your own organisation's SOP template.
 
 Nothing leaves the machine at any point. There is no account, no telemetry and
 no network use of any kind.
+
+### And this is what comes out
+
+<img src="docs/images/exported-guide.png" alt="The same recording exported as an
+HTML guide: a title, a numbered step reading 'Click the Short date: dropdown in
+Region', and the screenshot beneath it with a red ring around the control.">
+
+One portable HTML file with the images embedded — or PDF, Markdown, Word, or
+your organisation's own SOP template. The wording is rewritten as instructions:
+the recording says *Clicked*, the guide says **Click**.
 
 ## What it does
 

@@ -379,6 +379,9 @@ for a lot of room.
 
 ### Finding things in Settings
 
+<img src="images/settings.png" alt="The Settings dialog, showing four tabs -
+Recording, Screenshots, Marking up and Exports - with the Exports tab selected.">
+
 Settings holds four unrelated kinds of thing, so it is four tabs rather than one
 long page:
 
@@ -420,6 +423,15 @@ recent ones win ties. Only the first few matching lines are shown per recording,
 with a note saying how many more there are.
 
 **Escape** clears the box and your recent recordings come back.
+
+### The screen it opens on
+
+<img src="images/library.png" alt="The Steps Recorder landing screen, listing two
+recordings with their step counts, sizes and dates, above a box for searching
+every recording.">
+
+Your recordings, newest first, with what each one costs you in disk. The box
+searches every recording you have, not just the open one.
 
 ### Getting back to your recordings
 
