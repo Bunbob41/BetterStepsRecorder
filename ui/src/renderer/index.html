@@ -311,6 +311,8 @@
   <dialog id="settings">
     <h2>Settings</h2>
 
+    <h3 class="subhead">Recording</h3>
+
     <label class="field">
       <span>Save recordings to</span>
       <div class="row">
@@ -328,43 +330,7 @@
              is off, no keyboard hook is installed at all.</small>
     </label>
 
-    <label class="field">
-      <span>Screenshot format</span>
-      <select id="set-format">
-        <option value="png">PNG — lossless, sharp text (recommended)</option>
-        <option value="jpeg">JPEG — smaller, softens text</option>
-      </select>
-    </label>
-
-    <label class="field">
-      <span>Click indicator</span>
-      <select id="set-marker">
-        <option value="circle">Circle around the click</option>
-        <option value="arrow">Arrow pointing at the click</option>
-      </select>
-    </label>
-    <label class="check">
-      <input id="set-marker-bold" type="checkbox" />
-      <span>Make it bolder</span>
-    </label>
-    <p class="hint">Shown on every screenshot in an export, and in the preview
-      above. An arrow reads as an annotation rather than as part of the
-      application you are documenting.</p>
-
-    <label class="check">
-      <input id="set-legend" type="checkbox" />
-      <span>Explain the highlighting in exports</span>
-    </label>
-    <p class="hint">Prints a key at the top of the guide saying what each
-      highlighter colour means — for when a procedure uses more than one and a
-      reader has to know the difference. Only the colours actually used are
-      listed. Right-click the Highlight tool to change colour while marking.</p>
-    <div id="legend-meanings" class="legend-meanings"></div>
-
-    <label class="field" id="quality-field">
-      <span>JPEG quality — <b id="set-quality-val">85</b></span>
-      <input id="set-quality" type="range" min="40" max="100" step="5" />
-    </label>
+    <h3 class="subhead">Screenshots</h3>
 
     <label class="field">
       <span>Each screenshot shows</span>
@@ -379,13 +345,53 @@
     </label>
 
     <label class="field">
+      <span>Screenshot format</span>
+      <select id="set-format">
+        <option value="png">PNG — lossless, sharp text (recommended)</option>
+        <option value="jpeg">JPEG — smaller, softens text</option>
+      </select>
+    </label>
+
+    <label class="field" id="quality-field">
+      <span>JPEG quality — <b id="set-quality-val">85</b></span>
+      <input id="set-quality" type="range" min="40" max="100" step="5" />
+    </label>
+
+    <label class="field">
       <span>Capture scale — <b id="set-scale-val">100%</b></span>
       <input id="set-scale" type="range" min="25" max="100" step="5" />
       <small>Shrinks every screenshot. Degrades text more predictably than
              JPEG quality does.</small>
     </label>
 
-    <hr class="rule" />
+    <h3 class="subhead">Marking up</h3>
+
+    <label class="field">
+      <span>Click indicator</span>
+      <select id="set-marker">
+        <option value="circle">Circle around the click</option>
+        <option value="arrow">Arrow pointing at the click</option>
+      </select>
+    </label>
+    <label class="check">
+      <input id="set-marker-bold" type="checkbox" />
+      <span>Make it bolder</span>
+    </label>
+    <p class="hint">Shown on every screenshot in an export, and in the preview
+      above. An arrow reads as an annotation rather than as part of the
+      application you are documenting. Drag the marker on a screenshot to move
+      it.</p>
+
+    <label class="check">
+      <input id="set-legend" type="checkbox" />
+      <span>Explain the highlighting in exports</span>
+    </label>
+    <p class="hint">Prints a key at the top of the guide saying what each
+      highlighter colour means — for when a procedure uses more than one and a
+      reader has to know the difference. Only the colours actually used are
+      listed. Right-click the Highlight tool to change colour while marking.</p>
+    <div id="legend-meanings" class="legend-meanings"></div>
+
     <h3 class="subhead">Exports</h3>
 
     <label class="field">
@@ -414,9 +420,9 @@
         <button id="set-template-clear">Reset</button>
       </div>
       <div class="row">
-        <button id="set-template-copy" class="primary">Make a copy I can edit</button>
-        <button id="set-template-pick">Use a file of my own…</button>
-        <button id="set-template-folder">Open my templates folder</button>
+        <button id="set-template-copy" class="primary">Make a copy</button>
+        <button id="set-template-pick">Use my own file…</button>
+        <button id="set-template-folder">Open folder</button>
       </div>
       <input id="set-template" type="hidden" />
       <small id="template-info">Render recordings into your organisation's own

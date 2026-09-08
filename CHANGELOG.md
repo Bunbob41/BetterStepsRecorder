@@ -9,6 +9,14 @@ The first tagged build.
 
 ### Added just before the tag
 
+- **Settings is grouped** into Recording, Screenshots, Marking up and Exports,
+  rather than thirteen controls in one column with the image settings
+  interleaved with the annotation ones.
+- Fixed: three descriptions in Settings were clipped mid-word and the dialog
+  scrolled sideways — they were inheriting a style written for the one-line
+  keycap strip in the footer, which never wraps.
+- Fixed: the two checkboxes in Settings had no styling at all, so the box, its
+  label and its explanation were three loose pieces of text.
 - Fixed: **the global hotkeys could not be rebound.** A registered shortcut is
   taken at the operating system ahead of every window, so the combination you
   were replacing was swallowed by the very shortcut you were replacing — the

@@ -155,6 +155,39 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-44 · Settings is four groups, and its sentences wrap
+`(this change)` · [ui/src/renderer/index.html](../ui/src/renderer/index.html)
+
+Three of the descriptions in Settings were clipped mid-word, and the dialog had
+a horizontal scrollbar.
+
+`.hint` began as the footer's keycap strip - one line, never wrapping, nudged
+right - and Settings later reused the class for prose. A paragraph carrying
+`white-space: nowrap` cannot wrap, so it ran out of the 520px dialog and took
+the sentence with it. The footer's rules are now scoped to `footer .hint`, and
+`.hint` is what it says it is: small muted text that wraps.
+
+`.check` was worse: the class was in the markup and **nowhere in the
+stylesheet**. Two checkboxes and their explanations were loose inline elements
+that happened to look acceptable.
+
+The ordering was the other half. Thirteen controls in one column, with image
+settings interleaved with annotation settings - format, then the click
+indicator, then highlighting, then JPEG quality. They are four groups
+(Recording, Screenshots, Marking up, Exports) and are now labelled as such,
+extending the one subhead the dialog already had rather than inventing a
+pattern.
+
+None of this was visible in any assertion. It was found by opening the dialog
+in the window test under `BSR_SHOTS` and looking at the picture - the same way
+the collapsed arrowhead and the invisible drag preview were found, and the
+reason that switch exists.
+
+The fixture is part of the fix: `getSettings` was answering with a third of the
+keys the page reads, so the capture showed "undefined" as the save path and
+"NaN%" as the scale. A stub that lies makes a screenshot useless for exactly
+the thing it is for.
+
 ### D-43 · The hotkeys are released while a new one is being chosen
 `(this change)` · [ui/src/main/main.js](../ui/src/main/main.js)
 

@@ -270,7 +270,11 @@ dialog h2 { margin: 0 0 16px; font-size: 15px; }
 .redacted-flag { color: #d6a02a; }
 .dialog-actions button + button { margin-left: 8px; }
 
-.hint { color: var(--muted); font-size: 11px; margin-left: 16px; white-space: nowrap; }
+/* A hint is a sentence, and a sentence wraps. This used to carry the footer's
+   own layout - one line, never wrapping, nudged right - because that is where
+   the class started. Settings then reused it for three descriptions, which
+   were clipped mid-word and pushed a horizontal scrollbar onto the dialog. */
+.hint { color: var(--muted); font-size: 11px; line-height: 1.45; }
 
 .scope-list {
   max-height: 320px; overflow-y: auto;
@@ -414,9 +418,14 @@ kbd {
   margin: 0 1px;
   white-space: nowrap;
 }
-.hint kbd { font-size: 10px; padding: 2px 5px; }
-.hint { display: inline-flex; align-items: center; gap: 5px; }
-.hint .sep { color: var(--line); margin: 0 4px; }
+/* The keycap strip in the footer, which really is one line beside the save
+   state. Scoped, so it cannot follow the class into a dialog. */
+footer .hint {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-left: 16px; white-space: nowrap;
+}
+footer .hint kbd { font-size: 10px; padding: 2px 5px; }
+footer .hint .sep { color: var(--line); margin: 0 4px; }
 
 /* The shortcuts sheet. */
 .subhead { font-size: 12px; text-transform: uppercase; letter-spacing: .8px;
@@ -727,3 +736,19 @@ button.tool.active {
   font-weight: 500;
   vertical-align: middle;
 }
+
+/* Settings holds four groups of unrelated things; a little more room stops the
+   template buttons wrapping their own labels. */
+#settings { width: 560px; }
+#settings .subhead:first-of-type { margin-top: 0; }
+
+/* `.check` had no style of any kind - the class was in the markup and nowhere
+   in here - so the box, its label and the sentence under it were three loose
+   inline things. The explanation belongs to the checkbox rather than to the
+   group, so it is indented to start under the label. */
+#settings .check {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; margin-bottom: 6px;
+}
+#settings .check input { accent-color: var(--accent); width: 15px; height: 15px; }
+#settings .check + .hint { margin: 0 0 20px 25px; }

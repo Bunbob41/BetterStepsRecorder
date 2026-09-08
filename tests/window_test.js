@@ -90,9 +90,18 @@ const KEYS = {
 };
 
 const ANSWERS = {
-  getSettings: () => ({ markerStyle: 'circle', markerBold: false,
-                        highlightColour: 'yellow', showHighlightLegend: false,
-                        highlightMeanings: {}, captureFormat: 'png' }),
+  // Every key the page reads, with the names the real settings file uses.
+  // A half-answered stub painted "undefined" into the save path, "NaN%" into
+  // the scale and nothing into the format list - which is indistinguishable,
+  // in a screenshot, from the page being broken.
+  getSettings: () => ({
+    saveRoot: 'C:\\Users\\You\\Documents\\StepRecordings',
+    imageFormat: 'png', imageQuality: 85, imageScale: 1, imageFrame: 'window',
+    recordKeyboard: true,
+    markerStyle: 'circle', markerBold: false,
+    highlightColour: 'yellow', showHighlightLegend: false, highlightMeanings: {},
+    brandName: '', brandLogo: '', brandFooter: '', templatePath: '',
+  }),
   getShortcuts: () => KEYS.state(),
   // The real one releases the global hotkeys, so the chord being replaced can
   // actually be typed into the box that replaces it.
@@ -134,7 +143,7 @@ const ANSWERS = {
   libraryUsage: () => ({ ok: true, root: 'C:/fake', recordings: 1, bytes: 4_200_000 }),
   listTemplates: () => ({ templates: [] }),
   effectiveTemplate: () => ({ name: '' }),
-  getBuild: () => ({ version: '0', build: 0, commit: 'test', source: 'dev' }),
+  getBuild: () => ({ version: '0.1.0', build: 71, commit: 'test', source: 'dev' }),
   // A 1x1 transparent GIF: the screenshot never has to decode, because every
   // measurement the drag makes comes from the <img> element's box, which the
   // test sizes explicitly.
@@ -317,6 +326,11 @@ app.whenReady().then(async () => {
     // hidden window's compositor does not necessarily produce a fresh frame -
     // capturePage on one returned a picture of a moment that had already
     // passed, which is worse than no picture at all.
+    //
+    // A shown window can also lose focus to whatever else is running, and the
+    // page closes its menus on blur - correctly. So a BSR_SHOTS run can fail
+    // the right-click checks for reasons that have nothing to do with the
+    // code. Trust a hidden run for pass/fail; use a shown one to look.
     width: 1280, height: 900, show: Boolean(process.env.BSR_SHOTS),
     // Matched to the application's own window, sandbox included: the default
     // is sandboxed, where a preload cannot require anything but electron - so
@@ -1083,6 +1097,34 @@ app.whenReady().then(async () => {
   check('Escape clears the box', cleared.after === '');
   check('and the recent recordings come back', cleared.rows === 1);
   check('with the count cleared', cleared.found === '');
+
+  // Settings is long enough to need two pictures. Under BSR_SHOTS only: this
+  // is for looking at, not asserting on.
+  if (process.env.BSR_SHOTS) {
+    await win.webContents.executeJavaScript(`(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      document.getElementById('btn-settings').click();
+      await sleep(400);
+      document.getElementById('settings').scrollTop = 0;
+      return true;
+    })()`);
+    await new Promise((r) => setTimeout(r, 300));
+    fs.writeFileSync(path.join(process.env.BSR_SHOTS, 'settings-top.png'),
+                     (await win.webContents.capturePage()).toPNG());
+
+    await win.webContents.executeJavaScript(`(async () => {
+      const dlg = document.getElementById('settings');
+      dlg.scrollTop = dlg.scrollHeight;
+      return dlg.scrollHeight;
+    })()`);
+    await new Promise((r) => setTimeout(r, 300));
+    fs.writeFileSync(path.join(process.env.BSR_SHOTS, 'settings-bottom.png'),
+                     (await win.webContents.capturePage()).toPNG());
+
+    await win.webContents.executeJavaScript(
+      `document.getElementById('settings').close(); true`);
+    await new Promise((r) => setTimeout(r, 200));
+  }
 
   // Last, so it covers everything above it. The original defect here was a
   // ReferenceError, which is invisible to every other assertion if it happens
