@@ -43,6 +43,11 @@ no network use of any kind.
 - **Records typing, not keystrokes.** Text is grouped per field. Password fields
   record only that a password was entered; card and SSN shapes are masked even
   in ordinary fields.
+- **Starts without going back to the window.** One shortcut works everywhere:
+  it starts a recording when none is running, pauses when one is, and resumes
+  when it is paused. A recording started that way captures only the application
+  that was in front when you pressed it — the point of a global shortcut is
+  that you are already inside the thing you want to document.
 - **Scopes to one application.** Documenting one system does not capture your
   mail and chat alongside it — out-of-scope events are never captured at all.
 - **Frames each shot as you choose** — the window that was clicked, the whole
@@ -185,7 +190,7 @@ on a machine you are using.
 From `ui/`:
 
 ```
-npm test                # 23 suites, 740 checks, a few seconds
+npm test                # 23 suites, 766 checks, a few seconds
 npm run test:window     # the real page in a real Electron window
 npm run test:composite  # the click marker drawn into real pixels
 ```

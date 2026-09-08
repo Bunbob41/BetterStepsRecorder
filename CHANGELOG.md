@@ -3,11 +3,11 @@
 Notable changes, newest first. The reasoning behind each decision lives in
 [docs/ENGINEERING.md](docs/ENGINEERING.md); this is the short version.
 
-## 0.1.0 — first release
+## 0.1.1
 
-The first tagged build.
-
-### Added just before the tag
+Everything here was found by using 0.1.0 rather than by reading it: the
+shortcut that would not rebind, the settings page that could not be read, and
+the guide that printed the same picture twice.
 
 - **Settings is four tabs** — Recording, Screenshots, Marking up, Exports —
   rather than thirteen controls in one column with the image settings
@@ -43,6 +43,13 @@ The first tagged build.
   during recording — the engine spells those keys differently, so it was told
   to ignore a combination it never produced, and pressing stop was recorded as
   the last step of the guide.
+
+## 0.1.0 — first release
+
+The first tagged build.
+
+### Added just before the tag
+
 - **A way back to your recordings.** A **Recordings** button in the toolbar
   returns the right-hand pane to the library, with whatever you searched for
   still in the box and still run — opening a search result used to throw the
