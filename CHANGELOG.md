@@ -3,7 +3,11 @@
 Notable changes, newest first. The reasoning behind each decision lives in
 [docs/ENGINEERING.md](docs/ENGINEERING.md); this is the short version.
 
-## Unreleased
+## 0.1.0 — first release
+
+The first tagged build.
+
+### Added just before the tag
 
 - **Search every recording**, not just the open one, from the screen the app
   opens on. Searches step text, notes, headings and the recording's name; a
@@ -24,10 +28,7 @@ Notable changes, newest first. The reasoning behind each decision lives in
 - Fixed: a library card counted section headings as steps, so it promised more
   work than the recording held.
 
-## 0.1.0 — first release
-
-The first tagged build. Everything below already worked before this tag; what
-the tag adds is a version somebody can name when they report a problem.
+### Everything else
 
 ### Recording
 
