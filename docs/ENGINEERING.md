@@ -155,6 +155,30 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-45 · Those four groups became four tabs
+`(this change)` · [ui/src/renderer/index.html](../ui/src/renderer/index.html)
+
+Labelling the groups (D-44) made the page legible without making it shorter:
+somebody who only wanted Exports still scrolled past three groups to reach it.
+So the groups are tabs, and the tab's label does the job the subhead was doing.
+
+**It reopens on the tab you used last**, held for the session rather than
+written to the settings file. Somebody in Exports is usually in Exports several
+times running, and reopening on Recording each time is the same scrolling one
+dialog later. Not persisted because it is a position, not a preference - after
+a restart, starting at the beginning is the honest default.
+
+**The one exception is the notice about screenshot size**, whose *Open Settings*
+link now opens on Screenshots. A link that offers to fix something should land
+where the fix is.
+
+Both entry points go through one `openSettings(tab)`; the comment on the old
+duplicate already said the two must not drift, which is a comment asking to be
+made unnecessary.
+
+A fixed `min-height` on the panels stops the dialog resizing as you move
+between tabs of different lengths, which reads as the window being unstable.
+
 ### D-44 · Settings is four groups, and its sentences wrap
 `(this change)` · [ui/src/renderer/index.html](../ui/src/renderer/index.html)
 

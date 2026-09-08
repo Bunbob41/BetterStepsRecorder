@@ -9,9 +9,11 @@ The first tagged build.
 
 ### Added just before the tag
 
-- **Settings is grouped** into Recording, Screenshots, Marking up and Exports,
+- **Settings is four tabs** — Recording, Screenshots, Marking up, Exports —
   rather than thirteen controls in one column with the image settings
-  interleaved with the annotation ones.
+  interleaved with the annotation ones. No scrolling, and it reopens on the tab
+  you used last. The *Open Settings* link on the screenshot-size notice opens
+  on Screenshots, where the fix is.
 - Fixed: three descriptions in Settings were clipped mid-word and the dialog
   scrolled sideways — they were inheriting a style written for the one-line
   keycap strip in the footer, which never wraps.

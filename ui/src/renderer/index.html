@@ -311,7 +311,25 @@
   <dialog id="settings">
     <h2>Settings</h2>
 
-    <h3 class="subhead">Recording</h3>
+    <!-- Four groups of unrelated things. As one column it was a long
+         scroll past three of them to reach the one you came for. -->
+    <div class="tabs" role="tablist" id="settings-tabs">
+      <button type="button" class="tab" role="tab" id="tabbtn-recording"
+              data-tab="recording" aria-controls="tab-recording"
+              aria-selected="true">Recording</button>
+      <button type="button" class="tab" role="tab" id="tabbtn-screenshots"
+              data-tab="screenshots" aria-controls="tab-screenshots"
+              aria-selected="false">Screenshots</button>
+      <button type="button" class="tab" role="tab" id="tabbtn-marking"
+              data-tab="marking" aria-controls="tab-marking"
+              aria-selected="false">Marking up</button>
+      <button type="button" class="tab" role="tab" id="tabbtn-exports"
+              data-tab="exports" aria-controls="tab-exports"
+              aria-selected="false">Exports</button>
+    </div>
+
+    <section class="tabpanel" id="tab-recording" role="tabpanel"
+             aria-labelledby="tabbtn-recording">
 
     <label class="field">
       <span>Save recordings to</span>
@@ -329,8 +347,10 @@
              Password fields record only that a password was entered. When this
              is off, no keyboard hook is installed at all.</small>
     </label>
+    </section>
 
-    <h3 class="subhead">Screenshots</h3>
+    <section class="tabpanel" id="tab-screenshots" role="tabpanel"
+             aria-labelledby="tabbtn-screenshots" hidden>
 
     <label class="field">
       <span>Each screenshot shows</span>
@@ -363,8 +383,10 @@
       <small>Shrinks every screenshot. Degrades text more predictably than
              JPEG quality does.</small>
     </label>
+    </section>
 
-    <h3 class="subhead">Marking up</h3>
+    <section class="tabpanel" id="tab-marking" role="tabpanel"
+             aria-labelledby="tabbtn-marking" hidden>
 
     <label class="field">
       <span>Click indicator</span>
@@ -391,8 +413,10 @@
       reader has to know the difference. Only the colours actually used are
       listed. Right-click the Highlight tool to change colour while marking.</p>
     <div id="legend-meanings" class="legend-meanings"></div>
+    </section>
 
-    <h3 class="subhead">Exports</h3>
+    <section class="tabpanel" id="tab-exports" role="tabpanel"
+             aria-labelledby="tabbtn-exports" hidden>
 
     <label class="field">
       <span>Organisation name</span>
@@ -432,6 +456,7 @@
              Keep the <code>{{…}}</code> markers: they are where the recording
              goes. Your template file is only ever read, never changed.</small>
     </label>
+    </section>
 
     <div class="dialog-actions">
       <span id="build" class="build" title="Which build of the app this is"></span>

@@ -515,12 +515,11 @@ window.bsr.onNotice(({ message }) => showNotice(message, { settings: true }));
 
 el.noticeClose.addEventListener('click', () => { el.notice.hidden = true; });
 
-el.noticeSettings.addEventListener('click', async () => {
+el.noticeSettings.addEventListener('click', () => {
   el.notice.hidden = true;
-  // Exactly what the Settings button does, so the link cannot drift from it.
-  paintSettings(await window.bsr.getSettings());
-  paintBuild();
-  el.dialog.showModal();
+  // The notice this link belongs to is about screenshot size, so it opens on
+  // the tab that can do something about it rather than wherever you were last.
+  openSettings('screenshots');
 });
 
 // ---- elapsed time --------------------------------------------------------------
@@ -2243,11 +2242,51 @@ async function paintBuild() {
   }
 }
 
-el.settingsBtn.addEventListener('click', async () => {
+/**
+ * The tab last looked at.
+ *
+ * Kept for the session rather than written to the settings file: somebody who
+ * is in Exports is usually in Exports several times in a row, and reopening on
+ * Recording each time is the scrolling this replaced, one dialog later.
+ */
+let settingsTab = 'recording';
+
+function showTab(name) {
+  settingsTab = name;
+  for (const b of document.querySelectorAll('#settings-tabs .tab')) {
+    b.setAttribute('aria-selected', String(b.dataset.tab === name));
+  }
+  for (const p of document.querySelectorAll('#settings .tabpanel')) {
+    p.toggleAttribute('hidden', p.id !== `tab-${name}`);
+  }
+}
+
+for (const b of document.querySelectorAll('#settings-tabs .tab')) {
+  b.addEventListener('click', () => showTab(b.dataset.tab));
+}
+
+// Left and right along the strip, which is how a tab list is expected to
+// behave and costs almost nothing.
+document.getElementById('settings-tabs').addEventListener('keydown', (e) => {
+  const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+  if (!step) return;
+  e.preventDefault();
+  const tabs = [...document.querySelectorAll('#settings-tabs .tab')];
+  const at = tabs.findIndex((b) => b.dataset.tab === settingsTab);
+  const next = tabs[(at + step + tabs.length) % tabs.length];
+  showTab(next.dataset.tab);
+  next.focus();
+});
+
+/** One way in, so the two things that open Settings cannot drift apart. */
+async function openSettings(tab = settingsTab) {
   paintSettings(await window.bsr.getSettings());
   paintBuild();
+  showTab(tab);
   el.dialog.showModal();
-});
+}
+
+el.settingsBtn.addEventListener('click', () => openSettings());
 
 el.setClose.addEventListener('click', () => el.dialog.close());
 

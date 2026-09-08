@@ -359,6 +359,21 @@ roughly **85 MB a minute**. Ordinary application windows are a tiny fraction of
 that. Settings has a capture format option if you want to trade some quality
 for a lot of room.
 
+### Finding things in Settings
+
+Settings holds four unrelated kinds of thing, so it is four tabs rather than one
+long page:
+
+- **Recording** — where recordings are saved, and whether typing is captured.
+- **Screenshots** — what each shot shows, its format, and how big it is.
+- **Marking up** — the click indicator, and the highlighter key.
+- **Exports** — your organisation's name, logo, footer and SOP template.
+
+It opens on whichever tab you used last, so if you only ever touch Exports you
+are not scrolling past everything else each time. The one exception is the
+*Open Settings* link on the notice about screenshot size — that opens on
+**Screenshots**, which is the tab that can do something about it.
+
 ### What a recording is called after
 
 Each recording is labelled with the application it is about — **Google Chrome**,

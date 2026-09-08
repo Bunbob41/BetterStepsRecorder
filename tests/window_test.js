@@ -1098,29 +1098,95 @@ app.whenReady().then(async () => {
   check('and the recent recordings come back', cleared.rows === 1);
   check('with the count cleared', cleared.found === '');
 
-  // Settings is long enough to need two pictures. Under BSR_SHOTS only: this
-  // is for looking at, not asserting on.
+  // ---- settings -----------------------------------------------------------
+  console.log('\nsettings, one group at a time:');
+
+  const tabs = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    document.getElementById('btn-settings').click();
+    await sleep(300);
+
+    const strip = [...document.querySelectorAll('#settings-tabs .tab')];
+    const shown = () => [...document.querySelectorAll('#settings .tabpanel')]
+      .filter((p) => !p.hasAttribute('hidden')).map((p) => p.id);
+
+    const opened = shown();
+    // The thing this replaced: everything in one column.
+    const onlyOne = opened.length === 1;
+
+    strip.find((b) => b.dataset.tab === 'exports').click();
+    await sleep(120);
+    const afterClick = shown();
+    const marked = strip.filter((b) => b.getAttribute('aria-selected') === 'true')
+                        .map((b) => b.dataset.tab);
+
+    // The export controls have to be reachable, not merely present.
+    const brand = document.getElementById('set-brand');
+    const visible = brand.getBoundingClientRect().height > 0;
+
+    // Arrow keys along the strip.
+    document.getElementById('settings-tabs').dispatchEvent(new KeyboardEvent(
+      'keydown', { key: 'ArrowRight', bubbles: true }));
+    await sleep(120);
+    const wrapped = shown();
+
+    document.getElementById('set-close').click();
+    await sleep(150);
+
+    return { labels: strip.map((b) => b.textContent.trim()),
+             opened, onlyOne, afterClick, marked, visible, wrapped };
+  })()`);
+
+  check('there is a tab for each group',
+        tabs.labels.join('|') === 'Recording|Screenshots|Marking up|Exports');
+  check('one panel at a time', tabs.onlyOne && tabs.opened[0] === 'tab-recording');
+  check('choosing one shows it', tabs.afterClick[0] === 'tab-exports');
+  check('and only it', tabs.afterClick.length === 1);
+  check('the strip says which you are on',
+        tabs.marked.length === 1 && tabs.marked[0] === 'exports');
+  check('its controls are actually on screen, not just in the document',
+        tabs.visible);
+  check('the arrows walk along the strip, and wrap',
+        tabs.wrapped[0] === 'tab-recording');
+
+  const reopened = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    document.getElementById('btn-settings').click();
+    await sleep(250);
+    const first = [...document.querySelectorAll('#settings .tabpanel')]
+      .find((p) => !p.hasAttribute('hidden')).id;
+    document.getElementById('set-close').click();
+    await sleep(120);
+
+    // The notice about screenshot size opens the tab that can fix it.
+    document.getElementById('notice-settings').click();
+    await sleep(300);
+    const fromNotice = [...document.querySelectorAll('#settings .tabpanel')]
+      .find((p) => !p.hasAttribute('hidden')).id;
+    document.getElementById('set-close').click();
+    await sleep(120);
+    return { first, fromNotice };
+  })()`);
+
+  // Somebody who is in Exports is usually in Exports several times running.
+  check('it reopens where you left it', reopened.first === 'tab-recording');
+  check('but a notice opens the tab it is about',
+        reopened.fromNotice === 'tab-screenshots');
+
   if (process.env.BSR_SHOTS) {
-    await win.webContents.executeJavaScript(`(async () => {
-      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-      document.getElementById('btn-settings').click();
-      await sleep(400);
-      document.getElementById('settings').scrollTop = 0;
-      return true;
-    })()`);
-    await new Promise((r) => setTimeout(r, 300));
-    fs.writeFileSync(path.join(process.env.BSR_SHOTS, 'settings-top.png'),
-                     (await win.webContents.capturePage()).toPNG());
-
-    await win.webContents.executeJavaScript(`(async () => {
-      const dlg = document.getElementById('settings');
-      dlg.scrollTop = dlg.scrollHeight;
-      return dlg.scrollHeight;
-    })()`);
-    await new Promise((r) => setTimeout(r, 300));
-    fs.writeFileSync(path.join(process.env.BSR_SHOTS, 'settings-bottom.png'),
-                     (await win.webContents.capturePage()).toPNG());
-
+    for (const tab of ['recording', 'screenshots', 'marking', 'exports']) {
+      await win.webContents.executeJavaScript(`(async () => {
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        const dlg = document.getElementById('settings');
+        if (!dlg.open) { document.getElementById('btn-settings').click(); await sleep(300); }
+        document.querySelector('#settings-tabs .tab[data-tab="${tab}"]').click();
+        await sleep(150);
+        return true;
+      })()`);
+      await new Promise((r) => setTimeout(r, 250));
+      fs.writeFileSync(path.join(process.env.BSR_SHOTS, `settings-${tab}.png`),
+                       (await win.webContents.capturePage()).toPNG());
+    }
     await win.webContents.executeJavaScript(
       `document.getElementById('settings').close(); true`);
     await new Promise((r) => setTimeout(r, 200));

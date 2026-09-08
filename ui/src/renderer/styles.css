@@ -740,7 +740,25 @@ button.tool.active {
 /* Settings holds four groups of unrelated things; a little more room stops the
    template buttons wrapping their own labels. */
 #settings { width: 560px; }
-#settings .subhead:first-of-type { margin-top: 0; }
+
+/* The tab strip. The tab's label is the group's heading, so the subheads that
+   used to do that job are gone rather than repeated. */
+.tabs {
+  display: flex; gap: 2px;
+  margin: 0 0 18px; border-bottom: 1px solid var(--line);
+}
+.tab {
+  background: transparent; border: 0; border-bottom: 2px solid transparent;
+  color: var(--muted); font-size: 12.5px; font-family: inherit;
+  padding: 8px 12px; margin-bottom: -1px; cursor: pointer;
+  border-radius: 6px 6px 0 0;
+}
+.tab:hover { color: var(--text); background: rgba(255,255,255,.05); }
+.tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.tabpanel[hidden] { display: none; }
+/* So the dialog does not jump about as you move between tabs of different
+   lengths - which reads as the window being unstable. */
+#settings .tabpanel { min-height: 330px; }
 
 /* `.check` had no style of any kind - the class was in the markup and nowhere
    in here - so the box, its label and the sentence under it were three loose
