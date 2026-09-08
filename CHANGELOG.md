@@ -136,6 +136,12 @@ The first tagged build.
 
 ### Known limits in this release
 
+- **Applications built on WinUI content islands cannot be named.** Windows 11's
+  Paint is the clearest example: every point in it reports no control, so steps
+  read *"Clicked in 'Untitled - Paint'"* rather than naming a button. Classic
+  Windows programs and dialogs are unaffected. The screenshot, the click marker
+  and the step itself are all still correct.
+
 - **Not code-signed.** Windows SmartScreen will warn on first run, and endpoint
   protection may object to a binary that hooks input and takes screenshots.
   See the README.

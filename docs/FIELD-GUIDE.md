@@ -211,6 +211,24 @@ might be busy or hung. So every lookup runs on a separate thread with a hard
 without the name. **Naming is a bonus, never a dependency** — a recording must
 never be lost because Word was thinking.
 
+### Where naming does not work
+
+Some applications will not tell anyone what their controls are called, and you
+will see it immediately: the step says *"Clicked in 'Untitled - Paint'"* instead
+of naming a button.
+
+The dividing line is how the application is built. Ordinary Windows programs and
+classic dialogs — the Control Panel, Region settings, most desktop software —
+answer the question fully, and you get *"Clicked the 'Apply' button"*. Some newer
+Windows apps built on WinUI put their whole interface behind what Microsoft calls
+a *content island*, and asking what is at a point stops at the island's edge
+rather than reaching the button inside it. Windows 11's Paint is one: every
+point in it, from the ribbon to the canvas, comes back nameless.
+
+The step, the screenshot and the click marker are all still correct — only the
+wording is poorer. You can type over it, and a description you write is kept
+even if you later re-record that step.
+
 ### The trap that had to be fixed
 
 Some applications, when asked "what is this text box called?", answer with *what

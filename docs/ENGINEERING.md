@@ -1644,6 +1644,17 @@ waits out because it waits for the engine's `ready`.
   Suggesting the likely replacement is the obvious next step and is not started.
 - No migration story for `session.json` if its shape changes. Fine while the
   only recordings are the author's; not fine after distribution.
+- **WinUI 3 applications with content islands cannot be named.** Measured, not
+  guessed: `AutomationElement.FromPoint` on Windows 11 Paint returns an unnamed
+  `Pane` of class `Microsoft.UI.Content.DesktopChildSiteBridge` for every point
+  in the window - the ribbon, the palette, the canvas alike. Hit-testing stops
+  at the content bridge and never reaches the XAML tree. The same probe against
+  a classic Win32 dialog returns "Formats", "Additional settings...", "OK",
+  "Apply". Not a deadline problem: the failing calls return in under 90 ms
+  against a budget of 400. Steps in such applications degrade to *"Clicked in
+  'Untitled - Paint'"*, which is the behaviour D-4 exists to avoid. Whether the
+  newer `IUIAutomation` COM interface can drill through a content island is the
+  open question; the managed wrapper this uses cannot.
 - **Blurring one of two identical steps leaves the other unredacted.** True
   before D-47 and unchanged by it - two steps that captured the same screen
   show the same secret, and redacting one says nothing about the other. The
