@@ -50,6 +50,9 @@
   </div>
 
   <div id="huemenu" class="huemenu" hidden></div>
+  <!-- One menu element, filled differently depending on what was right-clicked.
+       Two menus would be two things to keep in step. -->
+  <div id="context" class="huemenu ctxmenu" hidden></div>
 
   <main>
     <aside class="steps">
@@ -191,9 +194,19 @@
       <span class="k-keys"><kbd>Delete</kbd></span>
     </div>
     <div class="keyrow static">
-      <span class="k-what">Undo a delete or a blur</span>
+      <span class="k-what">Undo the last change</span>
       <span class="k-keys"><kbd>Ctrl</kbd><kbd>Z</kbd></span>
     </div>
+    <div class="keyrow static">
+      <span class="k-what">Put it back</span>
+      <span class="k-keys"><kbd>Ctrl</kbd><kbd>Y</kbd></span>
+    </div>
+    <div class="keyrow static">
+      <span class="k-what">Find and replace</span>
+      <span class="k-keys"><kbd>Ctrl</kbd><kbd>F</kbd></span>
+    </div>
+    <p class="note">Undo and redo are also on the right-click menu, on a step
+       and on a screenshot.</p>
 
     <div class="dialog-actions">
       <button id="k-reset" type="button">Reset to defaults</button>

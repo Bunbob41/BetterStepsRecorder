@@ -41,6 +41,8 @@ contextBridge.exposeInMainWorld('bsr', {
   libraryUsage: () => ipcRenderer.invoke('library:usage'),
   renameSession: (name) => ipcRenderer.invoke('session:rename', { name }),
   undo: () => ipcRenderer.invoke('edit:undo'),
+  redo: () => ipcRenderer.invoke('edit:redo'),
+  moveMarker: (id, at) => ipcRenderer.invoke('step:marker', { id, at }),
   undoDepth: () => ipcRenderer.invoke('edit:undoDepth'),
 
   verifySession: () => ipcRenderer.invoke('session:verify'),

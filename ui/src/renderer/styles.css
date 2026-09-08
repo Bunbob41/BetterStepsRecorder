@@ -692,3 +692,23 @@ button.tool.active {
    a recording that vanished would look lost. */
 .lib-row.unreadable .lib-name { color: var(--muted); }
 .lib-row.unreadable .lib-meta { color: #d6a02a; }
+
+/* The right-click menu. Shares the highlighter menu's look, because they are
+   the same kind of thing and two appearances would just be two things to keep
+   in step. */
+.ctxmenu { min-width: 180px; }
+.ctxmenu button {
+  display: flex; justify-content: space-between; gap: 18px; align-items: center;
+}
+.ctxmenu button:disabled { opacity: .35; cursor: default; }
+.ctxmenu button:disabled:hover { background: transparent; }
+.ctxmenu .key { color: var(--muted); font-size: 11px; }
+/* --line is for a border against the page background; on the menu's own
+   panel it disappears, which is a divider that divides nothing. */
+.ctxmenu hr { border: 0; border-top: 1px solid rgba(255,255,255,.10);
+              margin: 5px 2px; }
+
+/* The click marker can be dragged to where it should have been. */
+.indicator.movable .bsr-marker { pointer-events: auto; cursor: grab; }
+.indicator.movable .bsr-marker:active { cursor: grabbing; }
+.indicator.moved .bsr-marker { filter: drop-shadow(0 0 3px rgba(255,255,255,.55)); }

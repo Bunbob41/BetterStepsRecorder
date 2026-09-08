@@ -9,6 +9,15 @@ The first tagged build.
 
 ### Added just before the tag
 
+- **Redo.** Ctrl+Y, or Ctrl+Shift+Z. Undo and redo are now the same traversal
+  run in opposite directions, so anything that can be undone can be put back —
+  a blur, a crop, a bulk delete, a replace-all.
+- **The click marker can be dragged** to where it should have been. A typed
+  step is marked at the centre of the box you typed into, because that is all
+  the recorder can know; on a wide field that is not where the words went.
+  Right-click the screenshot to put it back where it was recorded.
+- **Right-click menus** on a step and on a screenshot: undo and redo, adding a
+  note or a heading, leaving a step out, deleting, and resetting the marker.
 - **Search every recording**, not just the open one, from the screen the app
   opens on. Searches step text, notes, headings and the recording's name; a
   result opens that recording on the matching step.

@@ -110,6 +110,15 @@ const countSteps = sections.countSteps;
  * outside the captured frame.
  */
 function markerPosition(step) {
+  // Where the author put it, if they moved it. A typed step is anchored at the
+  // centre of the focused control because the engine cannot know where the
+  // caret is, so on a large field the marker lands in the middle of the box -
+  // and this is the correction. Already a percentage, so it needs no frame.
+  if (step.markerAt
+      && Number.isFinite(step.markerAt.x) && Number.isFinite(step.markerAt.y)) {
+    return { x: step.markerAt.x, y: step.markerAt.y };
+  }
+
   // The captured frame, not the window: framing by monitor or full screen means
   // the screenshot is larger than the window and window-relative maths is wrong.
   const rect = (step.frame && step.frame.w ? step.frame : null)

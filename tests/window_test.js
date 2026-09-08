@@ -26,7 +26,7 @@
  *
  *   npx electron tests/window_test.js
  */
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, protocol } = require('electron');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -50,7 +50,12 @@ const SESSION = {
   ok: true, dir: 'C:/fake/session-1', name: 'Window test',
   steps: [
     { id: 's1', action: 'leftClick', text: 'Click the "New" button', ...shot },
-    { id: 's2', action: 'leftClick', text: 'Click Save, then Save again', ...shot },
+    // Its own editedAt so its screenshot URL differs from every other step's.
+    // The page cache-busts with ?v=<editedAt>, and an <img> assigned the src it
+    // already has fires no load event - so with identical URLs, selecting this
+    // step would never run placeIndicator and there would be no marker to drag.
+    { id: 's2', action: 'leftClick', text: 'Click Save, then Save again',
+      editedAt: '2026-01-01T00:00:00.000Z', ...shot },
     { id: 'n1', action: 'note', text: 'Save first', textEdited: true },
     { id: 's3', action: 'leftClick', text: 'Click Cancel', ...shot },
   ],
@@ -63,6 +68,14 @@ const find = require(PROJECT + '/ui/src/renderer/find.js');
 const crop = require(PROJECT + '/ui/src/renderer/crop.js');
 const { solidPngDataUrl } = require(PROJECT + '/tests/png-fixture.js');
 const SHOT = solidPngDataUrl(600, 400);
+
+// The page is told the depth over an event, and the menu greys Undo and Redo
+// by it - so a stub that never fires leaves both permanently disabled and the
+// menu untestable.
+let depthListener = () => {};
+let DEPTH = { undo: 0, redo: 0 };
+let LAST_MARKER = null;
+const CALLED = [];
 
 const ANSWERS = {
   getSettings: () => ({ markerStyle: 'circle', markerBold: false,
@@ -90,13 +103,35 @@ const ANSWERS = {
   // A 1x1 transparent GIF: the screenshot never has to decode, because every
   // measurement the drag makes comes from the <img> element's box, which the
   // test sizes explicitly.
-  shotUrl: () => SHOT,
+  // bsr://, as the application serves it, and not a data: URL. The page
+  // cache-busts by appending "?v=<editedAt>", and a query on a data: URL
+  // becomes part of the base64 - the image then never decodes, naturalWidth
+  // stays 0, and placeIndicator quietly places nothing. Every drag test still
+  // passed, because a drag measures the <img> element's box rather than the
+  // picture inside it. A file: URL is no better: this page's policy is
+  // img-src bsr: data:, and refuses one.
+  shotUrl: (rel) => 'bsr://step/' + encodeURIComponent(String(rel || 'shot.png')),
   // A real image at a real size. Returning null here sent every completed drag
   // into alert('Could not read the screenshot.') - a modal that never resolves
   // in a hidden window, and a run that never ended. It also meant the marking
   // path was never actually reached.
   shotData: () => SHOT,
   updateStep: () => ({ ok: true }),
+  // Enough of the real handler that the PAGE's behaviour is what is under
+  // test: the real one clamps, pushes an undo entry and writes the field.
+  // history.js is exercised on its own; this is about the drag.
+  moveMarker: (id, at) => {
+    const step = SESSION.steps.find((x) => x.id === id);
+    if (!step) return { ok: false, error: 'Step not found.' };
+    if (at) step.markerAt = { x: at.x, y: at.y };
+    else delete step.markerAt;
+    LAST_MARKER = { id, at: at ? { ...at } : null };
+    DEPTH = { undo: DEPTH.undo + 1, redo: 0 };
+    depthListener(DEPTH);
+    return { ok: true, step };
+  },
+  undo: () => { CALLED.push('undo'); return { ok: true, steps: SESSION.steps }; },
+  redo: () => { CALLED.push('redo'); return { ok: true, steps: SESSION.steps }; },
   // The page assigns r.step back into its list, so a stub that omits it puts
   // undefined where a step should be and the next render dies.
   redactStep: (id) => ({ ok: true, step: SESSION.steps.find((x) => x.id === id) }),
@@ -134,6 +169,12 @@ for (const name of NAMES) {
     : async (...args) => (ANSWERS[name] ? ANSWERS[name](...args) : { ok: true });
 }
 bridge.__lastCrop = async () => LAST_CROP;
+bridge.__lastMarker = async () => LAST_MARKER;
+bridge.__called = async () => CALLED;
+bridge.onUndoDepth = (fn) => { depthListener = fn; };
+// Redo is only reachable once something has been undone, and nothing in this
+// window has a real history - so the depth is set directly to open the door.
+bridge.__setDepth = async (d) => { DEPTH = d; depthListener(DEPTH); };
 contextBridge.exposeInMainWorld('bsr', bridge);
 `;
 
@@ -227,8 +268,19 @@ app.whenReady().then(async () => {
     + `const PROJECT = ${JSON.stringify(path.join(__dirname, '..').replace(/\\/g, '/'))};\n`
     + PRELOAD);
 
+  // The same scheme the application registers, answered with one real 600x400
+  // picture. Registered here rather than stubbed in the preload because the
+  // page's content policy is what decides whether an image loads at all.
+  const { solidPng } = require('./png-fixture.js');
+  protocol.handle('bsr', () => new Response(solidPng(600, 400),
+    { headers: { 'content-type': 'image/png' } }));
+
   const win = new BrowserWindow({
-    width: 1280, height: 900, show: false,
+    // Hidden for a normal run. Shown when a capture is asked for, because a
+    // hidden window's compositor does not necessarily produce a fresh frame -
+    // capturePage on one returned a picture of a moment that had already
+    // passed, which is worse than no picture at all.
+    width: 1280, height: 900, show: Boolean(process.env.BSR_SHOTS),
     // Matched to the application's own window, sandbox included: the default
     // is sandboxed, where a preload cannot require anything but electron - so
     // the stub failed to load and the page came up with no bridge at all.
@@ -452,6 +504,268 @@ app.whenReady().then(async () => {
   // The click on this fixture is at 300,200 of a 600x400 frame - inside the
   // region dragged - so nothing should have been asked.
   check('a crop that keeps the click asks nothing', cropped.confirms === 0);
+
+  // ---- moving the click marker ---------------------------------------------
+  // The engine anchors a typed step at the centre of the focused control, so on
+  // a wide box the marker lands in the middle of it rather than where the words
+  // went. Dragging it is the correction, and it has to be VISIBLE - the marker
+  // is drawn through the CSSOM under a policy that refuses style attributes,
+  // which is exactly the kind of thing that fails silently.
+
+  console.log('\nmoving the click marker:');
+
+  const marker = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const shot = document.getElementById('shot');
+    const ind = document.getElementById('indicator');
+
+    // s2, not the first step: the crop above cut that one's frame.
+    document.querySelector('#step-list li[data-id="s2"]').click();
+    await sleep(250);
+
+    const r = shot.getBoundingClientRect();
+    const mark = ind.querySelector('.bsr-marker');
+    const at = (node) => {
+      const b = node.getBoundingClientRect();
+      return { x: Math.round(b.left + b.width / 2 - r.left),
+               y: Math.round(b.top + b.height / 2 - r.top),
+               w: Math.round(b.width), h: Math.round(b.height) };
+    };
+
+    const before = mark ? at(mark) : null;
+    const shown = Boolean(mark) && ind.style.display === 'block';
+    if (!mark) return { shown, before, why: {
+      display: ind.style.display, kids: ind.childElementCount,
+      natural: shot.naturalWidth, src: shot.src.slice(0, 60),
+      selected: (document.querySelector('#step-list li.selected') || {}).dataset,
+    } };
+
+    // Grab it and put it a quarter of the way in from the left.
+    mark.dispatchEvent(new MouseEvent('mousedown',
+      { bubbles: true, button: 0, clientX: r.left + 300, clientY: r.top + 200 }));
+    await sleep(15);
+    window.dispatchEvent(new MouseEvent('mousemove',
+      { bubbles: true, clientX: r.left + 150, clientY: r.top + 100 }));
+    await sleep(15);
+    const during = at(ind.querySelector('.bsr-marker'));
+    window.dispatchEvent(new MouseEvent('mouseup',
+      { bubbles: true, clientX: r.left + 150, clientY: r.top + 100 }));
+    await sleep(200);
+
+    const after = at(ind.querySelector('.bsr-marker'));
+    return {
+      shown, before, during, after,
+      movable: ind.classList.contains('movable'),
+      moved: ind.classList.contains('moved'),
+      sent: await window.bsr.__lastMarker(),
+    };
+  })()`);
+
+  if (marker.why) console.log('    why:', JSON.stringify(marker.why));
+  check('the recorded click is marked on the picture',
+        marker.shown && Boolean(marker.before));
+  check('where the click was, not at the corner',
+        Boolean(marker.before) && Math.abs(marker.before.x - 300) <= 2
+        && Math.abs(marker.before.y - 200) <= 2);
+  check('and the mark has a size somebody can see',
+        Boolean(marker.before) && marker.before.w > 8 && marker.before.h > 8);
+  check('it can be picked up', marker.movable);
+  check('it follows the pointer while dragged',
+        Math.abs(marker.during.x - 150) <= 2 && Math.abs(marker.during.y - 100) <= 2);
+  check('the new place reaches the main process', Boolean(marker.sent));
+  // 150 of 600 and 100 of 400: a percentage of the frame, like everywhere else,
+  // so a later crop and every export follow without knowing this happened.
+  check('as a percentage of the picture, not pixels',
+        Boolean(marker.sent) && Math.abs(marker.sent.at.x - 25) < 1
+        && Math.abs(marker.sent.at.y - 25) < 1);
+  check('and it stays there after the write',
+        Math.abs(marker.after.x - 150) <= 2 && Math.abs(marker.after.y - 100) <= 2);
+  check('a moved marker says so', marker.moved);
+
+  const nudge = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const shot = document.getElementById('shot');
+    const mark = document.querySelector('#indicator .bsr-marker');
+    const r = shot.getBoundingClientRect();
+    const beforeCount = (await window.bsr.__called()).length;
+
+    mark.dispatchEvent(new MouseEvent('mousedown',
+      { bubbles: true, button: 0, clientX: r.left + 150, clientY: r.top + 100 }));
+    await sleep(15);
+    window.dispatchEvent(new MouseEvent('mousemove',
+      { bubbles: true, clientX: r.left + 151, clientY: r.top + 100 }));
+    await sleep(15);
+    window.dispatchEvent(new MouseEvent('mouseup',
+      { bubbles: true, clientX: r.left + 151, clientY: r.top + 100 }));
+    await sleep(150);
+
+    const b = document.querySelector('#indicator .bsr-marker').getBoundingClientRect();
+    return { x: Math.round(b.left + b.width / 2 - r.left),
+             sent: await window.bsr.__lastMarker() };
+  })()`);
+
+  // A pixel of slip while clicking is not a move, and treating it as one would
+  // fill the undo history with edits nobody made.
+  check('a click that does not move it writes nothing',
+        Math.abs(nudge.sent.at.x - 25) < 1);
+  check('and leaves it exactly where it was', Math.abs(nudge.x - 150) <= 2);
+
+  const armed = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    document.getElementById('btn-blur').click();
+    await sleep(30);
+    const off = !document.getElementById('indicator').classList.contains('movable');
+    document.getElementById('btn-blur').click();   // disarm
+    await sleep(30);
+    return { off, backOn: document.getElementById('indicator').classList.contains('movable') };
+  })()`);
+
+  // One drag cannot mean two things depending on where it started.
+  check('arming a tool takes the marker out of play', armed.off);
+  check('and disarming gives it back', armed.backOn);
+
+  // ---- the right-click menus -----------------------------------------------
+  console.log('\nright-clicking:');
+
+  const shotMenu = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const shot = document.getElementById('shot');
+    const r = shot.getBoundingClientRect();
+    await window.bsr.__setDepth({ undo: 2, redo: 1 });
+    await sleep(30);
+
+    document.getElementById('shot-wrap').dispatchEvent(new MouseEvent('contextmenu',
+      { bubbles: true, clientX: r.left + 200, clientY: r.top + 150 }));
+    await sleep(60);
+
+    const menu = document.getElementById('context');
+    const items = [...menu.querySelectorAll('button')]
+      .map((b) => ({ label: b.textContent, disabled: b.disabled }));
+    const box = menu.getBoundingClientRect();
+    // A menu with no background is a menu drawn over the screenshot, and a
+    // measurement cannot tell the difference. The stylesheet is what makes it
+    // readable, so read back what the page actually resolved.
+    const style = getComputedStyle(menu);
+    const first = getComputedStyle(menu.querySelector('button'));
+    return { shown: !menu.hidden, onScreen: box.width > 0 && box.height > 0,
+             inside: box.right <= window.innerWidth && box.bottom <= window.innerHeight,
+             opaque: !/transparent|rgba\(0, 0, 0, 0\)/.test(style.backgroundColor),
+             ink: first.color, paper: style.backgroundColor,
+             items };
+  })()`);
+
+  // Geometry is not appearance. Every one of the bugs this file exists for -
+  // the collapsed arrowhead, the invisible highlight, the invisible drag
+  // preview - passed a measurement and failed the eye, so: BSR_SHOTS=<dir>
+  // writes what the window is actually showing.
+  if (process.env.BSR_SHOTS) {
+    const image = await win.webContents.capturePage();
+    const out = path.join(process.env.BSR_SHOTS, 'context-menu.png');
+    fs.writeFileSync(out, image.toPNG());
+    console.log('    wrote ' + out);
+  }
+
+  check('the menu opens on the picture', shotMenu.shown && shotMenu.onScreen);
+  check('and stays on screen', shotMenu.inside);
+  check('with a background, rather than floating over the screenshot',
+        shotMenu.opaque);
+  check('and text that is not the background colour',
+        shotMenu.ink !== shotMenu.paper);
+  check('it offers undo and redo',
+        /Undo/.test(shotMenu.items[0].label) && /Redo/.test(shotMenu.items[1].label));
+  check('both live, because there is something to go back to',
+        !shotMenu.items[0].disabled && !shotMenu.items[1].disabled);
+  check('and the one thing only reachable here',
+        shotMenu.items.some((i) => /marker back/.test(i.label) && !i.disabled));
+
+  const reset = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const shot = document.getElementById('shot');
+    const r = shot.getBoundingClientRect();
+    [...document.querySelectorAll('#context button')]
+      .find((b) => /marker back/.test(b.textContent)).click();
+    await sleep(250);
+
+    const b = document.querySelector('#indicator .bsr-marker').getBoundingClientRect();
+    return {
+      closed: document.getElementById('context').hidden,
+      sent: await window.bsr.__lastMarker(),
+      x: Math.round(b.left + b.width / 2 - r.left),
+      y: Math.round(b.top + b.height / 2 - r.top),
+      moved: document.getElementById('indicator').classList.contains('moved'),
+    };
+  })()`);
+
+  check('choosing an item closes the menu', reset.closed);
+  check('putting it back sends nothing rather than a position',
+        reset.sent.at === null);
+  check('and the marker returns to where the recording put it',
+        Math.abs(reset.x - 300) <= 2 && Math.abs(reset.y - 200) <= 2);
+  check('and stops calling itself moved', !reset.moved);
+
+  const rowMenu = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const row = document.querySelector('#step-list li[data-id="s3"]');
+    const b = row.getBoundingClientRect();
+    row.dispatchEvent(new MouseEvent('contextmenu',
+      { bubbles: true, clientX: b.left + 20, clientY: b.top + 8 }));
+    await sleep(120);
+
+    const items = [...document.querySelectorAll('#context button')]
+      .map((x) => x.textContent);
+    const selected = document.querySelector('#step-list li.step.selected');
+    return { items, selected: selected ? selected.dataset.id : null,
+             shown: !document.getElementById('context').hidden };
+  })()`);
+
+  check('a step has its own menu', rowMenu.shown);
+  // Otherwise "Delete step" on the menu and on the toolbar act on different
+  // steps, which is the worst way for a delete to behave.
+  check('right-clicking selects the row first', rowMenu.selected === 's3');
+  check('it can add a note or a heading',
+        rowMenu.items.some((t) => /note/.test(t))
+        && rowMenu.items.some((t) => /heading/.test(t)));
+  check('leave the step out of the guide',
+        rowMenu.items.some((t) => /Leave out/.test(t)));
+  check('and delete it', rowMenu.items.some((t) => /Delete step/.test(t)));
+
+  const menuUndo = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const before = (await window.bsr.__called()).slice();
+    [...document.querySelectorAll('#context button')]
+      .find((b) => /Undo/.test(b.textContent)).click();
+    await sleep(200);
+
+    // And by keyboard, which must reach the same place.
+    document.dispatchEvent(new KeyboardEvent('keydown',
+      { key: 'y', ctrlKey: true, bubbles: true }));
+    await sleep(200);
+    document.dispatchEvent(new KeyboardEvent('keydown',
+      { key: 'z', ctrlKey: true, shiftKey: true, bubbles: true }));
+    await sleep(200);
+
+    const after = (await window.bsr.__called()).slice();
+    return { added: after.slice(before.length) };
+  })()`);
+
+  check('the menu item actually goes back', menuUndo.added[0] === 'undo');
+  check('Ctrl+Y goes forward', menuUndo.added[1] === 'redo');
+  check('and so does Ctrl+Shift+Z', menuUndo.added[2] === 'redo');
+
+  const escaped = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const row = document.querySelector('#step-list li[data-id="s3"]');
+    const b = row.getBoundingClientRect();
+    row.dispatchEvent(new MouseEvent('contextmenu',
+      { bubbles: true, clientX: b.left + 20, clientY: b.top + 8 }));
+    await sleep(80);
+    const opened = !document.getElementById('context').hidden;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(80);
+    return { opened, closed: document.getElementById('context').hidden };
+  })()`);
+
+  check('Escape closes it', escaped.opened && escaped.closed);
 
   // ---- searching every recording -------------------------------------------
   console.log('\nsearching the whole archive:');

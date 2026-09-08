@@ -23,6 +23,7 @@ const templatesLib = require('./templates-lib');
 const shortcuts = require('./shortcuts');
 const bounds = require('./bounds');
 const paths = require('./paths');
+const { History } = require('./history');
 const library = require('./library');
 const archive = require('./archive');
 
@@ -38,33 +39,28 @@ let scopePids = [];
 let scopeLabel = 'Everything';
 let recordingPaused = false;
 
-// Undo history for destructive edits, newest last. Session-scoped: it exists to
-// cover a slip during editing, not to be a document revision system.
-let undoStack = [];
-const UNDO_LIMIT = 25;
+// Undo and redo. Session-scoped: it exists to cover a slip during editing, not
+// to be a document revision system. The shape of it lives in history.js -
+// applying an entry returns the entry that puts it back, which is what makes
+// redo the same code as undo pointed the other way.
+const history = new History({
+  // Once an entry can no longer be reached, its stashed original is just a
+  // copy of redacted pixels sitting on disk.
+  discard: (token) => { if (session) session.discard(token); },
+});
+
+function sendDepth() { send('undo:depth', history.depth); }
 
 function pushUndo(entry) {
-  undoStack.push(entry);
-  while (undoStack.length > UNDO_LIMIT) {
-    // Once an entry can no longer be undone, its stashed original is just a
-    // copy of redacted pixels sitting on disk. Drop the file with the entry.
-    const dropped = undoStack.shift();
-    for (const t of tokensOf(dropped)) if (session) session.discard(t);
-  }
-  send('undo:depth', { depth: undoStack.length });
-}
-
-function tokensOf(entry) {
-  if (!entry) return [];
-  if (entry.type === 'deleteMany') return entry.removals.map((r) => r.token).filter(Boolean);
-  return entry.token ? [entry.token] : [];
+  history.push(entry);
+  sendDepth();
 }
 
 /** Closes the current session: history goes, and so do the stashed originals. */
 function closeSession() {
+  history.clear();
   if (session) session.purgeTrash();
-  undoStack = [];
-  send('undo:depth', { depth: 0 });
+  sendDepth();
 }
 
 // The bound accelerators, kept so they can be released before rebinding.
@@ -527,7 +523,7 @@ ipcMain.handle('step:remove', (_e, { id }) => {
   if (!session) return false;
   const removed = session.removeStep(id);
   if (!removed) return false;
-  pushUndo({ type: 'delete', ...removed });
+  pushUndo({ type: 'restoreSteps', removals: [removed] });
   return true;
 });
 
@@ -546,68 +542,28 @@ ipcMain.handle('step:removeMany', (_e, { ids }) => {
   }
   if (!removals.length) return { ok: false };
 
-  pushUndo({ type: 'deleteMany', removals });
+  pushUndo({ type: 'restoreSteps', removals });
   return { ok: true, removed: removals.length, steps: session.steps };
 });
 
-ipcMain.handle('edit:undo', () => {
-  if (!session || !undoStack.length) return { ok: false, empty: true };
-  const entry = undoStack.pop();
-  send('undo:depth', { depth: undoStack.length });
+/**
+ * One implementation, pointed either way.
+ *
+ * There is no separate redo path to drift out of step with the undo path: both
+ * pop from one stack, apply, and push what comes back onto the other.
+ */
+function step_back(direction) {
+  if (!session) return { ok: false, empty: true };
+  const r = direction === 'redo' ? history.redo(session) : history.undo(session);
+  sendDepth();
+  if (!r.ok) return r;
+  return { ok: true, action: r.type, steps: session.steps };
+}
 
-  if (entry.type === 'delete') {
-    if (entry.token) session.restore(entry.token, entry.step.screenshot);
-    session.insertAt(entry.index, entry.step);
-    return { ok: true, action: 'delete', steps: session.steps };
-  }
+ipcMain.handle('edit:undo', () => step_back('undo'));
+ipcMain.handle('edit:redo', () => step_back('redo'));
 
-  if (entry.type === 'deleteMany') {
-    // Reverse order, so each index means what it meant when that step was cut.
-    for (const r of [...entry.removals].reverse()) {
-      if (r.token) session.restore(r.token, r.step.screenshot);
-      session.insertAt(r.index, r.step);
-    }
-    return { ok: true, action: 'deleteMany', steps: session.steps };
-  }
-
-  if (entry.type === 'retext') {
-    for (const c of entry.changes) {
-      session.updateStep(c.id, { text: c.was, textEdited: c.wasEdited });
-    }
-    return { ok: true, action: 'retext', steps: session.steps };
-  }
-
-  if (entry.type === 'crop') {
-    if (!session.restore(entry.token, entry.step.screenshot)) {
-      return { ok: false, error: 'The original screenshot is no longer available.' };
-    }
-    // The frame goes back with the pixels. Restoring one without the other is
-    // what a crop must never leave behind.
-    session.updateStep(entry.step.id, {
-      frame: entry.wasFrame || undefined,
-      cropped: entry.step.cropped === true,
-      editedAt: new Date().toISOString(),
-    });
-    return { ok: true, action: 'crop', steps: session.steps };
-  }
-
-  if (entry.type === 'redact') {
-    if (!session.restore(entry.token, entry.step.screenshot)) {
-      return { ok: false, error: 'The original screenshot is no longer available.' };
-    }
-    session.updateStep(entry.step.id, {
-      redacted: entry.wasRedacted || false,
-      annotated: entry.wasAnnotated || false,
-      highlights: entry.wasHighlights || [],
-      editedAt: new Date().toISOString(),
-    });
-    return { ok: true, action: 'redact', steps: session.steps };
-  }
-
-  return { ok: false };
-});
-
-ipcMain.handle('edit:undoDepth', () => ({ depth: undoStack.length }));
+ipcMain.handle('edit:undoDepth', () => history.depth);
 
 /**
  * Replaces a word everywhere it appears, as ONE undoable action.
@@ -740,8 +696,17 @@ ipcMain.handle('step:crop', (_e, { id, dataUrl, rect, image }) => {
   const nextFrame = crop.frameAfter(step.frame, rect, image);
 
   pushUndo({
-    type: 'crop', step: { ...step }, token: written.token,
-    wasFrame: step.frame ? { ...step.frame } : null,
+    type: 'pixels', id: step.id, screenshot: step.screenshot,
+    token: written.token,
+    state: {
+      redacted: step.redacted === true,
+      annotated: step.annotated === true,
+      highlights: [...(step.highlights || [])],
+      cropped: step.cropped === true,
+      // The frame goes back with the pixels. One without the other is what a
+      // crop must never leave behind.
+      frame: step.frame ? { ...step.frame } : null,
+    },
   });
 
   const updated = session.updateStep(id, {
@@ -751,6 +716,37 @@ ipcMain.handle('step:crop', (_e, { id, dataUrl, rect, image }) => {
   });
 
   log.info(`cropped step ${id} to ${Math.round(rect.w)}x${Math.round(rect.h)}`);
+  return { ok: true, step: updated };
+});
+
+/**
+ * Moves the click indicator, or puts it back where it was recorded.
+ *
+ * A typed step is anchored at the CENTRE of the focused control, because the
+ * engine has no way to know where the caret is - so on a large text area or a
+ * wide search box the marker lands in the middle of the box rather than where
+ * the words went. That is not a defect to be fixed in the engine; it is a
+ * limitation an author needs to be able to correct.
+ *
+ * Stored as a percentage of the frame, exactly like the computed position, so
+ * every export and the crop arithmetic follow without knowing this exists.
+ */
+ipcMain.handle('step:marker', (_e, { id, at }) => {
+  if (!session) return { ok: false, error: 'No recording is open.' };
+
+  const step = session.steps.find((s) => s.id === id);
+  if (!step) return { ok: false, error: 'Step not found.' };
+
+  const wanted = at && Number.isFinite(at.x) && Number.isFinite(at.y)
+    ? { x: Math.max(0, Math.min(100, at.x)), y: Math.max(0, Math.min(100, at.y)) }
+    : null;
+
+  pushUndo({ type: 'marker', id,
+             at: step.markerAt ? { ...step.markerAt } : null });
+
+  // `undefined` rather than null, so putting it back removes the field
+  // entirely and the step reads as one that was never moved.
+  const updated = session.updateStep(id, { markerAt: wanted || undefined });
   return { ok: true, step: updated };
 });
 
@@ -768,10 +764,15 @@ ipcMain.handle('step:redact', (_e, { id, dataUrl, kind = 'blur', colour = '' }) 
 
   // Recorded only now: a redaction that failed must not occupy an undo slot.
   pushUndo({
-    type: 'redact', step: { ...step }, token: written.token,
-    wasRedacted: step.redacted === true,
-    wasAnnotated: step.annotated === true,
-    wasHighlights: [...(step.highlights || [])],
+    type: 'pixels', id: step.id, screenshot: step.screenshot,
+    token: written.token,
+    state: {
+      redacted: step.redacted === true,
+      annotated: step.annotated === true,
+      highlights: [...(step.highlights || [])],
+      cropped: step.cropped === true,
+      frame: step.frame ? { ...step.frame } : null,
+    },
   });
 
   // An arrow is not a redaction. `redacted` feeds the compliance summary -

@@ -37,6 +37,7 @@ const el = {
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
   note: $('btn-note'), check: $('btn-check'), section: $('btn-section'),
   libraryQuery: $('library-query'), libraryFound: $('library-found'),
+  context: $('context'),
   libraryHeading: $('library-heading'), libraryUsage: $('library-usage'),
   rootUsage: $('set-root-usage'),
   findBar: $('findbar'), findQuery: $('find-query'),
@@ -274,22 +275,48 @@ function verifyLabel(v) {
 /** How the click should be marked, as chosen in Settings. */
 let markerOpts = { style: 'circle', bold: false };
 
-function placeIndicator(step) {
+/**
+ * Where the marker belongs, as a percentage of the picture.
+ *
+ * A position the author dragged wins over the recorded one. The engine anchors
+ * a typed step at the CENTRE of the focused control, because it has no way to
+ * know where the caret is - so on a wide search box the marker lands in the
+ * middle of the box rather than where the words went. That is a limitation to
+ * be corrected by hand, not a defect in the engine.
+ *
+ * The same order as `markerPosition` in the exporter, so what is dragged here
+ * is what the document shows.
+ */
+function markerPos(step) {
+  const at = step.markerAt;
+  if (at && Number.isFinite(at.x) && Number.isFinite(at.y)) {
+    return { x: at.x, y: at.y, moved: true };
+  }
+
   // The frame actually captured. With monitor or full-screen framing the
   // screenshot is bigger than the window, so window-relative maths is wrong.
   const rect = (step.frame?.w ? step.frame : null) || step.window?.rect;
-  if (!rect || !el.shot.naturalWidth) return;
+  if (!rect || !step.point) return null;
 
-  // As a percentage of the captured frame, exactly as the exporter computes it,
-  // so what is previewed here is what the document will show.
-  const px = ((step.point.x - rect.x) / rect.w) * 100;
-  const py = ((step.point.y - rect.y) / rect.h) * 100;
-  if (px < 0 || py < 0 || px > 100 || py > 100) return;
+  const x = ((step.point.x - rect.x) / rect.w) * 100;
+  const y = ((step.point.y - rect.y) / rect.h) * 100;
+  if (x < 0 || y < 0 || x > 100 || y > 100) return null;
+  return { x, y, moved: false };
+}
+
+function placeIndicator(step) {
+  if (!el.shot.naturalWidth) return;
+  const pos = markerPos(step);
+  if (!pos) return;
 
   // render(), not html(): a style attribute would be refused by the content
   // policy this window runs under, and the marker would sit at 0,0 unstyled.
   el.indicator.replaceChildren(
-    BsrMarker.render({ x: px, y: py }, markerOpts, '#e5484d'));
+    BsrMarker.render({ x: pos.x, y: pos.y }, markerOpts, '#e5484d'));
+  el.indicator.classList.toggle('moved', pos.moved);
+  // Grabbable only when no drawing tool is armed, so one drag cannot mean two
+  // things depending on where it started.
+  el.indicator.classList.toggle('movable', !armedTool);
   el.indicator.style.display = 'block';
 }
 
@@ -649,14 +676,15 @@ document.addEventListener('keydown', async (e) => {
     return;
   }
 
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) {
+  // Ctrl+Shift+Z as well as Ctrl+Y: both are redo depending on where somebody
+  // learned the habit, and there is no reason to have an opinion about it.
+  const isUndo = (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z';
+  const isRedo = (e.ctrlKey || e.metaKey)
+    && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'));
+
+  if ((isUndo || isRedo) && !typing) {
     e.preventDefault();
-    const r = await window.bsr.undo();
-    if (r.empty) return;
-    if (!r.ok) { alert(r.error || 'Nothing to undo.'); return; }
-    steps = r.steps;
-    renderList();
-    if (selectedId && steps.some((s) => s.id === selectedId)) select(selectedId);
+    await (isRedo ? redoOnce() : undoOnce());
     return;
   }
 
@@ -1183,6 +1211,230 @@ function suggestionRow(hint, index) {
   return row;
 }
 
+/**
+ * One step back, or one forward.
+ *
+ * Shared by the keyboard and the menu so the two cannot come to disagree, and
+ * because a redo that only worked from one of them would be a strange thing to
+ * discover.
+ */
+async function stepHistory(direction) {
+  const r = direction === 'redo' ? await window.bsr.redo() : await window.bsr.undo();
+  if (!r || r.empty) return;
+  if (!r.ok) {
+    // The strip, not a dialog: an undo that cannot be applied is worth saying
+    // and not worth a click to dismiss.
+    showNotice(r.error || `Nothing to ${direction}.`);
+    return;
+  }
+  steps = r.steps;
+  renderList();
+  if (selectedId && steps.some((s) => s.id === selectedId)) select(selectedId);
+}
+
+const undoOnce = () => stepHistory('undo');
+const redoOnce = () => stepHistory('redo');
+
+// ---- moving the click marker --------------------------------------------------
+// Dragged on the picture rather than typed as numbers: the whole question is
+// "not there, there", and the answer is a place on a screenshot.
+
+let markerDrag = null;
+
+/** Sends a new position, or `null` to put it back where it was recorded. */
+async function commitMarker(id, at) {
+  const step = steps.find((s) => s.id === id);
+  const r = await window.bsr.moveMarker(id, at);
+
+  if (!r || !r.ok) {
+    showNotice((r && r.error) || 'Could not move the marker.');
+    if (step) placeIndicator(step);        // undo the live preview
+    return;
+  }
+  if (step) {
+    Object.assign(step, r.step);
+    // The field is dropped rather than set to null when it is reset, and
+    // Object.assign cannot remove a key, so it is removed by hand.
+    if (!r.step.markerAt) delete step.markerAt;
+    placeIndicator(step);
+  }
+}
+
+el.indicator.addEventListener('mousedown', (e) => {
+  if (e.button !== 0 || armedTool || !selectedId) return;
+  if (!e.target.closest('.bsr-marker')) return;
+
+  // No stopPropagation: the menus close on a window-level mousedown, and
+  // swallowing it here would leave one open behind the drag.
+  e.preventDefault();
+  const rect = el.shot.getBoundingClientRect();
+  markerDrag = { id: selectedId, rect, from: { x: e.clientX, y: e.clientY },
+                 at: null, moved: false };
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!markerDrag) return;
+  const r = markerDrag.rect;
+  const x = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
+  const y = Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100));
+  markerDrag.at = { x, y };
+
+  // A few pixels of slip while clicking is not a move. Without this every
+  // click on the marker would write a step and fill the undo history.
+  if (Math.abs(e.clientX - markerDrag.from.x) > 2
+   || Math.abs(e.clientY - markerDrag.from.y) > 2) markerDrag.moved = true;
+
+  el.indicator.replaceChildren(BsrMarker.render({ x, y }, markerOpts, '#e5484d'));
+});
+
+window.addEventListener('mouseup', async () => {
+  const drag = markerDrag;
+  markerDrag = null;
+  if (!drag) return;
+
+  if (!drag.moved || !drag.at) {
+    // Put it back: the live redraw may have nudged it by a pixel.
+    const step = steps.find((s) => s.id === drag.id);
+    if (step) placeIndicator(step);
+    return;
+  }
+  await commitMarker(drag.id, drag.at);
+});
+
+// ---- the right-click menu -----------------------------------------------------
+// One element, filled differently depending on what was right-clicked. Two
+// menus would be two things to keep in step, and the highlighter menu already
+// showed the shape.
+
+function closeContext() { el.context.hidden = true; el.context.replaceChildren(); }
+
+/**
+ * Shows a menu at a point.
+ *
+ * `items` are `{ label, key, run, enabled }`, or `null` for a divider. Built as
+ * elements rather than markup: the labels include step wording, which came off
+ * somebody's screen, and putting that through innerHTML would let a window
+ * title write elements.
+ */
+function showContext(x, y, items) {
+  el.hueMenu.hidden = true;    // two menus open at once is one too many
+  el.context.replaceChildren();
+
+  for (const item of items) {
+    if (!item) {
+      el.context.append(document.createElement('hr'));
+      continue;
+    }
+
+    const button = document.createElement('button');
+    const label = document.createElement('span');
+    label.textContent = item.label;
+    button.append(label);
+
+    if (item.key) {
+      const key = document.createElement('span');
+      key.className = 'key';
+      key.textContent = item.key;
+      button.append(key);
+    }
+
+    button.disabled = item.enabled === false;
+    button.addEventListener('click', () => { closeContext(); item.run(); });
+    el.context.append(button);
+  }
+
+  // Placed, then nudged back on screen: a menu opened near the right or bottom
+  // edge would otherwise run off it.
+  el.context.hidden = false;
+  el.context.style.left = `${x}px`;
+  el.context.style.top = `${y}px`;
+  const box = el.context.getBoundingClientRect();
+  if (box.right > window.innerWidth) {
+    el.context.style.left = `${Math.max(0, window.innerWidth - box.width - 4)}px`;
+  }
+  if (box.bottom > window.innerHeight) {
+    el.context.style.top = `${Math.max(0, window.innerHeight - box.height - 4)}px`;
+  }
+}
+
+/** The two that belong on every menu, because they always apply. */
+const historyItems = () => [
+  { label: 'Undo', key: 'Ctrl+Z', enabled: historyDepth.undo > 0,
+    run: () => undoOnce() },
+  { label: 'Redo', key: 'Ctrl+Y', enabled: historyDepth.redo > 0,
+    run: () => redoOnce() },
+];
+
+/**
+ * Right-clicking a step.
+ *
+ * The row is selected first unless it is already part of the selection, which
+ * is how every list in Windows behaves - otherwise "Delete step" on the menu
+ * and "Delete step" on the toolbar would act on different steps.
+ */
+el.list.addEventListener('contextmenu', (e) => {
+  const row = e.target.closest('li.step');
+  if (!row) return;
+  e.preventDefault();
+
+  const id = row.dataset.id;
+  if (!marked.has(id)) { marked = new Set([id]); select(id); }
+
+  const step = steps.find((s) => s.id === id);
+  if (!step) return;
+  const many = marked.size > 1;
+
+  showContext(e.clientX, e.clientY, [
+    ...historyItems(),
+    null,
+    { label: 'Add a note below', run: () => el.note.click() },
+    { label: 'Add a section heading', run: () => addSection('', id) },
+    null,
+    { label: step.excluded ? 'Include in the guide' : 'Leave out of the guide',
+      run: () => setExcluded([...marked], !step.excluded) },
+    { label: many ? `Delete ${marked.size} steps` : 'Delete step', key: 'Del',
+      run: () => deleteSelection() },
+  ]);
+});
+
+/** Takes a set of steps in or out of the guide in one go. */
+async function setExcluded(ids, excluded) {
+  for (const id of ids) {
+    const step = steps.find((s) => s.id === id);
+    if (!step) continue;
+    step.excluded = excluded;
+    await window.bsr.updateStep(id, { excluded });
+  }
+  if (selectedId && ids.includes(selectedId)) el.exclude.checked = excluded;
+  renderList();
+}
+
+/**
+ * Right-clicking the screenshot.
+ *
+ * Undo and redo, and the one thing that is only reachable here: putting a
+ * marker that has been dragged back where the recording put it.
+ */
+el.wrap.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const step = steps.find((s) => s.id === selectedId);
+  const moved = Boolean(step && step.markerAt);
+
+  showContext(e.clientX, e.clientY, [
+    ...historyItems(),
+    null,
+    { label: 'Put the marker back where it was recorded',
+      enabled: moved,
+      run: () => commitMarker(step.id, null) },
+  ]);
+});
+
+window.addEventListener('mousedown', (e) => {
+  if (!el.context.hidden && !el.context.contains(e.target)) closeContext();
+});
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeContext(); });
+window.addEventListener('blur', closeContext);
+
 // ---- find and replace ---------------------------------------------------------
 // A guide is written once and read for years. A system gets renamed, a team
 // changes, a button's label changes - and without this the choice is retyping
@@ -1350,9 +1602,14 @@ el.scopeGo.addEventListener('click', async () => {
 
 // The window shrinks to a floating strip while recording; the editor markup
 // stays in the DOM so returning is instant and selection survives.
-window.bsr.onUndoDepth(({ depth }) => {
+let historyDepth = { undo: 0, redo: 0 };
+
+window.bsr.onUndoDepth((depth) => {
+  historyDepth = { undo: depth.undo || 0, redo: depth.redo || 0 };
   el.del.textContent = marked.size > 1 ? `Delete ${marked.size} steps` : 'Delete step';
-  el.del.title = depth ? `${depth} change${depth === 1 ? '' : 's'} can be undone (Ctrl+Z)` : '';
+  el.del.title = historyDepth.undo
+    ? `${historyDepth.undo} change${historyDepth.undo === 1 ? '' : 's'} can be undone (Ctrl+Z)`
+    : '';
 });
 
 window.bsr.onMode(({ compact }) => {
@@ -1403,6 +1660,7 @@ function armTool(tool) {
     button.classList.toggle('active', armedTool === name);
   }
   el.wrap.classList.toggle('selecting', Boolean(armedTool));
+  el.indicator.classList.toggle('movable', !armedTool);
   el.selection.hidden = true;
   showPreview(false);
 }

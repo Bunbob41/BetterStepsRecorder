@@ -329,9 +329,13 @@ renamed over the real one, so a crash halfway through leaves the previous good
 version rather than a half-written one.
 
 The one thing that is *not* kept is the undo history. **Ctrl+Z** covers a slip
-while you are working; close the app and that history goes, along with the
-copies of pre-blur screenshots it was holding — deliberately, so redacted
-pixels do not linger.
+while you are working, and **Ctrl+Y** (or Ctrl+Shift+Z) puts it back if you
+went one too far. Close the app and that history goes, along with the copies of
+pre-blur screenshots it was holding — deliberately, so redacted pixels do not
+linger.
+
+Both are also on the right-click menu, on a step and on the screenshot, so you
+do not have to know the keystroke to find them.
 
 ### What recordings cost you
 
@@ -475,6 +479,45 @@ export, because both are drawn by the same piece of code.
 > One gap worth knowing: **Word exports have no indicator**. A .docx embeds the
 > picture itself rather than layering anything on top of it, so the marker
 > cannot simply be drawn over it the way it is in a web page or PDF.
+
+#### Moving it
+
+Sometimes the marker is not quite in the right place, and there is a reason for
+it that is worth understanding rather than working around.
+
+For a click, the recorder knows the exact pixel. For a **typed** step it does
+not: it knows which box you typed into, so it marks the middle of that box. On
+a small field that is fine. On a wide search box, or a text area half a page
+tall, the middle of the box is not where the words went.
+
+So: **drag the marker**. Pick it up on the screenshot and put it where it should
+have been. It glows faintly once you have moved it, so you can tell at a glance
+which steps you have adjusted.
+
+Right-click the screenshot and choose **Put the marker back where it was
+recorded** to undo that for good; Ctrl+Z works too.
+
+The position is remembered as a *proportion* of the picture rather than as
+pixels — a quarter across, a third down — which is the same way the recorded
+position is stored. That is what lets you crop the step afterwards and find the
+marker still pointing at the same thing.
+
+A drawing tool takes priority: while Box, Circle, Arrow, Highlight, Blur or Crop
+is armed, dragging on the screenshot draws, and the marker stays put. Disarm the
+tool and you can pick the marker up again.
+
+### Right-clicking
+
+Two menus, both of which start with **Undo** and **Redo** so those are never
+more than a click away.
+
+**On a step** in the list: add a note or a section heading below it, leave the
+step out of the guide, or delete it. Right-clicking a step selects it first —
+unless it is already part of a multiple selection, in which case the menu acts
+on all of them, and says so ("Delete 3 steps").
+
+**On a screenshot**: undo, redo, and putting a dragged marker back where the
+recording put it.
 
 ### Trimming a screenshot
 

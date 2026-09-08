@@ -82,6 +82,25 @@ class Session {
   }
 
   /** Puts a stashed screenshot back at its original path. */
+  /**
+   * Puts a stashed screenshot back, keeping whatever was there.
+   *
+   * The symmetric form of restore, and what redo is made of: undoing a blur
+   * puts the original back, and redoing it has to put the blurred one back
+   * again - which is impossible if restoring simply overwrote it. Returns the
+   * token of the file that was displaced, so the same call can go the other
+   * way.
+   */
+  swap(token, relative) {
+    const displaced = this.stash(relative);
+    if (!this.restore(token, relative)) {
+      // Nothing moved, so nothing to hand back.
+      if (displaced) this.discard(displaced);
+      return null;
+    }
+    return displaced;
+  }
+
   restore(token, relative) {
     if (!token || !relative) return false;
     const from = path.join(this.trashDir, token);

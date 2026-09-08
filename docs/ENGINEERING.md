@@ -140,6 +140,11 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 18. **`textEdited` means a person wrote those words.** Only an explicit claim
     sets it. Inferring it from a mechanical substitution freezes that step's
     tense at export.
+19. **Applying an undo entry returns the entry that puts it back.** Redo is not
+    a second implementation; it is the same traversal run the other way. An
+    entry type whose branch returns no inverse is a dead end - undo would work
+    once and redo would silently do nothing - and `invariants_test.js` fails on
+    one.
 
 ---
 
@@ -147,8 +152,94 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-41 · Right-clicking offers the same things everywhere
+`(this change)` · [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
+
+Undo and redo existed only as keystrokes, which meant they existed only for
+people who knew they were there. A menu on the thing you are looking at is
+where somebody reaches for "put that back".
+
+**One menu element, filled differently**, rather than one per surface. Two menu
+elements is two sets of styling, two placement bugs and two things to keep in
+step; the highlighter's colour menu had already shown the shape, so the new one
+reuses its appearance deliberately.
+
+**Built as elements, never as markup.** The labels carry step wording, which
+came off somebody's screen and may have come out of a `session.json` somebody
+else wrote. Through `innerHTML` a window title could write elements into the
+menu. `textContent` on a `<span>` cannot.
+
+**Right-clicking a row selects it first**, unless it is already part of the
+selection - the Windows convention. Without that, "Delete step" on the menu and
+"Delete step" on the toolbar would act on different steps, which is the worst
+possible way for a delete to behave.
+
+Undo and redo are greyed by the real depth, which arrives on the `undo:depth`
+event that already existed for the Delete button's tooltip; that event now
+carries both halves rather than one number.
+
+### D-40 · The click marker can be moved
+`(this change)` · [ui/src/main/main.js](../ui/src/main/main.js)
+
+A typed step is anchored at the **centre of the focused control**, because the
+engine has no way to know where the caret is. On a wide search box or a text
+area that puts the marker in the middle of the box rather than where the words
+went. Reaching into UIA for a caret rectangle is unreliable, slow and wrong as
+often as it is right, and the tool already has a person looking at the
+screenshot - so this is a limitation to be corrected by hand, not a defect to be
+chased in the engine.
+
+`markerAt` is **one optional field on the step**, a percentage of the frame,
+exactly like the computed position. The exporter prefers it and otherwise
+computes as before, so every format, and the crop arithmetic that cuts the
+frame with the picture (D-32), follow without knowing this exists.
+
+Reset writes `undefined` rather than `null`, so the field leaves the file
+entirely and the step reads as one that was never moved.
+
+Dragged on the picture, not typed as numbers: the question is "not there,
+*there*", and the answer is a place on a screenshot. Two guards make one drag
+mean one thing - the marker takes the pointer only when no drawing tool is
+armed, and a drag under three pixels is a click, not a move. Without the second
+every click on the marker would write a step and fill the history with edits
+nobody made.
+
+The overlay the marker sits in covers the whole screenshot and stays
+`pointer-events: none`; only the marker itself accepts the pointer. A full-size
+overlay that takes clicks is what once made the window look frozen.
+
+### D-39 · Undo and redo are one traversal, not two
+`(this change)` · [ui/src/main/history.js](../ui/src/main/history.js)
+
+Undo was a stack in `main.js` and a `switch` over entry types inside the IPC
+handler. Adding redo to that shape means writing every branch a second time,
+backwards, and the two drift the first time a third branch is added.
+
+So the entry types were made **symmetric**: applying one returns the entry that
+puts it back. `restoreSteps` yields `removeSteps` and the reverse; `retext`,
+`pixels` and `marker` each yield themselves with the other state in them. Redo
+is then `undo` run against the other list, and there is one `#move` used both
+ways.
+
+Getting there meant collapsing `crop` and `redact` into a single `pixels` entry.
+They differed only in which flags came back, and a crop's entry also had to
+carry the frame - the one thing that must never be left behind, since a picture
+whose frame does not match it misplaces the marker on every export.
+
+`session.swap()` exists for the same reason: undoing a pixel edit has to stash
+what is on disk *now* before restoring what was there before, or the redo has
+nothing to put back. It stashes, restores, and discards the stash if the restore
+fails, so a failed undo leaves the recording exactly as it was.
+
+The future is cleared on a new edit, and the screenshots it was holding are
+discarded with it - otherwise pre-blur originals would accumulate for a redo
+that can never happen, which is the leak D-7 was written to prevent.
+
+`invariants_test.js` now reads both files: every type `main.js` pushes must have
+a branch in `history.js`, and every branch must return an inverse.
+
 ### D-38 · A recording from a newer version is refused, not rewritten
-`(this change)` · [ui/src/main/format.js](../ui/src/main/format.js)
+`8bed349` · [ui/src/main/format.js](../ui/src/main/format.js)
 
 `session.json` has carried `v: 1` since the beginning and nothing ever read it,
 which is a version number that means nothing. That was fine while every
