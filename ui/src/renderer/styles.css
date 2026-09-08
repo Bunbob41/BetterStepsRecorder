@@ -143,8 +143,15 @@ main { flex: 1; display: grid; grid-template-columns: 320px 1fr; min-height: 0; 
 /* overflow hidden: an arrow's tail is longer than a small screenshot is tall,
    and a marker hanging outside the picture it annotates looks like a fault.
    The tip is the click point and always inside, so only the tail is trimmed. */
+/* flex: none matters more than it looks. As a shrinkable flex item in a column
+   this box was squashed shorter than the picture inside it, and `overflow:
+   hidden` then clipped the picture - while the marker overlay, which is
+   `inset: 0` on THIS box, went on measuring its percentages against the
+   squashed height. The marker drifted upwards by exactly the amount the box
+   had lost, on every screenshot taller than the pane, which is most of them.
+   The pane scrolls; the picture keeps its size. */
 .shot-wrap { position: relative; display: inline-block; align-self: flex-start;
-             overflow: hidden; border-radius: 6px; }
+             flex: none; overflow: hidden; border-radius: 6px; }
 .shot-wrap img {
   max-width: 100%;
   border: 1px solid var(--line);

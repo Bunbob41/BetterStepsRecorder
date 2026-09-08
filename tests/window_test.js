@@ -638,6 +638,51 @@ app.whenReady().then(async () => {
         Math.abs(marker.after.x - 150) <= 2 && Math.abs(marker.after.y - 100) <= 2);
   check('a moved marker says so', marker.moved);
 
+  // The marker overlay is inset:0 on the wrapper, so its percentages are only
+  // right while the wrapper is exactly as tall as the picture. As a shrinkable
+  // flex item the wrapper was squashed by a short pane and the marker drifted
+  // upwards by the difference - on every screenshot taller than the pane.
+  const tall = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const shot = document.getElementById('shot');
+    const wrap = document.getElementById('shot-wrap');
+
+    // A picture far taller than the pane can be.
+    shot.style.width = '600px';
+    shot.style.height = '1600px';
+    await sleep(200);
+
+    const img = shot.getBoundingClientRect();
+    const box = wrap.getBoundingClientRect();
+    const mark = document.querySelector('#indicator .bsr-marker');
+    const m = mark.getBoundingClientRect();
+
+    // Compared against what the marker itself declares, so this holds wherever
+    // the marker happens to be by now rather than assuming a position.
+    const want = {
+      down: parseFloat(mark.style.top) / 100,
+      across: parseFloat(mark.style.left) / 100,
+    };
+    const out = {
+      wrapMatchesPicture: Math.abs(box.height - img.height) < 2,
+      want,
+      down: (m.top + m.height / 2 - img.top) / img.height,
+      across: (m.left + m.width / 2 - img.left) / img.width,
+    };
+
+    shot.style.height = '';        // leave the pane as it was found
+    await sleep(150);
+    return out;
+  })()`);
+
+  check('the frame around the picture is as tall as the picture',
+        tall.wrapMatchesPicture);
+  check('the marker lands where it says it is, down a picture taller than the pane',
+        Math.abs(tall.down - tall.want.down) < 0.02,
+        `declared ${(tall.want.down * 100).toFixed(1)}%, drawn at ${(tall.down * 100).toFixed(1)}%`);
+  check('and across it',
+        Math.abs(tall.across - tall.want.across) < 0.02);
+
   // Two steps can now legitimately point at the same screenshot: the engine
   // writes one file when consecutive captures are identical. s1 and s3 share
   // one in this fixture, and neither has been edited - so the <img> is handed
