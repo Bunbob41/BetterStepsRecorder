@@ -3,6 +3,16 @@ engine over its protocol and inspects what it reports."""
 import subprocess, json, threading, time, os, tempfile, shutil
 
 exe = os.path.join("capture","bin","Debug","net10.0-windows","bettersteps-capture.exe")
+
+# These drive the real engine, so it has to exist. A clean clone has never
+# built it, and the bare FileNotFoundError that used to come out named a path
+# nobody could act on.
+if not os.path.exists(exe):
+    raise SystemExit(
+        "The capture engine is not built.\n"
+        "  dotnet build capture -c Debug\n"
+        "Then run this again from the repository root.")
+
 session = os.path.join(tempfile.gettempdir(), "bsr-scope")
 shutil.rmtree(session, ignore_errors=True)
 

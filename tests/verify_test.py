@@ -6,6 +6,24 @@ exe = os.path.join("capture","bin","Debug","net10.0-windows","bettersteps-captur
 TARGET = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                       "KbdTarget","bin","Debug","net10.0-windows","kbdtarget.exe")
 
+# These drive the real engine, so it has to exist. A clean clone has never
+# built it, and the bare FileNotFoundError that used to come out named a path
+# nobody could act on.
+if not os.path.exists(exe):
+    raise SystemExit(
+        "The capture engine is not built.\n"
+        "  dotnet build capture -c Debug\n"
+        "Then run this again from the repository root.")
+
+# This one also needs something to point at: a small application whose controls
+# it can ask about.
+if not os.path.exists(TARGET):
+    raise SystemExit(
+        "The test application is not built.\n"
+        "  dotnet build tests/KbdTarget -c Debug\n"
+        "Then run this again from the repository root.")
+
+
 tgt = subprocess.Popen([TARGET], stdout=subprocess.PIPE, text=True, bufsize=1)
 deadline = time.time() + 15
 seen = 0

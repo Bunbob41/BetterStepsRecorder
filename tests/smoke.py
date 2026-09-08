@@ -1,6 +1,16 @@
 import subprocess, sys, json, threading, time, os, tempfile
 
 exe = r"capture\bin\Debug\net10.0-windows\bettersteps-capture.exe"
+
+# These drive the real engine, so it has to exist. A clean clone has never
+# built it, and the bare FileNotFoundError that used to come out named a path
+# nobody could act on.
+if not os.path.exists(exe):
+    raise SystemExit(
+        "The capture engine is not built.\n"
+        "  dotnet build capture -c Debug\n"
+        "Then run this again from the repository root.")
+
 session = os.path.join(tempfile.gettempdir(), "bsr-smoke")
 
 p = subprocess.Popen([exe], stdin=subprocess.PIPE, stdout=subprocess.PIPE,

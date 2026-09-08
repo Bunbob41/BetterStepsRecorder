@@ -211,9 +211,13 @@ it was present in the DOM, correct, and invisible. Set `BSR_SHOTS=<dir>` and it
 also writes what the window is actually showing, because a measurement cannot
 tell you a thing is drawn where nobody can see it.
 
-The rest, from the repository root:
+The rest drive the real capture engine, so build it first — a fresh clone has
+not. From the repository root:
 
 ```
+dotnet build capture -c Debug          # the engine these tests drive
+dotnet build tests/KbdTarget -c Debug  # something for them to point at
+
 python tests/smoke.py                  # engine protocol
 python tests/scope_test.py             # window enumeration and scoping
 python tests/verify_test.py            # rot detection against a real app
