@@ -198,8 +198,8 @@ flowchart TD
     tap --> win["Which window is at that point?<br/><i>Win32 asks Windows</i>"]
     win --> uia["Which control is at that point?<br/><i>UI Automation asks the application</i>"]
     uia --> good{"Did the application<br/>answer usefully?"}
-    good -->|yes| named["<b>Clicked the &quot;Save&quot; button in &quot;Billing&quot;</b>"]
-    good -->|"no, or too slow"| plain["<b>Clicked in &quot;Billing&quot;</b><br/>still useful, never blocks"]
+    good -->|yes| named["<b>Clicked the “Save” button in “Billing”</b>"]
+    good -->|"no, or too slow"| plain["<b>Clicked in “Billing”</b><br/>still useful, never blocks"]
 
     style named fill:#1f6feb,color:#fff
     style plain fill:#5c636e,color:#fff

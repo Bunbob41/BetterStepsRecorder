@@ -207,6 +207,7 @@ From `ui/`:
 npm test                # 23 suites, 766 checks, a few seconds
 npm run test:window     # the real page in a real Electron window
 npm run test:composite  # the click marker drawn into real pixels
+npm run test:diagrams   # every Mermaid diagram in these documents
 ```
 
 `npm test` is a runner rather than a shell loop on purpose: the loop this
@@ -216,6 +217,12 @@ conversion, window fitting, screenshot sizing, the library, build identity,
 click markers, renderer wiring, find and replace, cropping, the undo history,
 recording format versions, path confinement, archive search, application
 naming and size formatting.
+
+`npm run test:diagrams` parses every diagram in this README and in the two
+documents under `docs/`, and separately forbids the one construction that
+renders differently on GitHub than it does locally. The field guide is what a
+stranger reads to understand the system, and a diagram with a syntax error is
+not degraded but replaced — by a red box containing a parser trace.
 
 `npm run test:window` loads the real `index.html`, `renderer.js` and stylesheet
 in an Electron window with the IPC bridge stubbed, and dispatches mouse events
