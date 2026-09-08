@@ -77,11 +77,42 @@ let DEPTH = { undo: 0, redo: 0 };
 let LAST_MARKER = null;
 const CALLED = [];
 
+const chords = require(PROJECT + '/ui/src/main/shortcuts.js');
+const KEYS = {
+  values: { hotkeyPause: '', hotkeyStop: '' },
+  calls: [],
+  captured: [],
+  state() {
+    const r = chords.resolve(this.values);
+    return { pause: r.pause, stop: r.stop, pauseActive: true, stopActive: true,
+             defaults: chords.DEFAULTS };
+  },
+};
+
 const ANSWERS = {
   getSettings: () => ({ markerStyle: 'circle', markerBold: false,
                         highlightColour: 'yellow', showHighlightLegend: false,
                         highlightMeanings: {}, captureFormat: 'png' }),
-  getShortcuts: () => ({}),
+  getShortcuts: () => KEYS.state(),
+  // The real one releases the global hotkeys, so the chord being replaced can
+  // actually be typed into the box that replaces it.
+  captureKeys: (on) => { KEYS.captured.push(on); return { ok: true }; },
+  // Mirrors the real handler closely enough that the PAGE is what is under
+  // test: validate, refuse a clash, otherwise keep it and report the new state.
+  setShortcut: (which, accelerator) => {
+    KEYS.calls.push({ which, accelerator });
+    const key = which === 'stop' ? 'hotkeyStop' : 'hotkeyPause';
+    if (!accelerator) { KEYS.values[key] = ''; return { ok: true, state: KEYS.state() }; }
+    if (!chords.isValid(accelerator)) {
+      return { ok: false, error: 'That needs a modifier.' };
+    }
+    const resolved = chords.resolve(KEYS.values);
+    if (accelerator === (which === 'stop' ? resolved.pause : resolved.stop)) {
+      return { ok: false, error: 'Pause and stop cannot share a shortcut.' };
+    }
+    KEYS.values[key] = accelerator;
+    return { ok: true, state: KEYS.state() };
+  },
   getScope: () => ({ pids: [], label: 'Everything' }),
   getSession: () => SESSION,
   openLibrary: () => SESSION,
@@ -173,6 +204,8 @@ for (const name of NAMES) {
     : async (...args) => (ANSWERS[name] ? ANSWERS[name](...args) : { ok: true });
 }
 bridge.__lastCrop = async () => LAST_CROP;
+bridge.__keys = async () =>
+  ({ values: KEYS.values, calls: KEYS.calls, captured: KEYS.captured });
 bridge.__lastMarker = async () => LAST_MARKER;
 bridge.__called = async () => CALLED;
 bridge.onUndoDepth = (fn) => { depthListener = fn; };
@@ -770,6 +803,164 @@ app.whenReady().then(async () => {
   })()`);
 
   check('Escape closes it', escaped.opened && escaped.closed);
+
+  // ---- rebinding the global hotkeys ----------------------------------------
+  // The two chords that have to work while another application is in front.
+  // Rebinding them is three hops - a keypress caught at the window, an
+  // accelerator built from it, a write in the main process - and none of it
+  // was covered here.
+
+  console.log('\nrebinding a global hotkey:');
+
+  const rebind = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const dlg = document.getElementById('keysdlg');
+
+    document.getElementById('btn-shortcuts').click();
+    await sleep(200);
+    const opened = dlg.open;
+    const before = document.getElementById('k-pause').textContent;
+
+    // "Change" on the pause row, then the chord.
+    const set = dlg.querySelector('.k-set[data-which="pause"]');
+    set.click();
+    await sleep(80);
+    const listening = set.closest('.keyrow').classList.contains('listening');
+
+    set.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'F8', code: 'F8', ctrlKey: true, shiftKey: true, bubbles: true,
+    }));
+    await sleep(250);
+
+    const keys = await window.bsr.__keys();
+    return {
+      opened, before, listening,
+      after: document.getElementById('k-pause').textContent,
+      stillListening: set.closest('.keyrow').classList.contains('listening'),
+      error: document.getElementById('k-error').hidden
+        ? '' : document.getElementById('k-error').textContent,
+      calls: keys.calls,
+      captured: keys.captured,
+      stored: keys.values.hotkeyPause,
+    };
+  })()`);
+
+  // The bug this was reported for: the application's own hotkeys are taken at
+  // the operating system, ahead of this window, so until they are released the
+  // chord being replaced never reaches the page at all.
+  check('listening releases the global hotkeys first',
+        rebind.captured[0] === true);
+  check('and choosing one puts them back', rebind.captured.includes(false));
+
+  check('the dialog opens', rebind.opened);
+  check('and shows the current chord', /Ctrl.*Shift.*F9/.test(rebind.before));
+  check('Change starts listening', rebind.listening);
+  check('the keypress reaches the main process',
+        rebind.calls.length === 1 && rebind.calls[0].which === 'pause');
+  check('as an accelerator, not a raw key',
+        rebind.calls.length > 0 && rebind.calls[0].accelerator === 'Control+Shift+F8');
+  check('it is kept', rebind.stored === 'Control+Shift+F8');
+  check('nothing was refused', rebind.error === '');
+  check('the row stops listening', !rebind.stillListening);
+  // The whole point: the user has to SEE that it changed.
+  check('and the dialog shows the new chord', /Ctrl.*Shift.*F8/.test(rebind.after));
+
+  const unusable = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const dlg = document.getElementById('keysdlg');
+    const set = dlg.querySelector('.k-set[data-which="stop"]');
+    const before = (await window.bsr.__keys()).calls.length;
+    set.click();
+    await sleep(80);
+
+    // A key that cannot end a global shortcut. This used to be answered the
+    // same way as a bare modifier - by waiting in silence - so the dialog
+    // looked broken.
+    set.dispatchEvent(new KeyboardEvent('keydown',
+      { key: 'ScrollLock', code: 'ScrollLock', ctrlKey: true, bubbles: true }));
+    await sleep(150);
+    const said = document.getElementById('k-error').hidden
+      ? '' : document.getElementById('k-error').textContent;
+    const stillListening = set.closest('.keyrow').classList.contains('listening');
+
+    // Still listening, so a good one straight after must work.
+    set.dispatchEvent(new KeyboardEvent('keydown',
+      { key: 'ArrowUp', code: 'ArrowUp', ctrlKey: true, altKey: true, bubbles: true }));
+    await sleep(250);
+
+    const keys = await window.bsr.__keys();
+    return { said, stillListening, stored: keys.values.hotkeyStop,
+             tried: keys.calls.length - before };
+  })()`);
+
+  check('a key that cannot be used says so', /ScrollLock/.test(unusable.said));
+  check('and does not bother the main process', unusable.tried === 1);
+  check('the row keeps listening, so you can try another',
+        unusable.stillListening);
+  check('an arrow key is a perfectly good shortcut',
+        unusable.stored === 'Control+Alt+Up');
+
+  const clash = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const dlg = document.getElementById('keysdlg');
+    const set = dlg.querySelector('.k-set[data-which="stop"]');
+    set.click();
+    await sleep(80);
+    // The one the other action already has.
+    set.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'F8', code: 'F8', ctrlKey: true, shiftKey: true, bubbles: true,
+    }));
+    await sleep(250);
+    return { error: document.getElementById('k-error').hidden
+               ? '' : document.getElementById('k-error').textContent,
+             stop: document.getElementById('k-stop').textContent };
+  })()`);
+
+  check('a chord the other action owns is refused', /cannot share/.test(clash.error));
+  check('and the old one is left alone', /Ctrl.*Alt.*Up/.test(clash.stop));
+
+  // Again, but with input delivered the way Electron delivers a real key press
+  // rather than a JavaScript event dispatched at an element. This goes through
+  // the window's own input path - which is where a difference between "works
+  // in a test" and "does nothing in the application" would hide.
+  await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    document.getElementById('keysdlg')
+      .querySelector('.k-set[data-which="stop"]').click();
+    await sleep(80);
+    window.__seen = [];
+    window.addEventListener('keydown', (e) => window.__seen.push(e.key), true);
+    return true;
+  })()`);
+
+  for (const mod of ['Control', 'Shift']) {
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: mod });
+  }
+  win.webContents.sendInputEvent(
+    { type: 'keyDown', keyCode: 'F7', modifiers: ['control', 'shift'] });
+  await new Promise((r) => setTimeout(r, 300));
+
+  const real = await win.webContents.executeJavaScript(`(async () => {
+    const keys = await window.bsr.__keys();
+    return { seen: window.__seen, stored: keys.values.hotkeyStop,
+             shown: document.getElementById('k-stop').textContent,
+             calls: keys.calls.length };
+  })()`);
+
+  check('a real key press reaches the page at all', real.seen.length > 0);
+  check('modifiers first, then the key',
+        real.seen.includes('Control') && real.seen.includes('F7'));
+  check('and a real press rebinds it too', real.stored === 'Control+Shift+F7');
+  check('with the dialog showing it', /Ctrl.*Shift.*F7/.test(real.shown));
+
+  const closed = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    document.getElementById('k-close').click();
+    await sleep(150);
+    return { open: document.getElementById('keysdlg').open };
+  })()`);
+
+  check('Done closes it', !closed.open);
 
   // ---- searching every recording -------------------------------------------
   console.log('\nsearching the whole archive:');

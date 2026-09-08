@@ -150,6 +150,12 @@ delete afterwards still existed.
 which key combinations it has claimed, and the engine ignores them. Otherwise
 the final step of every recording you ever make is *"Pressed Ctrl+Shift+F10"*.
 
+> The two halves have to spell the key the same way, which is less obvious than
+> it sounds: the engine names keys for someone *reading* a step ("Page Up"),
+> and a shortcut names them for Windows ("PageUp"). Where those disagreed, the
+> engine was told to ignore a chord it never produced, and the suppression
+> quietly did nothing.
+
 **Steps are written to disk as they happen.** PSR saved everything only at the
 end, so a crash lost the lot. Here the folder is always current.
 
@@ -399,6 +405,27 @@ straight back to it. One button, both directions.
 Whatever you searched for stays in the search box and is run again, so you come
 back to your results rather than to the recent list. The recording you were just
 in is marked **open now**, so you can see where you were.
+
+### Changing the pause and stop shortcuts
+
+**All shortcuts**, at the bottom of the window, lists them and lets you change
+the two global ones. Click **Change**, then press the combination you want.
+
+While it is waiting, the application lets go of its own hotkeys — otherwise the
+combination you are trying to replace would be swallowed by the very shortcut
+you are replacing, and nothing would happen. They come back the moment you
+choose one, cancel with Escape, or close the dialog.
+
+It needs a modifier (Ctrl, Alt or Shift), or a function key on its own — a bare
+letter would swallow that key everywhere on your machine, which is not a
+shortcut, it is a fault. If you press something that cannot be used, it says so
+and keeps waiting.
+
+Two things it will refuse: a combination the other action already has, and one
+another application has already claimed system-wide. In the second case it
+keeps the previous shortcut rather than leaving you with one that silently does
+nothing, and any shortcut that fails to register is marked **in use elsewhere**
+in the list.
 
 ### Changing a word everywhere
 

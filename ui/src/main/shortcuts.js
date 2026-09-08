@@ -26,6 +26,21 @@ const MOD_ORDER = ['Control', 'Alt', 'Shift', 'Super'];
 
 const DISPLAY = { Control: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Super: 'Win' };
 
+/**
+ * Keys the two sides spell differently.
+ *
+ * The engine names a key for a human reading a step - "Pressed Page Up" - and
+ * an accelerator names it for `globalShortcut`. Where those disagree, the chord
+ * the engine is told to suppress never matches the one it builds, and the
+ * suppression silently does nothing: binding stop to Ctrl+Shift+PageUp put
+ * "Pressed Ctrl+Shift+Page Up" at the end of every recording, which is the one
+ * thing invariant 6 exists to prevent.
+ *
+ * Space has no name in the engine at all: it falls through to the printable
+ * character, so the label really is a single space.
+ */
+const ENGINE_KEYS = { PageUp: 'PAGE UP', PageDown: 'PAGE DOWN', Space: ' ' };
+
 /** Accelerator -> the label the capture engine builds for the same chord. */
 function toEngineChord(accelerator) {
   const parts = String(accelerator || '').split('+').filter(Boolean);
@@ -43,7 +58,7 @@ function toEngineChord(accelerator) {
   // The engine emits modifiers in a fixed order, so match it exactly.
   const order = ['Ctrl+', 'Alt+', 'Win+', 'Shift+'];
   const sorted = order.filter((m) => mods.includes(m));
-  return sorted.join('') + key.toUpperCase();
+  return sorted.join('') + (ENGINE_KEYS[key] || key).toUpperCase();
 }
 
 /** Accelerator -> the keys to draw as keycaps. */
@@ -111,5 +126,6 @@ function engineChords(values = {}) {
 }
 
 module.exports = {
-  DEFAULTS, toEngineChord, toDisplay, fromEvent, isValid, resolve, engineChords,
+  DEFAULTS, ENGINE_KEYS,
+  toEngineChord, toDisplay, fromEvent, isValid, resolve, engineChords,
 };

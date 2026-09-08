@@ -109,7 +109,10 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 5. **Password secrecy is a property of the field, not of the buffer**, and
    survives a flush.
 6. **Claimed hotkeys are suppressed in the engine**, or the last step of every
-   recording is the user pressing stop.
+   recording is the user pressing stop. Suppression is by *label*, and the two
+   sides name keys for different readers - so every key a shortcut can end in
+   must translate to the string the engine actually builds. Checked in
+   `shortcuts_test.js` against the engine's own map, read from its source.
 7. **Blur is destructive**, and pre-blur originals are purged when the session
    closes or the undo entry expires.
 8. **Excluded steps' screenshots are never copied alongside an export.**
@@ -151,6 +154,35 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 ## 4. Decision changelog
 
 Newest first. Each entry records what was decided, why, and what it replaced.
+
+### D-43 · The hotkeys are released while a new one is being chosen
+`(this change)` · [ui/src/main/main.js](../ui/src/main/main.js)
+
+Rebinding a global hotkey did nothing, and said nothing about why.
+
+A registered global shortcut is taken **at the operating system, ahead of every
+window - including ours**. So while the application held `Ctrl+Shift+F9`, a user
+pressing `Ctrl+Shift+F9` in the dialog that replaces it had the key press
+swallowed by the very hotkey they were replacing: it never reached the page, the
+row sat there saying "Press keys…", and nothing changed. Giving pause the chord
+that stop had was worse than nothing - it stopped the recording.
+
+`shortcuts:capture` releases them for as long as the dialog is listening and
+puts them back on **every** exit: chosen, refused, cancelled with Escape, or the
+dialog simply closed. The dialog's own `close` event is the backstop, because
+listening is the only state in this application that is unsafe to leave behind.
+Both refusal paths in `shortcuts:set` now re-register too; without that, being
+told "that needs a modifier" left the application with no global hotkeys at all.
+
+Second half of the same bug: **a key that cannot be used was answered exactly
+like a key that had not arrived yet.** `acceleratorFrom` returned `null` for
+both a bare modifier (keep waiting) and an unusable key (never going to work),
+so pressing something like ScrollLock left the row waiting in silence. It now
+returns `null` only for a modifier, and `{ error }` otherwise - shown, with the
+row still listening so the next attempt does not need another click.
+
+Arrow keys are accepted now as well. They are legitimate global hotkeys and were
+rejected for no reason beyond not being on the list.
 
 ### D-42 · The right-hand pane has a way out, and the search survives it
 `(this change)` · [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)

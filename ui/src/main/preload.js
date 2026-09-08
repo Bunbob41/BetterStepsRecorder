@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('bsr', {
   getShortcuts: () => ipcRenderer.invoke('shortcuts:get'),
   setShortcut: (which, accelerator) =>
     ipcRenderer.invoke('shortcuts:set', { which, accelerator }),
+  captureKeys: (on) => ipcRenderer.invoke('shortcuts:capture', { on }),
 
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),

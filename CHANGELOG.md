@@ -9,6 +9,19 @@ The first tagged build.
 
 ### Added just before the tag
 
+- Fixed: **the global hotkeys could not be rebound.** A registered shortcut is
+  taken at the operating system ahead of every window, so the combination you
+  were replacing was swallowed by the very shortcut you were replacing — the
+  key press never reached the dialog and nothing changed. They are now released
+  while the dialog is listening. Trying to give pause the chord stop had used
+  to stop the recording instead.
+- Fixed: a key that cannot be part of a shortcut was treated exactly like one
+  that had not arrived yet, so the dialog waited in silence. It now says which
+  key it was and keeps listening. Arrow keys are accepted.
+- Fixed: binding a shortcut to Page Up, Page Down or Space did not suppress it
+  during recording — the engine spells those keys differently, so it was told
+  to ignore a combination it never produced, and pressing stop was recorded as
+  the last step of the guide.
 - **A way back to your recordings.** A **Recordings** button in the toolbar
   returns the right-hand pane to the library, with whatever you searched for
   still in the box and still run — opening a search result used to throw the

@@ -1317,6 +1317,33 @@ ipcMain.handle('shortcuts:get', () => ({
   defaults: shortcuts.DEFAULTS,
 }));
 
+/**
+ * Lets go of the global hotkeys while the user is choosing a new one.
+ *
+ * A registered global shortcut is taken at the operating system, ahead of every
+ * window - including ours. So while this application held Ctrl+Shift+F9, a user
+ * pressing Ctrl+Shift+F9 in the rebinding dialog had it swallowed by the very
+ * hotkey they were trying to replace: the key press never reached the page, the
+ * row sat there saying "Press keys...", and nothing changed. Trying to give
+ * pause the chord that stop had was worse - it stopped the recording.
+ *
+ * Released for as long as the dialog is listening, and put back on every exit:
+ * chosen, refused, cancelled, or the dialog simply closed.
+ */
+ipcMain.handle('shortcuts:capture', (_e, { on }) => {
+  if (on) {
+    globalShortcut.unregisterAll();
+    // The interface must not go on claiming they are live while they are not.
+    boundHotkeys = { pause: null, stop: null };
+    send('hotkeys', hotkeyState());
+    return { ok: true, listening: true };
+  }
+  // Idempotent on purpose: the renderer calls this on every way out of
+  // listening, and some of those paths have already re-registered.
+  registerHotkeys();
+  return { ok: true, listening: false };
+});
+
 ipcMain.handle('shortcuts:set', (_e, { which, accelerator }) => {
   const key = which === 'stop' ? 'hotkeyStop' : 'hotkeyPause';
 
@@ -1327,6 +1354,9 @@ ipcMain.handle('shortcuts:set', (_e, { which, accelerator }) => {
   }
 
   if (!shortcuts.isValid(accelerator)) {
+    // registerHotkeys, not a bare return: capture released them, and refusing
+    // a chord must not be the same as turning both hotkeys off.
+    registerHotkeys();
     return { ok: false, error: 'That needs a modifier — Ctrl, Alt or Shift — '
                              + 'or a function key on its own.' };
   }
@@ -1334,6 +1364,7 @@ ipcMain.handle('shortcuts:set', (_e, { which, accelerator }) => {
   const other = which === 'stop' ? 'hotkeyPause' : 'hotkeyStop';
   const resolved = shortcuts.resolve(settings.values);
   if (accelerator === (which === 'stop' ? resolved.pause : resolved.stop)) {
+    registerHotkeys();
     return { ok: false, error: 'Pause and stop cannot share a shortcut.' };
   }
 

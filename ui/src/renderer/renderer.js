@@ -384,16 +384,36 @@ el.kReset.addEventListener('click', async () => {
 
 let listeningFor = null;
 
+/** Stops listening, whatever the reason, and puts the global hotkeys back. */
+async function stopListening() {
+  if (!listeningFor) return;
+  const { row, btn, label } = listeningFor;
+  row.classList.remove('listening');
+  btn.textContent = label;
+  listeningFor = null;
+  await window.bsr.captureKeys(false);
+  await refreshShortcuts();
+}
+
 for (const btn of document.querySelectorAll('.k-set')) {
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', async () => {
     const row = btn.closest('.keyrow');
     listeningFor = { which: btn.dataset.which, row, btn, label: btn.textContent };
     row.classList.add('listening');
     btn.textContent = 'Press keys\u2026';
-    row.querySelector('.k-keys').textContent = 'waiting for a key combination';
+    row.querySelector('.k-keys').textContent = 'press a combination, or Esc to cancel';
     el.kError.hidden = true;
+    // The application's own hotkeys are taken at the operating system, ahead
+    // of this window - so until they are released, the chord being replaced
+    // cannot be typed into the box that replaces it.
+    await window.bsr.captureKeys(true);
   });
 }
+
+// However the dialog is dismissed - Done, Escape, or the window - the hotkeys
+// have to come back. Listening is the only state in this application that is
+// unsafe to leave behind.
+el.keysDlg.addEventListener('close', () => { stopListening(); });
 
 // Captured at the window, ahead of the app's own key handling, so binding to
 // something like Ctrl+Z does not also undo an edit on the way past.
@@ -402,22 +422,23 @@ window.addEventListener('keydown', async (e) => {
   e.preventDefault();
   e.stopPropagation();
 
-  if (e.key === 'Escape') {
-    const { row, btn, label } = listeningFor;
-    row.classList.remove('listening');
-    btn.textContent = label;
-    listeningFor = null;
-    await refreshShortcuts();
-    return;
+  if (e.key === 'Escape') { await stopListening(); return; }
+
+  const chosen = acceleratorFrom(e);
+  if (chosen === null) return;       // a lone modifier: keep waiting
+
+  // A key that cannot be part of a global hotkey used to be indistinguishable
+  // from one that never arrived: the row went on saying "Press keys..." with
+  // no reason given, which reads as the dialog being broken.
+  if (chosen.error) {
+    el.kError.textContent = chosen.error;
+    el.kError.hidden = false;
+    return;                          // still listening: try another one
   }
 
-  const accelerator = acceleratorFrom(e);
-  if (!accelerator) return;          // a lone modifier: keep waiting
-
-  const { which, row, btn, label } = listeningFor;
-  row.classList.remove('listening');
-  btn.textContent = label;
-  listeningFor = null;
+  const { which } = listeningFor;
+  const accelerator = chosen.accelerator;
+  await stopListening();
 
   const r = await window.bsr.setShortcut(which, accelerator);
   if (!r.ok) {
@@ -430,11 +451,21 @@ window.addEventListener('keydown', async (e) => {
   paintShortcuts(r.state);
 }, true);
 
+/** Arrow and navigation keys, as the operating system names them. */
+const NAMED_KEYS = {
+  ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right',
+  Home: 'Home', End: 'End', PageUp: 'PageUp', PageDown: 'PageDown',
+  Insert: 'Insert', Delete: 'Delete', Backspace: 'Backspace',
+  Tab: 'Tab', Enter: 'Enter',
+};
+
 /**
  * Mirrors the rule in the main process: a bare letter would swallow that key
  * across the whole machine, so a modifier is required unless it is a function key.
  */
 function acceleratorFrom(e) {
+  // Null means "keep waiting"; an { error } means "that one cannot be used,
+  // and here is why". The two used to be the same answer.
   if (['Control', 'Alt', 'Shift', 'Meta', 'OS'].includes(e.key)) return null;
 
   const mods = [];
@@ -446,13 +477,16 @@ function acceleratorFrom(e) {
   let main = '';
   if (/^F\d{1,2}$/.test(e.key)) main = e.key;
   else if (e.key === ' ' || e.code === 'Space') main = 'Space';
+  else if (NAMED_KEYS[e.key]) main = NAMED_KEYS[e.key];
   else if (e.key.length === 1) main = e.key.toUpperCase();
-  else if (['Home', 'End', 'PageUp', 'PageDown', 'Insert', 'Delete',
-            'Backspace', 'Tab', 'Enter'].includes(e.key)) main = e.key;
-  else return null;
+  else return { error: `${e.key} cannot be part of a global shortcut. `
+                     + 'Try a letter, a number or a function key.' };
 
-  if (!mods.length && !/^F\d{1,2}$/.test(main)) return null;
-  return [...mods, main].join('+');
+  if (!mods.length && !/^F\d{1,2}$/.test(main)) {
+    return { error: 'That needs a modifier — Ctrl, Alt or Shift — '
+                  + 'or a function key on its own.' };
+  }
+  return { accelerator: [...mods, main].join('+') };
 }
 
 window.bsr.onHotkeys(paintShortcuts);
