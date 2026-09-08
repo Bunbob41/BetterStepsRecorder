@@ -155,6 +155,35 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-48 · The documentation's diagrams are checked, by two different means
+`(this change)` · [tests/diagrams_test.js](../tests/diagrams_test.js)
+
+A diagram in the field guide had been rendering on GitHub as a red "Unable to
+render rich display" box with a parser trace in it, in the middle of the section
+explaining how naming works. Reported by a reader, which is the wrong way to
+find out: the field guide is a deliverable, and nothing here had ever read it.
+
+The cause was `&quot;` inside a node label - decoded to a real quote before the
+label is parsed, closing it early. Replaced with curly quotes, which are
+ordinary characters no renderer has to interpret.
+
+The interesting part is what it takes to catch. **The broken diagram parses
+cleanly under Mermaid 11, and under Mermaid 10** - both were tried. Whatever
+GitHub renders with refuses something neither of those does, so a parse test
+would have passed the exact diagram that was failing in public, with full
+confidence.
+
+So there are two checks and they are different in kind. `test:diagrams` parses
+every diagram in the README and both documents with the real Mermaid, which
+catches ordinary syntax errors. Alongside it sits a flat rule - no quote entity
+inside a node label - which is not derived from any grammar but from the
+observed failure, and is the only one of the two that catches this bug. It was
+mutated against the original text and seen to fail.
+
+The general lesson is the session's recurring one in another costume: the
+authoritative renderer is the one the reader uses, and a local check that
+disagrees with it is not evidence.
+
 ### D-47 · A screenshot is referred to by steps, not owned by one
 `(this change)` · [capture/Recorder.cs](../capture/Recorder.cs)
 

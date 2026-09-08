@@ -8,10 +8,12 @@
  * gets a parser trace instead. One shipped that way and nothing here noticed,
  * because nothing here had ever read the documentation.
  *
- * Parsed with the real Mermaid, in a real window, because the failure this
- * exists to catch was a grammar detail no regular expression would have
- * predicted: `&quot;` inside a node label is decoded to a plain quote, which
- * closes the label early and leaves the rest as stray tokens.
+ * Two checks, because one is not enough. The first parses every diagram with
+ * the real Mermaid, which catches ordinary syntax errors. The second forbids a
+ * quote entity inside a node label - the construction that actually shipped
+ * broken - because GitHub rejected that while the Mermaid here accepts it, so
+ * the parser alone would have passed the very diagram that was failing in
+ * public.
  *
  *   npx electron tests/diagrams_test.js
  */
@@ -97,11 +99,15 @@ app.whenReady().then(async () => {
     check(`${d.file}:${d.line}`, result.ok, result.error);
   }
 
-  // The parser above runs whatever Mermaid this repository installed. GitHub
-  // renders with its own, older one - and the diagram that prompted all this
-  // parsed cleanly here while GitHub replaced it with a red error box. So the
-  // known cross-version hazard is checked as a rule in its own right rather
-  // than trusted to the local grammar.
+  // This rule is empirical, and deliberately not derived from the parser above.
+  //
+  // The diagram that prompted all of this was rejected by GitHub with a red
+  // error box, and parses cleanly here - under Mermaid 11 AND under 10, both
+  // tried. Whatever GitHub renders with refuses something neither of those
+  // does, so no local parse would have caught it and none will catch the next
+  // one either. What is known is the construction that failed: a quote entity
+  // inside a node label, which is decoded to a real quote and closes the label
+  // early. That is worth forbidding on its own evidence.
   console.log('\nand uses nothing a stricter renderer would refuse:');
   for (const d of all) {
     const labels = [...d.text.matchAll(/\[\s*"([^\]]*)"\s*\]/g)].map((m) => m[1]);
