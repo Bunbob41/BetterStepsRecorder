@@ -19,6 +19,10 @@ The first tagged build.
   keycap strip in the footer, which never wraps.
 - Fixed: the two checkboxes in Settings had no styling at all, so the box, its
   label and its explanation were three loose pieces of text.
+- **Identical consecutive screenshots are stored once.** A typed step and the
+  click that follows it are captured at the same instant and produced two
+  copies of the same picture — the same image twice in a guide, and twice the
+  disk for most step pairs. Editing one of them still only affects that step.
 - **The pause shortcut now starts a recording** when none is running — one key
   for start, pause and resume. It records only the application that was in
   front when you pressed it, which is narrower than the Start button's default

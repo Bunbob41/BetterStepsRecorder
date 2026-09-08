@@ -28,6 +28,19 @@ internal sealed class Recorder : IDisposable
     private string? _replaceId;
     private int _seq;
 
+    /// <summary>
+    /// The screenshot written most recently, and where it went.
+    ///
+    /// A typed step's screenshot is taken when the text flushes, and what
+    /// flushes it is usually the click that follows - so the two steps are
+    /// captured at the same instant and produce byte-identical files. Left
+    /// alone that is the same picture printed twice in a guide, and twice the
+    /// disk for every "type something, then click" pair, which is most of what
+    /// a procedure is made of.
+    /// </summary>
+    private byte[]? _lastShot;
+    private string? _lastShotRelative;
+
     // Worker-thread only; no locking needed.
     private DateTime _lastClickUtc = DateTime.MinValue;
     private Win32.POINT _lastClickPoint;
@@ -248,8 +261,8 @@ internal sealed class Recorder : IDisposable
 
         var bounds = ScreenCapture.ResolveBounds(hwnd, point, _options.Frame);
         var seq = ++_seq;
-        var relative = $"steps/{seq:D4}.{_options.Extension}";
-        ScreenCapture.CaptureTo(bounds, Path.Combine(_sessionDir, relative), _options, hwnd);
+        var relative = CaptureOrReuse(
+            bounds, $"steps/{seq:D4}.{_options.Extension}", hwnd, mayReuse: true);
 
         var window = WindowResolver.Describe(hwnd, bounds);
         var target = UiaResolver.Resolve(point.X, point.Y);
@@ -274,6 +287,51 @@ internal sealed class Recorder : IDisposable
         // Typing breaks any pending double-click pairing.
         _lastClickUtc = DateTime.MinValue;
         _lastStepId = null;
+    }
+
+    /// <summary>
+    /// Captures to <paramref name="relative"/>, or points at the previous
+    /// screenshot when the pixels have not changed at all.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Two steps then share one file, which the UI is built for: it refuses to
+    /// delete a screenshot another step still refers to, and gives a step a
+    /// copy of its own before editing one. Comparing bytes rather than hashing
+    /// because the answer is nearly always "different" and a length check
+    /// settles that immediately.
+    ///
+    /// Never applied to a re-record, which is a deliberate replacement and must
+    /// own its file.
+    /// </remarks>
+    private string CaptureOrReuse(Rectangle bounds, string relative, IntPtr hwnd,
+                                  bool mayReuse)
+    {
+        var full = Path.Combine(_sessionDir, relative);
+        ScreenCapture.CaptureTo(bounds, full, _options, hwnd);
+        if (!mayReuse) { _lastShot = null; _lastShotRelative = null; return relative; }
+
+        try
+        {
+            var bytes = File.ReadAllBytes(full);
+            if (_lastShotRelative is not null && _lastShot is not null
+                && _lastShot.Length == bytes.Length
+                && _lastShot.AsSpan().SequenceEqual(bytes))
+            {
+                File.Delete(full);
+                return _lastShotRelative;
+            }
+            _lastShot = bytes;
+            _lastShotRelative = relative;
+        }
+        catch
+        {
+            // Reading a screenshot back is an optimisation and must never cost
+            // a step. Forget the comparison and keep the file that was written.
+            _lastShot = null;
+            _lastShotRelative = null;
+        }
+        return relative;
     }
 
     /// <summary>Whether an event belonging to this process should be recorded.</summary>
@@ -329,10 +387,13 @@ internal sealed class Recorder : IDisposable
         // A replacement keeps its own numbering namespace so it cannot collide
         // with an existing screenshot file.
         var seq = replaces is null ? ++_seq : _seq;
-        var relative = replaces is null
-            ? $"steps/{seq:D4}.{_options.Extension}"
-            : $"steps/redo-{DateTime.UtcNow:yyyyMMddHHmmssfff}.{_options.Extension}";   // forward slashes: the UI treats this as a URL
-        ScreenCapture.CaptureTo(bounds, Path.Combine(_sessionDir, relative), _options, hwnd);
+        var relative = CaptureOrReuse(
+            bounds,
+            replaces is null
+                ? $"steps/{seq:D4}.{_options.Extension}"
+                : $"steps/redo-{DateTime.UtcNow:yyyyMMddHHmmssfff}.{_options.Extension}",   // forward slashes: the UI treats this as a URL
+            hwnd,
+            mayReuse: replaces is null);
 
         var window = WindowResolver.Describe(hwnd, bounds);
         var monitor = WindowResolver.DescribeMonitor(e.Point);

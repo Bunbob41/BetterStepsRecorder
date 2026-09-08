@@ -712,6 +712,15 @@ function rewriteScreenshot(step, dataUrl) {
   const match = /^data:image\/png;base64,(.+)$/.exec(dataUrl || '');
   if (!match) return { ok: false, error: 'Expected a PNG data URL.' };
 
+  // A screenshot can be shared: the engine writes one file when two
+  // consecutive captures are identical. Editing in place would edit the other
+  // step's picture too, so the step gets a copy of its own first - and every
+  // destructive pixel write in the application comes through here, which is
+  // why this is the only place that has to remember.
+  if (!session.forkScreenshot(step)) {
+    return { ok: false, error: 'Could not give that step a screenshot of its own.' };
+  }
+
   // The write. A crafted recording naming a path outside itself would have
   // this replace that file with a blurred screenshot, and stash() would move
   // the original into the recording's trash on the way - so the check belongs

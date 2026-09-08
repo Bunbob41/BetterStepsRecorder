@@ -81,6 +81,60 @@ class Session {
     try { fs.rmSync(this.trashDir, { recursive: true, force: true }); } catch { /* fine */ }
   }
 
+  /**
+   * How many steps point at this screenshot.
+   *
+   * The engine writes one file when two consecutive captures are identical -
+   * a typed step and the click that flushed it see the same screen - so a
+   * screenshot is not owned by a step, it is referred to by them.
+   */
+  usesOf(relative) {
+    if (!relative) return 0;
+    return this.steps.filter((s) => s.screenshot === relative).length;
+  }
+
+  /**
+   * Gives a step a screenshot of its own, if it is currently sharing one.
+   *
+   * Copy on write. Every edit that changes pixels - blur, crop, a mark - would
+   * otherwise change them for the other step as well, which is the one thing
+   * sharing must never be allowed to cost. Returns the path the caller should
+   * write to, or null if the copy could not be made.
+   *
+   * Deliberately NOT clever about blur: blurring one of two identical steps
+   * leaves the other unredacted, exactly as it did when the engine wrote two
+   * files. Sharing is a storage decision and must not quietly become a
+   * redaction policy.
+   */
+  forkScreenshot(step) {
+    if (!step || !step.screenshot) return null;
+    if (this.usesOf(step.screenshot) < 2) return step.screenshot;
+
+    const from = safeJoin(this.dir, step.screenshot);
+    if (!from || !fs.existsSync(from)) return null;
+
+    const ext = path.extname(step.screenshot) || '.png';
+    const relative = `steps/own-${Date.now()}-`
+                   + `${Math.random().toString(36).slice(2, 8)}${ext}`;
+    const to = safeJoin(this.dir, relative);
+    if (!to) return null;
+
+    try {
+      fs.mkdirSync(path.dirname(to), { recursive: true });
+      fs.copyFileSync(from, to);
+    } catch {
+      return null;
+    }
+
+    const i = this.steps.findIndex((x) => x.id === step.id);
+    if (i !== -1) this.steps[i] = { ...this.steps[i], screenshot: relative };
+    // The caller holds a reference to the step object it looked up, and is
+    // about to write to whatever `screenshot` says.
+    step.screenshot = relative;
+    this.flush();
+    return relative;
+  }
+
   /** Puts a stashed screenshot back at its original path. */
   /**
    * Puts a stashed screenshot back, keeping whatever was there.
@@ -163,8 +217,14 @@ class Session {
     this.steps[i] = merged;
     this.flush();
 
-    // Drop the superseded screenshot once the new one is safely referenced.
-    if (old.screenshot && old.screenshot !== merged.screenshot) {
+    // Drop the superseded screenshot once the new one is safely referenced -
+    // unless another step is still using it, which happens whenever the engine
+    // wrote one file for two identical captures. removeStep has always made
+    // this check; this path had not needed to until screenshots could be
+    // shared, and without it re-recording one step blanks the picture on
+    // another.
+    if (old.screenshot && old.screenshot !== merged.screenshot
+        && this.usesOf(old.screenshot) === 0) {
       const doomed = safeJoin(this.dir, old.screenshot);
       if (doomed) try { fs.unlinkSync(doomed); } catch { /* already gone */ }
     }

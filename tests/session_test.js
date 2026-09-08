@@ -294,5 +294,93 @@ console.log('\na recording that arrived from somebody else:');
   fs.rmSync(outside, { force: true });
 }
 
+
+// ---------------------------------------------------------------------------
+// Two steps, one screenshot.
+//
+// The engine writes a single file when consecutive captures are identical -
+// a typed step and the click that flushes it see the same screen. From here
+// on a screenshot is referred to by steps, not owned by one, and every path
+// that deletes or rewrites one has to know that.
+console.log('\nsharing one screenshot between two steps:');
+{
+  const dir2 = path.join(os.tmpdir(), 'bsr-share-test-' + Date.now());
+  const t = new Session(dir2);
+  fs.mkdirSync(path.join(dir2, 'steps'), { recursive: true });
+  fs.writeFileSync(path.join(dir2, 'steps', 'shared.png'), 'PIXELS');
+  fs.writeFileSync(path.join(dir2, 'steps', 'lone.png'), 'OTHER');
+
+  const share = (id) => ({ id, seq: 0, action: 'leftClick', text: id,
+                           point: { x: 1, y: 1 }, screenshot: 'steps/shared.png' });
+  t.addStep(share('one'));
+  t.addStep(share('two'));
+  t.addStep({ ...share('three'), screenshot: 'steps/lone.png' });
+
+  check('a shared screenshot is counted once per step',
+        t.usesOf('steps/shared.png') === 2);
+  check('and an unshared one once', t.usesOf('steps/lone.png') === 1);
+  check('a name nothing refers to counts zero', t.usesOf('steps/gone.png') === 0);
+
+  // ---- copy on write ------------------------------------------------------
+  const before = t.steps[0].screenshot;
+  const forked = t.forkScreenshot(t.steps[0]);
+  check('editing a shared screenshot gives that step its own',
+        forked !== null && forked !== before);
+  check('the copy exists on disk',
+        fs.existsSync(path.join(dir2, forked)));
+  check('with the same pixels to start from',
+        fs.readFileSync(path.join(dir2, forked), 'utf8') === 'PIXELS');
+  check('the step now points at its own copy', t.steps[0].screenshot === forked);
+  check('the other step still points at the original',
+        t.steps[1].screenshot === 'steps/shared.png');
+  check('and nothing is shared any more', t.usesOf('steps/shared.png') === 1);
+
+  // The point of all of it: writing to one must not change the other.
+  fs.writeFileSync(path.join(dir2, forked), 'BLURRED');
+  check('so editing one leaves the other untouched',
+        fs.readFileSync(path.join(dir2, 'steps', 'shared.png'), 'utf8') === 'PIXELS');
+
+  check('a screenshot only one step uses is left where it is',
+        t.forkScreenshot(t.steps[2]) === 'steps/lone.png');
+  check('and is not copied', !fs.existsSync(path.join(dir2, 'steps', 'own-lone.png')));
+
+  // ---- deleting -----------------------------------------------------------
+  const dir3 = path.join(os.tmpdir(), 'bsr-share-del-' + Date.now());
+  const u = new Session(dir3);
+  fs.mkdirSync(path.join(dir3, 'steps'), { recursive: true });
+  fs.writeFileSync(path.join(dir3, 'steps', 'both.png'), 'PIXELS');
+  u.addStep({ id: 'p', seq: 0, action: 'leftClick', text: 'p',
+              point: { x: 1, y: 1 }, screenshot: 'steps/both.png' });
+  u.addStep({ id: 'q', seq: 0, action: 'leftClick', text: 'q',
+              point: { x: 1, y: 1 }, screenshot: 'steps/both.png' });
+
+  u.removeStep('p');
+  check('deleting one of two sharers keeps the file',
+        fs.existsSync(path.join(dir3, 'steps', 'both.png')));
+  u.removeStep('q');
+  check('and deleting the last one finally releases it',
+        !fs.existsSync(path.join(dir3, 'steps', 'both.png')));
+
+  // ---- re-recording -------------------------------------------------------
+  const dir4 = path.join(os.tmpdir(), 'bsr-share-rerec-' + Date.now());
+  const v = new Session(dir4);
+  fs.mkdirSync(path.join(dir4, 'steps'), { recursive: true });
+  fs.writeFileSync(path.join(dir4, 'steps', 'twin.png'), 'PIXELS');
+  fs.writeFileSync(path.join(dir4, 'steps', 'fresh.png'), 'NEW');
+  v.addStep({ id: 'r', seq: 0, action: 'leftClick', text: 'r',
+              point: { x: 1, y: 1 }, screenshot: 'steps/twin.png' });
+  v.addStep({ id: 's', seq: 0, action: 'leftClick', text: 's',
+              point: { x: 1, y: 1 }, screenshot: 'steps/twin.png' });
+
+  v.replaceStep('r', { id: 'X', seq: 0, action: 'leftClick', text: 'r again',
+                       point: { x: 1, y: 1 }, screenshot: 'steps/fresh.png' });
+  check('re-recording one sharer does not blank the other',
+        fs.existsSync(path.join(dir4, 'steps', 'twin.png')));
+  check('and the other still points at it',
+        v.steps[1].screenshot === 'steps/twin.png');
+
+  for (const d of [dir2, dir3, dir4]) fs.rmSync(d, { recursive: true, force: true });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

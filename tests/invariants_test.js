@@ -138,7 +138,11 @@ console.log('\nexcluded steps do not leak into a document:');
 console.log('\na screenshot is never written except atomically:');
 {
   const at = main.indexOf('function rewriteScreenshot');
-  const body = main.slice(at, at + 1000);
+  // To the end of the function, not a fixed number of characters. The window
+  // used to be `at + 1000`, so adding a comment to the top of the function
+  // pushed the code it checks out of view and three invariants went red
+  // without anything about them changing.
+  const body = main.slice(at, main.indexOf('\n}', at) + 2);
 
   check('it writes beside the original and renames over it',
         /\.tmp/.test(body) && /renameSync/.test(body));
@@ -151,6 +155,30 @@ console.log('\na screenshot is never written except atomically:');
     .map((m) => m[1])
     .filter((a) => /step\.screenshot|shotPath/.test(a));
   check('nothing else writes a screenshot directly', direct.length === 0, direct.join());
+}
+
+console.log('\nno screenshot is written or edited behind the sharing rules:');
+{
+  const fs2 = require('node:fs');
+  const path2 = require('node:path');
+  const recorder = fs2.readFileSync(
+    path2.join(__dirname, '..', 'capture', 'Recorder.cs'), 'utf8');
+
+  // Every capture site must go through the one that can reuse a file. A new
+  // site calling CaptureTo directly would write duplicates again, silently.
+  const direct = [...recorder.matchAll(/ScreenCapture\.CaptureTo\(/g)];
+  check('the engine captures through one place only', direct.length === 1,
+        `${direct.length} direct calls to CaptureTo`);
+  check('and that place is the one that can reuse a file',
+        /CaptureOrReuse[\s\S]{0,600}ScreenCapture\.CaptureTo\(/.test(recorder));
+  check('a re-record is never deduplicated',
+        /mayReuse: replaces is null/.test(recorder));
+
+  // And the window copies before it writes, or a blur changes two steps.
+  const at2 = main.indexOf('function rewriteScreenshot');
+  const body2 = main.slice(at2, main.indexOf('\n}', at2) + 2);
+  check('the window gives a step its own copy before writing pixels',
+        body2.indexOf('forkScreenshot') < body2.indexOf('writeFileSync'));
 }
 
 console.log('\nheadings are not counted as steps:');

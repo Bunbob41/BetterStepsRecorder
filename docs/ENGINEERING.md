@@ -155,6 +155,45 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-47 · A screenshot is referred to by steps, not owned by one
+`(this change)` · [capture/Recorder.cs](../capture/Recorder.cs)
+
+Found by hand-testing the start hotkey and reading what came out. A typed
+step's screenshot is captured when the text **flushes**, and what flushes it is
+usually the click that follows - so the two steps are captured at the same
+instant and their PNGs were byte-identical. In a guide that is the same picture
+printed twice in a row; on disk it is double the space for every "type
+something, then click" pair, which is most of what a procedure is made of.
+
+The engine now compares each capture with the one before it and, when nothing
+has changed, deletes the new file and points the step at the old one. Bytes
+rather than a hash: the answer is nearly always "different", and a length check
+settles that in one comparison.
+
+Capturing at flush time is **not** the bug and was left alone. It is what shows
+the field *with* the text in it; capturing at the first keystroke would show an
+empty box, which is a worse picture of "typed this here".
+
+The consequence is that a screenshot is now referred to by steps rather than
+owned by one, and three paths had to learn that:
+
+- **Editing** copies first. `rewriteScreenshot` is the single choke point for
+  every destructive pixel write - blur, crop, every mark - so `forkScreenshot`
+  goes there and nowhere else.
+- **Re-recording** must not delete a file another step still uses. `removeStep`
+  had always checked; this path had never needed to.
+- **Deleting** already checked, which is why nothing broke there.
+
+`forkScreenshot` is deliberately not clever about blur. Blurring one of two
+identical steps leaves the other unredacted - exactly as it did when the engine
+wrote two files. Sharing is a storage decision and must not quietly become a
+redaction policy; that question is worth answering, but on its own terms.
+See the open question below.
+
+The invariant test now checks that the engine has exactly one call to
+`CaptureTo` and that it is inside the helper, because a new capture site added
+later would start writing duplicates again with nothing to notice.
+
 ### D-46 · The pause hotkey starts a recording, scoped to what is in front
 `(this change)` · [ui/src/main/main.js](../ui/src/main/main.js)
 
@@ -1605,6 +1644,13 @@ waits out because it waits for the engine's `ready`.
   Suggesting the likely replacement is the obvious next step and is not started.
 - No migration story for `session.json` if its shape changes. Fine while the
   only recordings are the author's; not fine after distribution.
+- **Blurring one of two identical steps leaves the other unredacted.** True
+  before D-47 and unchanged by it - two steps that captured the same screen
+  show the same secret, and redacting one says nothing about the other. The
+  options are to blur every step whose screenshot matches, to warn, or to leave
+  it. Whichever it is, it should be decided as a redaction question rather than
+  fall out of a storage optimisation, which is why D-47 deliberately did not
+  answer it.
 
 ---
 
