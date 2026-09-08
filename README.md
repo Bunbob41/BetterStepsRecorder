@@ -27,6 +27,20 @@ A modern replacement for the deprecated Windows PSR.exe.
 - **Groups a long procedure into phases.** Headings break forty clicks into the
   three or four pieces of work they actually are, and the app offers one
   wherever the recording moved to a different application.
+- **Crops a screenshot** to the part that matters. Each step remembers the
+  region of screen it came from and stores the click as a position within it,
+  so cutting the picture cuts that region by the same proportion and the marker
+  goes on pointing at the same thing.
+- **Lets you move the click marker.** A typed step is marked at the centre of
+  the field you typed into, because that is all the recorder can know; on a wide
+  search box that is not where the words went, so drag it where it belongs.
+- **Finds and replaces across a whole recording**, and searches *every*
+  recording you have — a system gets renamed, and the alternative is retyping
+  forty steps or letting the guide go stale.
+- **Undo and redo everything**, from the keyboard or the right-click menu. An
+  edit that touches many steps is one undo, not twenty.
+- **Saves as you go**, with no Save button, and says what the recordings folder
+  is costing you — SOP screenshots stack up faster than anyone expects.
 - **Re-records a single step.** Guides rot when an application changes; refresh
   step 17 without touching the other forty.
 - **Tells you which steps have rotted.** Press **Check** and it asks the running
@@ -134,20 +148,26 @@ on a machine you are using.
 From `ui/`:
 
 ```
-npm test              # 14 suites, ~470 checks, a few seconds
-npm run test:window   # the real page in a real Electron window
+npm test                # 23 suites, 740 checks, a few seconds
+npm run test:window     # the real page in a real Electron window
+npm run test:composite  # the click marker drawn into real pixels
 ```
 
 `npm test` is a runner rather than a shell loop on purpose: the loop this
 replaced was bash, and this is a Windows project. It covers export rendering,
 templates, .docx, sessions, section headings, annotations, shortcut
 conversion, window fitting, screenshot sizing, the library, build identity,
-click markers and renderer wiring.
+click markers, renderer wiring, find and replace, cropping, the undo history,
+recording format versions, path confinement, archive search, application
+naming and size formatting.
 
 `npm run test:window` loads the real `index.html`, `renderer.js` and stylesheet
 in an Electron window with the IPC bridge stubbed, and dispatches mouse events
 into the page — nothing is synthesized at the operating system. It exists
-because the drag preview shipped broken twice while every other test passed.
+because the drag preview shipped broken twice while every other test passed:
+it was present in the DOM, correct, and invisible. Set `BSR_SHOTS=<dir>` and it
+also writes what the window is actually showing, because a measurement cannot
+tell you a thing is drawn where nobody can see it.
 
 The rest, from the repository root:
 
