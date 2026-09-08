@@ -1,8 +1,37 @@
+<div align="center">
+
+<img src="ui/build/icon.png" width="96" alt="">
+
 # Steps Recorder
 
-Records what you do on screen — every click, drag and keystroke — with a
-screenshot of each step, then turns it into a guide you can hand to someone.
-A modern replacement for the deprecated Windows PSR.exe.
+**Records what you do on screen — every click, drag and keystroke — with a
+screenshot of each step, then turns it into a guide you can hand to someone.**
+
+A modern replacement for the deprecated Windows `PSR.exe`.
+
+[![Latest release](https://img.shields.io/github/v/release/Bunbob41/BetterStepsRecorder?label=download&style=for-the-badge)](https://github.com/Bunbob41/BetterStepsRecorder/releases/latest)
+[![Windows 10/11 x64](https://img.shields.io/badge/Windows-10%20%2F%2011%20x64-0078D4?style=for-the-badge&logo=windows&logoColor=white)](#install)
+[![MIT](https://img.shields.io/github/license/Bunbob41/BetterStepsRecorder?style=for-the-badge)](LICENSE)
+
+### **[⬇ Download the installer](https://github.com/Bunbob41/BetterStepsRecorder/releases/latest)**
+
+Per-user install · no administrator prompt · no .NET or Node needed ·
+nothing leaves your machine
+
+</div>
+
+---
+
+## In one paragraph
+
+You press record and use your computer normally. Every click, drag and typed
+value becomes a numbered step with a screenshot of the window it happened in,
+described in words rather than coordinates. You then tidy the wording, group
+the steps into phases, blur anything private, and export the result as a web
+page, a PDF, a Word document or your own organisation's SOP template.
+
+Nothing leaves the machine at any point. There is no account, no telemetry and
+no network use of any kind.
 
 ## What it does
 
@@ -58,10 +87,18 @@ A modern replacement for the deprecated Windows PSR.exe.
 
 ## Install
 
-Download `StepsRecorder-Setup-<version>.exe` from
-[Releases](https://github.com/Bunbob41/BetterStepsRecorder/releases) and run it. Installs per-user, so
-no administrator prompt, and nothing else is required — no .NET, no Node. It
-runs on Windows 10 (1607 or later) and Windows 11, x64.
+1. Download **`StepsRecorder-Setup-<version>.exe`** from
+   [the latest release](https://github.com/Bunbob41/BetterStepsRecorder/releases/latest).
+2. Run it. It installs per-user, so there is no administrator prompt, and
+   nothing else is required — no .NET, no Node.
+3. Windows 10 (1607 or later) or Windows 11, x64.
+
+Every release lists the installer's SHA-256 and the commit it was built from,
+so you can check you have what was published:
+
+```powershell
+Get-FileHash StepsRecorder-Setup-0.1.0.exe -Algorithm SHA256
+```
 
 > **Windows will warn you the first time.** The binary is not code-signed yet,
 > so SmartScreen shows "Windows protected your PC" — choose **More info** then
