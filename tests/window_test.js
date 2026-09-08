@@ -97,6 +97,10 @@ const ANSWERS = {
              { id: 'n1', index: 2, count: 1, text: 'Save first' }],
     }] };
   },
+  // Answered properly rather than left to the generic { ok: true }: the line
+  // it paints reads "undefined recordings, 0 B" without this, which is exactly
+  // the kind of thing a screenshot is taken to catch.
+  libraryUsage: () => ({ ok: true, root: 'C:/fake', recordings: 1, bytes: 4_200_000 }),
   listTemplates: () => ({ templates: [] }),
   effectiveTemplate: () => ({ name: '' }),
   getBuild: () => ({ version: '0', build: 0, commit: 'test', source: 'dev' }),
@@ -774,8 +778,9 @@ app.whenReady().then(async () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const q = document.getElementById('library-query');
 
-    // Back to the library screen first.
-    document.getElementById('detail-empty').hidden = false;
+    // Back to the library screen the way a person gets there.
+    document.getElementById('btn-library').click();
+    await sleep(200);
     q.value = 'Save';
     q.dispatchEvent(new Event('input', { bubbles: true }));
     await sleep(400);
@@ -811,6 +816,62 @@ app.whenReady().then(async () => {
   })()`);
 
   check('clicking a line opens the recording at that step', opened.id === 'n1');
+
+  // ---- and back out of it --------------------------------------------------
+  // The pane has two states, and until this there was no way out of the second.
+  // Opening a search result threw away the results, which is the one case
+  // where getting back matters most: the query is the work.
+
+  const back = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const home = document.getElementById('btn-library');
+    const wasOffered = !home.disabled;
+
+    home.click();
+    await sleep(400);
+
+    const showing = !document.getElementById('detail-empty').hidden
+                 && document.getElementById('detail-body').hidden;
+    return {
+      wasOffered, showing,
+      greyed: home.disabled,
+      query: document.getElementById('library-query').value,
+      found: document.getElementById('library-found').textContent,
+      hits: document.querySelectorAll('.lib-hit').length,
+      current: document.querySelectorAll('.lib-row.current').length,
+      // The recording is not closed, only hidden behind the library.
+      steps: document.querySelectorAll('#step-list li.step').length,
+      stillSelected: (document.querySelector('#step-list li.selected') || {}).dataset,
+    };
+  })()`);
+
+  if (process.env.BSR_SHOTS) {
+    fs.writeFileSync(path.join(process.env.BSR_SHOTS, 'back-to-recordings.png'),
+                     (await win.webContents.capturePage()).toPNG());
+  }
+
+  check('a way back is offered once you are in a recording', back.wasOffered);
+  check('and it shows the recordings again', back.showing);
+  check('greyed out once you are there, rather than doing nothing', back.greyed);
+  // Arriving back at "Recent recordings" after searching is the same dead end
+  // from the other direction.
+  check('the search survives the round trip', back.query === 'Save');
+  check('results and all', back.found === '1 recording' && back.hits === 2);
+  check('with the one you were just in marked', back.current === 1);
+  check('and the recording is still open, not closed', back.steps === 4);
+  check('on the step you were on', back.stillSelected && back.stillSelected.id === 'n1');
+
+  const backIn = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    // The step list is the way back IN, which is why the selection is kept.
+    document.querySelector('#step-list li[data-id="n1"]').click();
+    await sleep(250);
+    return { showing: !document.getElementById('detail-body').hidden,
+             offered: !document.getElementById('btn-library').disabled };
+  })()`);
+
+  check('and clicking the step you were on returns you to it', backIn.showing);
+  check('with the way back offered again', backIn.offered);
 
   const cleared = await win.webContents.executeJavaScript(`(async () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -712,3 +712,18 @@ button.tool.active {
 .indicator.movable .bsr-marker { pointer-events: auto; cursor: grab; }
 .indicator.movable .bsr-marker:active { cursor: grabbing; }
 .indicator.moved .bsr-marker { filter: drop-shadow(0 0 3px rgba(255,255,255,.55)); }
+
+/* The recording you are currently in, so coming back from it lands somewhere
+   recognisable rather than in a list of similar cards. */
+.lib-row.current { border-color: var(--accent); }
+.lib-row.current .lib-name::after {
+  content: 'open now';
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.09);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 500;
+  vertical-align: middle;
+}

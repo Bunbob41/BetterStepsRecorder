@@ -152,6 +152,42 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-42 · The right-hand pane has a way out, and the search survives it
+`(this change)` · [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
+
+The pane has always shown one of two things - your recordings, or the step you
+selected - and there was no way from the second back to the first. You noticed
+it after searching, which is where it hurts most: the query is the work, and
+opening a result threw the results away.
+
+**One button, in the toolbar's Document group**, beside `Open…` - global
+navigation next to the other global navigation, in the place people look when
+they want out of something. Greyed when the library is already showing, so it
+never appears to do nothing.
+
+**It shows; it does not close.** The recording stays open and the selected step
+stays selected. That makes the step list the way back *in* - the row you were on
+is still highlighted, and clicking it returns you - so one button covers both
+directions and there is no second "resume" control to add.
+
+**The query is left in the box and re-run.** Landing on "Recent recordings"
+after searching is the same dead end from the other direction.
+
+**The open recording is marked in the list.** Coming back to twelve similar
+cards and having to work out which one you were just in is only half a way
+back.
+
+`showPane` is the single owner of both `hidden` flags and the button's state,
+because three places were setting the pair by hand and a fourth - starting a
+recording while a step was open - was not setting it at all, which left the
+previous recording's screenshot in the pane under a step list that had just
+been emptied.
+
+A leftover multiple selection is also cleared on open. Ids are GUIDs so it
+could never match a step in the new recording, but it was still counted: the
+button offered to delete three steps that were not there, and then deleted
+nothing.
+
 ### D-41 · Right-clicking offers the same things everywhere
 `(this change)` · [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
 

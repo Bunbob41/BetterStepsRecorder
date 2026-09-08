@@ -9,6 +9,15 @@ The first tagged build.
 
 ### Added just before the tag
 
+- **A way back to your recordings.** A **Recordings** button in the toolbar
+  returns the right-hand pane to the library, with whatever you searched for
+  still in the box and still run — opening a search result used to throw the
+  results away with no way back. The recording you were in is marked, stays
+  open, and the step you were on stays selected, so clicking it returns you.
+- Fixed: starting a recording while a step was open left the previous
+  recording's screenshot in the pane, under an empty step list.
+- Fixed: a multiple selection was carried into the next recording opened, so
+  the button offered to delete steps that were not there.
 - **Redo.** Ctrl+Y, or Ctrl+Shift+Z. Undo and redo are now the same traversal
   run in opposite directions, so anything that can be undone can be put back —
   a blur, a crop, a bulk delete, a replace-all.

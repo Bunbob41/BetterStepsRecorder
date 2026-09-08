@@ -382,6 +382,24 @@ with a note saying how many more there are.
 
 **Escape** clears the box and your recent recordings come back.
 
+### Getting back to your recordings
+
+The right-hand side of the window shows one of two things: **your recordings**,
+or **the step you have selected**. Opening a recording replaces the first with
+the second.
+
+**Recordings**, in the top toolbar next to Open…, brings the first one back. It
+greys out when you are already there, so you can always tell which of the two
+you are looking at.
+
+It does not close anything. The recording stays open, and the step you were on
+stays highlighted in the list on the left — so clicking that step takes you
+straight back to it. One button, both directions.
+
+Whatever you searched for stays in the search box and is run again, so you come
+back to your results rather than to the recent list. The recording you were just
+in is marked **open now**, so you can see where you were.
+
 ### Changing a word everywhere
 
 **Ctrl+F** opens a find bar above the step list. Type what you are looking for

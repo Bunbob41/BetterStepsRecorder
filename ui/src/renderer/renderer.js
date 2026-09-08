@@ -36,6 +36,7 @@ const el = {
   scopeBtn: $('btn-scope'), scopeDlg: $('scopedlg'), scopeList: $('scope-list'),
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
   note: $('btn-note'), check: $('btn-check'), section: $('btn-section'),
+  library: $('btn-library'),
   libraryQuery: $('library-query'), libraryFound: $('library-found'),
   context: $('context'),
   libraryHeading: $('library-heading'), libraryUsage: $('library-usage'),
@@ -206,8 +207,7 @@ async function select(id) {
   const step = steps.find((s) => s.id === id);
   if (!step) return;
 
-  el.detailEmpty.hidden = true;
-  el.detailBody.hidden = false;
+  showPane('step');
   el.text.value = step.text || '';
   el.exclude.checked = !!step.excluded;
 
@@ -604,6 +604,10 @@ el.suGo.addEventListener('click', async () => {
   el.sessionName.value = r.name || '';
   el.scopeBtn.textContent = `Capture: ${r.scope}`;
   el.notice.hidden = true;
+  // Starting a recording while a step was open left the PREVIOUS recording's
+  // screenshot and details sitting in the pane, under a step list that had
+  // just been emptied.
+  showPane('library');
   renderList();
   setState('recording');
   startElapsed();
@@ -624,11 +628,11 @@ el.open.addEventListener('click', async () => {
   const r = await window.bsr.openSession();
   if (!r.ok) return;
   el.saveState.textContent = `${r.steps.length} steps · ${r.dir}`;
+  openDir = r.dir;
   el.reveal.disabled = false;
   steps = r.steps;
   selectedId = null;
-  el.detailBody.hidden = true;
-  el.detailEmpty.hidden = false;
+  showPane('library');
   renderList();
 });
 
@@ -643,8 +647,7 @@ async function deleteSelection() {
   steps = r.steps;
   marked.clear();
   selectedId = null;
-  el.detailBody.hidden = true;
-  el.detailEmpty.hidden = false;
+  showPane('library');
   renderList();
   renderLibrary();
 }
@@ -733,6 +736,7 @@ window.bsr.onStep(({ replaced, index, step }) => {
 // There is no Save button by design: every step is flushed to disk as it is
 // recorded. This bar exists so that is visible rather than merely true.
 function savedState(count, dir) {
+  openDir = dir;
   el.saveState.replaceChildren();
   const tick = document.createElement('span');
   tick.className = 'ok';
@@ -832,6 +836,45 @@ el.check.addEventListener('click', async () => {
 // The empty state used to say "select a step" over nothing at all. Opening onto
 // your own recordings is the difference between an app and a blank window.
 
+/** The recording currently open, so the library can point at it. */
+let openDir = null;
+
+/**
+ * Which of the two things the right-hand pane is showing.
+ *
+ * It has always had two states and, until now, no way out of one of them.
+ * Opening a recording replaced the library with a step, and after a search
+ * that meant the results were gone as well - the one case where getting back
+ * matters most, because the query is the work.
+ *
+ * The single owner of both flags, so the two cannot end up both hidden, and
+ * of the button, which greys out when it would do nothing.
+ */
+function showPane(which) {
+  const home = which === 'library';
+  el.detailEmpty.hidden = !home;
+  el.detailBody.hidden = home;
+  el.library.disabled = home;
+}
+
+/**
+ * Back to the recordings.
+ *
+ * The recording stays open and the selected step stays selected - this shows
+ * the library, it does not close anything. So the step list is the way back
+ * in: the row you were on is still highlighted, and clicking it returns you.
+ *
+ * The query is deliberately left in the box and re-run, because arriving back
+ * at "Recent recordings" after searching for something is the same dead end
+ * from the other direction.
+ */
+async function showLibrary() {
+  showPane('library');
+  await renderLibrary();
+}
+
+el.library.addEventListener('click', showLibrary);
+
 /**
  * Opens a recording, and lands on a particular step when one is named.
  *
@@ -845,6 +888,10 @@ async function openRecording(dir, at = null) {
 
   steps = res.steps;
   selectedId = null;
+  // Ids are GUIDs, so a leftover selection cannot match a step in the recording
+  // being opened - but it is still counted, and the button would offer to
+  // "Delete 3 steps" that are not there and then delete nothing.
+  marked.clear();
   el.sessionName.value = res.name || '';
   // Saying it here too. The tick only appeared while recording, so editing an
   // existing recording gave no sign that every change was already on disk -
@@ -896,8 +943,11 @@ const findOptionsFor = () => ({ caseSensitive: false, wholeWord: false });
 /** One row on the library screen, for a recent recording or a search result. */
 function libraryRow(r, query) {
   const row = document.createElement('div');
+  // Marked when it is the one already open, so coming back from a recording
+  // lands somewhere recognisable rather than in a list of similar cards.
   row.className = 'lib-row' + (r.inName ? ' hit-name' : '')
-                            + (r.unreadable ? ' unreadable' : '');
+                            + (r.unreadable ? ' unreadable' : '')
+                            + (openDir && r.dir === openDir ? ' current' : '');
   // Listed, but marked. Hiding a recording this version cannot open would look
   // exactly like having lost it.
   if (r.unreadable) row.title = r.unreadable;
