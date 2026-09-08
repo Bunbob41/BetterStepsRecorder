@@ -25,11 +25,19 @@ internal static class WindowLister
     private const long WS_EX_TOOLWINDOW = 0x00000080;
     private const int DWMWA_CLOAKED = 14;
 
-    internal sealed record WindowEntry(long Hwnd, uint Pid, string Title, string Process);
+    internal sealed record WindowEntry(
+        long Hwnd, uint Pid, string Title, string Process, bool Foreground);
 
     internal static List<WindowEntry> List(HashSet<uint> excludePids)
     {
         var results = new List<WindowEntry>();
+
+        // Which window the user is actually looking at. The list is sorted by
+        // name for a menu, so z-order is gone by the time the UI sees it - and
+        // "the application in front of me right now" is precisely the question
+        // the start hotkey has to answer, from another application, with no
+        // dialog to ask through.
+        var front = Win32.GetForegroundWindow();
 
         EnumWindows((hwnd, _) =>
         {
@@ -62,7 +70,8 @@ internal static class WindowLister
                 try { process = Process.GetProcessById((int)pid).ProcessName + ".exe"; }
                 catch { /* exited or protected; the title still identifies it */ }
 
-                results.Add(new WindowEntry(hwnd.ToInt64(), pid, title, process));
+                results.Add(new WindowEntry(
+                    hwnd.ToInt64(), pid, title, process, hwnd == front));
             }
             catch
             {

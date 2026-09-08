@@ -47,6 +47,16 @@ chk("engine's own pid never listed", ready and all(w["pid"] != ready["pid"] for 
 titles = [w["title"] for w in items]
 chk("no blank-titled ghost windows", all(t.strip() for t in titles))
 
+# The start hotkey scopes to whatever is in front, and the list is sorted by
+# name for a menu - so z-order is gone by the time the UI sees it and the
+# engine has to say which one it was.
+front = [w for w in items if w.get("foreground")]
+chk("every window says whether it is the one in front",
+    all("foreground" in w for w in items))
+chk(f"at most one is ({len(front)})", len(front) <= 1)
+if front:
+    chk("and it is a real window", bool(front[0]["title"].strip()))
+
 print("\nscope filtering:")
 # Scope the recording to a pid that cannot own any window, then confirm the
 # engine accepts it and reports the scope.

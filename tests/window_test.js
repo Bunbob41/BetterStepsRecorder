@@ -213,6 +213,11 @@ for (const name of NAMES) {
     : async (...args) => (ANSWERS[name] ? ANSWERS[name](...args) : { ok: true });
 }
 bridge.__lastCrop = async () => LAST_CROP;
+// The hotkey arrives as an event from the main process, so the stub has to
+// hold the page's listener and be able to fire it.
+let onHotkey = () => {};
+bridge.onHotkey = (fn) => { onHotkey = fn; };
+bridge.__hotkey = async (message) => { onHotkey(message); return true; };
 bridge.__keys = async () =>
   ({ values: KEYS.values, calls: KEYS.calls, captured: KEYS.captured });
 bridge.__lastMarker = async () => LAST_MARKER;
@@ -1191,6 +1196,53 @@ app.whenReady().then(async () => {
       `document.getElementById('settings').close(); true`);
     await new Promise((r) => setTimeout(r, 200));
   }
+
+  // ---- the start hotkey ----------------------------------------------------
+  // Reported as "the hotkeys will not change": the key was pressed expecting a
+  // recording to start, nothing happened, and a silent hotkey is
+  // indistinguishable from a broken one.
+  console.log('\nstarting from the hotkey:');
+
+  const idle = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    await window.bsr.__hotkey({ action: 'idle' });
+    await sleep(150);
+    const notice = document.getElementById('notice');
+    return { hidden: notice.hidden,
+             said: document.getElementById('notice-text').textContent };
+  })()`);
+
+  check('a hotkey with nothing to act on says so', !idle.hidden);
+  check('and says what to do instead', /Nothing is being recorded/.test(idle.said));
+
+  const started = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    await window.bsr.__hotkey({ action: 'started', session: {
+      ok: true, dir: 'C:/fake/session-2', scope: 'Google Chrome',
+      name: 'Hotkey recording', purpose: 'sop',
+    } });
+    await sleep(200);
+    return {
+      state: document.getElementById('status-text').textContent,
+      scope: document.getElementById('btn-scope').textContent,
+      name: document.getElementById('session-name').value,
+      said: document.getElementById('notice-text').textContent,
+      stopEnabled: !document.getElementById('btn-stop').disabled,
+      steps: document.querySelectorAll('#step-list li.step').length,
+    };
+  })()`);
+
+  // The window was idle and a recording began without it: if it does not keep
+  // up, it sits there claiming to be idle while the engine records.
+  check('the window catches up with a recording it did not start',
+        /Recording/i.test(started.state));
+  check('Stop becomes available', started.stopEnabled);
+  check('the scope it chose is shown', /Google Chrome/.test(started.scope));
+  check('and the recording is named', started.name === 'Hotkey recording');
+  check('with the previous recording cleared out', started.steps === 0);
+  // Scoping to the foreground application is a decision made for the user, so
+  // it has to be said out loud rather than discovered in the export.
+  check('it says what it is recording', /Google Chrome/.test(started.said));
 
   // Last, so it covers everything above it. The original defect here was a
   // ReferenceError, which is invisible to every other assertion if it happens

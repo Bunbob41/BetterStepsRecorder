@@ -421,6 +421,31 @@ Whatever you searched for stays in the search box and is run again, so you come
 back to your results rather than to the recent list. The recording you were just
 in is marked **open now**, so you can see where you were.
 
+### Starting without going back to the window
+
+The point of a shortcut that works everywhere is that you are already in the
+application you want to document. So the **pause** shortcut starts a recording
+when none is running — it is one key for all three states:
+
+| When | What it does |
+| --- | --- |
+| Nothing is recording | Starts one |
+| Recording | Pauses |
+| Paused | Resumes |
+
+A recording started this way asks you nothing, so it makes one decision for
+you: **it records only the application that was in front when you pressed the
+key.** That is almost certainly the one you meant, and it is narrower than what
+the Start button defaults to — press the key by accident and it cannot quietly
+begin recording your mail. The app says which application it picked, and the
+Capture button shows it, so you can widen it if you want something else.
+
+The name is filled in with the date; rename it whenever you like, during or
+after.
+
+Pressing **stop** when nothing is recording now says so. It used to do nothing
+at all, which looks exactly like a shortcut that is broken.
+
 ### Changing the pause and stop shortcuts
 
 **All shortcuts**, at the bottom of the window, lists them and lets you change

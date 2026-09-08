@@ -155,6 +155,47 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-46 · The pause hotkey starts a recording, scoped to what is in front
+`(this change)` · [ui/src/main/main.js](../ui/src/main/main.js)
+
+Reported as "the hotkeys will not change". Nothing was broken: both hotkeys
+returned silently when no recording was running, so a key pressed in the
+expectation that it would *start* one did nothing, and a silent hotkey is
+indistinguishable from a broken one.
+
+The expectation was the better design. The moment a global hotkey is worth
+having is the moment you are already inside the application you want to
+document - which is exactly the moment the window is elsewhere and a setup
+dialog would drag you out of it.
+
+**One key, three states**: starts when nothing is running, pauses when
+recording, resumes when paused. A third global chord was the alternative and it
+is worse - one more system-wide combination to claim, one more that another
+application may already own - and this is the key somebody reaches for anyway.
+Renamed in the dialog and in the footer strip, because "Pause" that also starts
+is a label that lies.
+
+**Scope comes from the foreground window, not from the dialog's default.**
+Nothing can be asked, so something has to be assumed, and "the application I am
+looking at" is both the likeliest answer and a *narrower* one than "everything
+on screen": pressing the key by accident cannot quietly begin recording your
+mail. It is announced in the strip - a decision made on the user's behalf has
+to be visible - and the scope button shows it.
+
+That needed the engine's help. `WindowLister` sorts by name for a menu, so
+z-order is gone by the time the window sees the list, and Electron cannot see
+other applications' windows at all. Each entry now carries `foreground`, set
+from `GetForegroundWindow()`. Checked against a real desktop in
+`scope_test.py`: every entry carries the flag, and at most one is true.
+
+**Stop, pressed with nothing to stop, now says so** rather than returning in
+silence - the specific behaviour that made a working hotkey look broken.
+
+Both start paths go through one `beginRecording(intent)` in the main process
+and one `recordingBegan(r)` in the window. The second matters more than it
+looks: a window that does not keep up with a recording it did not start sits
+there claiming to be idle while the engine records.
+
 ### D-45 · Those four groups became four tabs
 `(this change)` · [ui/src/renderer/index.html](../ui/src/renderer/index.html)
 

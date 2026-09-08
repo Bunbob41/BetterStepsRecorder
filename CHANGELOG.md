@@ -19,6 +19,13 @@ The first tagged build.
   keycap strip in the footer, which never wraps.
 - Fixed: the two checkboxes in Settings had no styling at all, so the box, its
   label and its explanation were three loose pieces of text.
+- **The pause shortcut now starts a recording** when none is running — one key
+  for start, pause and resume. It records only the application that was in
+  front when you pressed it, which is narrower than the Start button's default
+  of everything on screen, and it says which one it chose. Previously both
+  shortcuts did nothing at all unless a recording was already running, which
+  looks exactly like a shortcut that is broken.
+- Fixed: pressing stop with nothing recording was silent; it now says so.
 - Fixed: **the global hotkeys could not be rebound.** A registered shortcut is
   taken at the operating system ahead of every window, so the combination you
   were replacing was swallowed by the very shortcut you were replacing — the

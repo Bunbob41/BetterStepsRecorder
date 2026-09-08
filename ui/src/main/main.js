@@ -26,6 +26,9 @@ const paths = require('./paths');
 const { History } = require('./history');
 const library = require('./library');
 const archive = require('./archive');
+// Shared with the window, so a scope label reads the same in the strip as
+// it does in the library: "Google Chrome", not chrome.exe.
+const appName = require('../renderer/appname');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
 
@@ -232,8 +235,11 @@ function registerHotkeys() {
   globalShortcut.unregisterAll();
   const wanted = shortcuts.resolve(settings ? settings.values : {});
 
+  // One key for all three states of a recording. It used to do nothing at all
+  // when none was running, which is indistinguishable from a hotkey that is
+  // not working - and starting is what somebody reaches for it to do.
   const paused = globalShortcut.register(wanted.pause, () => {
-    if (!sidecar || !sidecar.running) return;
+    if (!sidecar || !sidecar.running) { startFromHotkey(); return; }
     recordingPaused = !recordingPaused;
     if (recordingPaused) sidecar.pause(); else sidecar.resume();
     log.info(`hotkey: ${recordingPaused ? 'paused' : 'resumed'}`);
@@ -244,7 +250,11 @@ function registerHotkeys() {
     // Restore first and unconditionally. Gating this on the engine still
     // running is how the window got stranded as a strip with no way back.
     leaveCompact();
-    if (!sidecar || !sidecar.running) return;
+    if (!sidecar || !sidecar.running) {
+      // Silence is what makes a working hotkey look broken.
+      send('hotkey', { action: 'idle' });
+      return;
+    }
     finishRecording();
     log.info('hotkey: stopped');
     send('hotkey', { action: 'stopped' });
@@ -382,7 +392,15 @@ ipcMain.handle('templates:reveal', () => {
   return { ok: true };
 });
 
-ipcMain.handle('recording:start', async (_e, intent = {}) => {
+/**
+ * Begins a recording.
+ *
+ * A function rather than only an IPC handler, because the start hotkey has to
+ * do exactly this without a window involved - and a second implementation of
+ * "start a recording" is how the two come to disagree about scope, intent or
+ * which pids are excluded.
+ */
+async function beginRecording(intent = {}) {
   log.info('recording:start invoked');
   const exe = Sidecar.resolveExe(PROJECT_ROOT);
   log.info(`capture engine: ${exe}`);
@@ -445,7 +463,55 @@ ipcMain.handle('recording:start', async (_e, intent = {}) => {
     ok: true, dir, scope: scopeLabel, name: session.name,
     purpose: session.purpose, templatePath: session.templatePath,
   };
-});
+}
+
+ipcMain.handle('recording:start', (_e, intent = {}) => beginRecording(intent));
+
+/**
+ * Starts a recording of whatever application is in front, from the hotkey.
+ *
+ * The moment a global hotkey is most useful is the moment you are already in
+ * the application you want to document - which is exactly the moment the
+ * window is not in front of you and a setup dialog would drag you out of it.
+ *
+ * So nothing is asked. Scope comes from the window that had focus when the key
+ * was pressed, which is both the likeliest answer and a narrower one than the
+ * dialog's default of everything on screen: pressing a key by accident cannot
+ * quietly start recording your mail.
+ */
+async function startFromHotkey() {
+  const booted = await ensureSidecar();
+  if (!booted.ok) {
+    send('hotkey', { action: 'failed', error: booted.error });
+    return;
+  }
+
+  let front = null;
+  try {
+    const windows = await sidecar.listWindows([process.pid]);
+    front = windows.find((w) => w.foreground) || null;
+  } catch (err) {
+    log.warn(`hotkey start: could not read the foreground window: ${err.message}`);
+  }
+
+  // No foreground window means the desktop, or a window we are not allowed to
+  // see. Recording everything is the honest fallback - and it is said out loud
+  // in the strip, rather than assumed.
+  const label = front ? appName.friendly(front.process) : 'Everything';
+  const r = await beginRecording({
+    name: '',
+    purpose: 'sop',
+    scopePids: front ? [front.pid] : [],
+    scopeLabel: label,
+  });
+
+  if (!r.ok) {
+    send('hotkey', { action: 'failed', error: r.error });
+    return;
+  }
+  log.info(`hotkey: started, scoped to ${label}`);
+  send('hotkey', { action: 'started', session: r });
+}
 
 // The renderer calls this whenever it believes recording has ended. Compact
 // mode is a property of the UI, so it must not be exitable only through paths

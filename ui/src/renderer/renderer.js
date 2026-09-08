@@ -356,7 +356,9 @@ function paintShortcuts(state) {
   }
 
   el.hotkeyHint.replaceChildren(keycaps(state.pause));
-  el.hotkeyHint.append(' pause');
+  // "start/pause", because the same key does both depending on whether
+  // anything is recording - and the start half is the one nobody knew about.
+  el.hotkeyHint.append(' start/pause');
   const sep = document.createElement('span');
   sep.className = 'sep';
   sep.textContent = '\u00b7';
@@ -631,9 +633,20 @@ el.suGo.addEventListener('click', async () => {
 
   const r = await window.bsr.startRecording(intent);
   if (!r.ok) { alert(r.error); return; }
+  recordingBegan(r);
+});
 
+/**
+ * What the window shows once a recording is under way.
+ *
+ * Shared with the hotkey, which starts one without this dialog ever opening.
+ * Two copies of this would drift, and the half that drifted would leave the
+ * window claiming to be idle while the engine was recording.
+ */
+function recordingBegan(r) {
   steps = [];
   selectedId = null;
+  marked.clear();
   el.sessionName.value = r.name || '';
   el.scopeBtn.textContent = `Capture: ${r.scope}`;
   el.notice.hidden = true;
@@ -644,7 +657,7 @@ el.suGo.addEventListener('click', async () => {
   renderList();
   setState('recording');
   startElapsed();
-});
+}
 
 el.pause.addEventListener('click', async () => {
   if (state === 'paused') { await window.bsr.resumeRecording(); setState('recording'); }
@@ -1713,10 +1726,22 @@ el.cStop.addEventListener('click', async () => {
   renderLibrary();
 });
 
-window.bsr.onHotkey(({ action }) => {
+window.bsr.onHotkey(({ action, session, error }) => {
   if (action === 'paused') setState('paused');
   else if (action === 'resumed') setState('recording');
   else if (action === 'stopped') setState('idle');
+  else if (action === 'started' && session) {
+    recordingBegan(session);
+    showNotice(`Recording ${session.scope}. Press the same key to pause, `
+             + 'and the stop key to finish.');
+  } else if (action === 'idle') {
+    // The report that started this: a hotkey that does nothing is
+    // indistinguishable from a hotkey that is not working.
+    showNotice('Nothing is being recorded. Press the pause key, or Start '
+             + 'recording, to begin one.');
+  } else if (action === 'failed') {
+    showNotice(error || 'Could not start recording.');
+  }
 });
 
 // ---- blur ---------------------------------------------------------------------
