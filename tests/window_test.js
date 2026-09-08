@@ -638,6 +638,32 @@ app.whenReady().then(async () => {
         Math.abs(marker.after.x - 150) <= 2 && Math.abs(marker.after.y - 100) <= 2);
   check('a moved marker says so', marker.moved);
 
+  // Two steps can now legitimately point at the same screenshot: the engine
+  // writes one file when consecutive captures are identical. s1 and s3 share
+  // one in this fixture, and neither has been edited - so the <img> is handed
+  // the src it already has, which fires no load event.
+  const twins = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const ind = document.getElementById('indicator');
+    const drawn = async (id) => {
+      document.querySelector('#step-list li[data-id="' + id + '"]').click();
+      await sleep(300);
+      const mark = ind.querySelector('.bsr-marker');
+      const box = mark ? mark.getBoundingClientRect() : null;
+      return Boolean(box) && box.width > 8 && ind.style.display === 'block';
+    };
+    const out = { first: await drawn('s1'), second: await drawn('s3') };
+    // Put the selection back where the rest of this section expects it.
+    document.querySelector('#step-list li[data-id="s2"]').click();
+    await sleep(300);
+    return out;
+  })()`);
+
+  check('the click is marked on the first of two steps sharing a picture',
+        twins.first);
+  check('and on the second, which is handed a src it already has',
+        twins.second);
+
   const nudge = await win.webContents.executeJavaScript(`(async () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const shot = document.getElementById('shot');
