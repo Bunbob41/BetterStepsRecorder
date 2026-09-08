@@ -126,11 +126,27 @@ internal static class UiaResolver
         }
     }
 
-    internal static TargetInfo? Resolve(int x, int y)
+    /// <summary>
+    /// Starts asking what is at a point, without waiting for the answer.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// The question is "what did they click", and the only moment that is
+    /// reliably true is the moment of the click. Asking later asks about
+    /// whatever is there by then - and a click that opens a dialog puts
+    /// something else under the pointer within a few tens of milliseconds. A
+    /// step recorded that way names a control the user never touched, which is
+    /// worse than naming nothing: the screenshot and the words disagree, and
+    /// only the words are wrong.
+    ///
+    /// So the caller starts this first and collects it after the screenshot,
+    /// which the query then overlaps rather than follows.
+    /// </remarks>
+    internal static Task<TargetInfo?>? Begin(int x, int y)
     {
         try
         {
-            var task = Task.Run(() =>
+            return Task.Run(() =>
             {
                 var element = AutomationElement.FromPoint(new System.Windows.Point(x, y));
                 if (element is null) return null;
@@ -153,8 +169,6 @@ internal static class UiaResolver
                 if (name is null && automationId is null && controlType is null) return null;
                 return new TargetInfo(name, controlType, automationId);
             });
-
-            return task.Wait(Deadline) ? task.Result : null;
         }
         catch
         {
@@ -163,4 +177,27 @@ internal static class UiaResolver
             return null;
         }
     }
+
+    /// <summary>
+    /// Collects what <see cref="Begin"/> started, or gives up.
+    ///
+    /// The deadline is measured from here rather than from the click, so the
+    /// time the screenshot took is time the query already had - it costs
+    /// nothing and the answer is usually waiting.
+    /// </summary>
+    internal static TargetInfo? End(Task<TargetInfo?>? pending)
+    {
+        if (pending is null) return null;
+        try
+        {
+            return pending.Wait(Deadline) ? pending.Result : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Begin and End together, for callers with nothing to overlap.</summary>
+    internal static TargetInfo? Resolve(int x, int y) => End(Begin(x, y));
 }

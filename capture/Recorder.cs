@@ -259,13 +259,18 @@ internal sealed class Recorder : IDisposable
 
         if (!InScope(WindowResolver.ProcessIdOf(hwnd))) return;
 
+        // Asked before the screenshot, collected after it. Typing rarely moves
+        // anything under the pointer, but the two paths should agree about when
+        // the question is asked.
+        var pending = UiaResolver.Begin(point.X, point.Y);
+
         var bounds = ScreenCapture.ResolveBounds(hwnd, point, _options.Frame);
         var seq = ++_seq;
         var relative = CaptureOrReuse(
             bounds, $"steps/{seq:D4}.{_options.Extension}", hwnd, mayReuse: true);
 
         var window = WindowResolver.Describe(hwnd, bounds);
-        var target = UiaResolver.Resolve(point.X, point.Y);
+        var target = UiaResolver.End(pending);
 
         var step = new StepMessage
         {
@@ -382,6 +387,19 @@ internal sealed class Recorder : IDisposable
         // Checked before any screenshot or UIA work: cheapest possible bail-out.
         if (!InScope(WindowResolver.ProcessIdOf(hwnd))) return;
 
+        // Started BEFORE the screenshot rather than after it, so the question is
+        // asked as early as this code can ask it.
+        //
+        // It is NOT a cure. Measured on a real recording, a click on "Additional
+        // settings..." is still named after a control in the dialog that click
+        // opened: the event reaches this handler only after the application has
+        // already processed it and drawn the new window, and UIA hit-tests when
+        // it is called rather than remembering where the pointer was. Fixing it
+        // properly means resolving inside the hook, before the click is
+        // delivered - which a low-level hook has no time for. See the open
+        // question in ENGINEERING.
+        var pending = UiaResolver.Begin(e.Point.X, e.Point.Y);
+
         var bounds = ScreenCapture.ResolveBounds(hwnd, e.Point, _options.Frame);
 
         // A replacement keeps its own numbering namespace so it cannot collide
@@ -397,7 +415,7 @@ internal sealed class Recorder : IDisposable
 
         var window = WindowResolver.Describe(hwnd, bounds);
         var monitor = WindowResolver.DescribeMonitor(e.Point);
-        var target = UiaResolver.Resolve(e.Point.X, e.Point.Y);
+        var target = UiaResolver.End(pending);
 
         var step = new StepMessage
         {

@@ -1644,6 +1644,22 @@ waits out because it waits for the engine's `ready`.
   Suggesting the likely replacement is the obvious next step and is not started.
 - No migration story for `session.json` if its shape changes. Fine while the
   only recordings are the author's; not fine after distribution.
+- **A click that changes the interface is named after what replaced it.**
+  Measured: clicking "Additional settings..." in the Region dialog produced
+  *"Clicked the 'Measurement system:' dropdown"* - a control that exists only in
+  the window that click opened. The lookup now starts before the screenshot
+  rather than after it, which was worth doing and did not fix it: the mouse
+  event reaches the recorder only after the application has processed the click
+  and drawn the new window, and `FromPoint` hit-tests when it is called rather
+  than remembering where the pointer was. A real fix has to resolve inside the
+  hook, before the click is delivered, which is the one place with no time to
+  spare. Until then a step whose click opened or closed something may be named
+  wrongly - worse than unnamed, because the picture and the words disagree and
+  only the words are wrong.
+- **Transparent always-on-top overlays poison the lookup.** In the same
+  recording one step resolved to "NVIDIA GeForce Overlay": UIA hit-testing finds
+  the topmost window at the point, and an invisible full-screen overlay is
+  topmost everywhere.
 - **WinUI 3 applications with content islands cannot be named.** Measured, not
   guessed: `AutomationElement.FromPoint` on Windows 11 Paint returns an unnamed
   `Pane` of class `Microsoft.UI.Content.DesktopChildSiteBridge` for every point

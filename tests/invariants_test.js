@@ -181,6 +181,35 @@ console.log('\nno screenshot is written or edited behind the sharing rules:');
         body2.indexOf('forkScreenshot') < body2.indexOf('writeFileSync'));
 }
 
+console.log('\nthe control is asked about at the moment of the click:');
+{
+  const fs3 = require('node:fs');
+  const path3 = require('node:path');
+  const rec = fs3.readFileSync(
+    path3.join(__dirname, '..', 'capture', 'Recorder.cs'), 'utf8');
+
+  // Asked after the screenshot, a click that opens a dialog is named after
+  // whatever the dialog put under the pointer. The step then names a control
+  // the user never touched, which is worse than naming nothing: the picture
+  // and the words disagree, and only the words are wrong.
+  const begins = [...rec.matchAll(/UiaResolver\.Begin\(/g)].length;
+  const ends = [...rec.matchAll(/UiaResolver\.End\(/g)].length;
+  check(`every step path starts a lookup (${begins})`, begins >= 2);
+  check('and collects exactly as many as it starts', begins === ends);
+
+  // Order, within each path that uses it.
+  const paths = [...rec.matchAll(/UiaResolver\.Begin/g)].map((m) => m.index);
+  for (const at of paths) {
+    const body = rec.slice(at, rec.indexOf('UiaResolver.End', at) + 20);
+    check('the screenshot is taken between asking and collecting',
+          body.includes('CaptureOrReuse'),
+          'no capture between Begin and End - the query is not overlapping anything');
+  }
+
+  check('nothing in the engine still resolves inline',
+        !/UiaResolver\.Resolve\(/.test(rec));
+}
+
 console.log('\nheadings are not counted as steps:');
 {
   // The count a reader is given has to be the number of things to do. Before
