@@ -239,15 +239,18 @@ Down still move between rows while it is folded, which is what makes this a view
 rather than a mode somebody can get stuck in - and there is a check for exactly
 that.
 
-**Start, pause and resume are Ctrl+Shift+S.** They were on Ctrl+Shift+F9,
-chosen when this was written precisely because nothing common uses it. The cost
-of the new one is worth writing down rather than discovering: **a global hotkey
-is taken from every other application while this one holds it**, and
-Ctrl+Shift+S is Save As in a good deal of software. While a recording runs, the
-application being recorded will not see that key. It was asked for because it is
-the one pressed over and over, mid-task, with your hands on the thing being
-recorded - and F9 is a stretch and a glance. Stop stays on Ctrl+Shift+F10, where
-nothing competes. Both remain rebindable in Settings.
+**Start, pause and resume were moved to Ctrl+Shift+S and moved straight back.**
+Asked for because it is the key pressed over and over, mid-task, with your hands
+on the thing being recorded, where F9 is a stretch and a glance. Taken back out
+the same day, on the cost: **a global hotkey is taken from every other
+application while this one holds it**, and Ctrl+Shift+S is Save As in a good
+deal of software - so the application being recorded would not see it, in a tool
+whose entire job is recording applications.
+
+Worth keeping as an entry rather than deleting, because the reasoning is the
+useful part and the next person to find F9 awkward will have the same idea. The
+defaults are function keys for a reason; both remain rebindable in Settings for
+anyone who wants that trade knowingly.
 
 A note on how the checks for this went, because it is the second time in a day:
 a blanket `s.replace()` with no count edited the FIRST match in the file rather

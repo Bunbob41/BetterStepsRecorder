@@ -1790,7 +1790,7 @@ app.whenReady().then(async () => {
   check('and choosing one puts them back', rebind.captured.includes(false));
 
   check('the dialog opens', rebind.opened);
-  check('and shows the current chord', /Ctrl.*Shift.*S/.test(rebind.before),
+  check('and shows the current chord', /Ctrl.*Shift.*F9/.test(rebind.before),
         rebind.before);
   check('Change starts listening', rebind.listening);
   check('the keypress reaches the main process',
