@@ -204,7 +204,7 @@ on a machine you are using.
 From `ui/`:
 
 ```
-npm test                # 23 suites, 766 checks, a few seconds
+npm test                # 25 suites, 897 checks, a few seconds
 npm run test:window     # the real page in a real Electron window
 npm run test:composite  # the click marker drawn into real pixels
 npm run test:diagrams   # every Mermaid diagram in these documents

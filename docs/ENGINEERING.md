@@ -159,6 +159,52 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-57 - The LaTeX output is compiled, by a compiler
+`(this change)` - [tests/latex_compile_test.js](../tests/latex_compile_test.js)
+
+D-56 shipped with an admission: nothing had compiled the fragment, the checks
+were lexical, and lexical is not a compiler. That is the same gap D-48 found
+with Mermaid, where two versions of the real parser accepted a diagram GitHub
+refused. An admission is better than a false claim, but it is not evidence.
+
+So there is now a TeX engine here (TinyTeX, about 100MB, unpacked into one
+folder) and a suite that hands it a recording containing every character TeX
+reserves - as a Windows path, a percentage, a price, a formula, a control name
+in quotes - wraps it in the smallest document that could receive it, and
+compiles. It checks for `! ` lines, for a PDF, for **"Missing character"**,
+which is how a character escaped into a glyph the font lacks prints nothing at
+all and says nothing about it, and it compiles twice so the `\label`s this
+export writes are seen to resolve.
+
+Mutation: removing the backslash from the escape table produces
+`! Undefined control sequence` and no PDF - which is exactly what the person
+this was built for would have seen in Overleaf, and exactly what no lexical
+check can promise.
+
+**It skips loudly when there is no engine**, printing that the fragment was NOT
+compiled rather than passing quietly. A skipped check reported as a pass is
+worse than no check, because it is believed.
+
+Two things learned by doing it, both of which cost time:
+
+- **pdfTeX meets a malformed PNG by crashing.** No error, no message, a log
+  truncated mid-line and an exit code Windows uses for an invalid handle. The
+  first fixture here was a hand-typed 2x2 PNG that was subtly wrong, and the
+  crash read for a while as a fault in the fragment. It bisects to
+  `\includegraphics` and nothing else. Worth knowing beyond the test: a
+  corrupted screenshot would fail somebody's build this way, and the export
+  cannot tell them why.
+- **Looking for `/Page` in the PDF bytes proves nothing.** pdfTeX writes page
+  objects into a compressed object stream, so the string is absent from a file
+  that has pages. The check asks the engine's own "Output written on ...
+  (N pages, M bytes)" line instead. A check that reads the wrong artefact can
+  fail while everything is fine, which is how this one was caught, and could as
+  easily have passed while everything was broken.
+
+What is still not established is how it looks **in their manual**, with their
+preamble and their house style. A compiler answers whether it builds. Only the
+person with the document can answer whether it belongs.
+
 ### D-56 - LaTeX export is a fragment, and everything follows from that
 `(this change)` - [ui/src/main/latex.js](../ui/src/main/latex.js)
 
@@ -214,13 +260,9 @@ would compile with **every figure missing** and no error anywhere. The check
 writes the images, reads the `.tex` back, and asserts that every file it names
 exists on disk.
 
-**What none of this establishes is that the output compiles.** There is no TeX
-engine on this machine. The checks are lexical - escaping character by
-character, environments balanced, a title written to look like an attack coming
-out inert - and lexical is not a compiler. This is D-48's lesson exactly: the
-authoritative renderer is the one the reader uses, and a local check that
-disagrees with it is not evidence. The arc closes when a real fragment has been
-pasted into the real Overleaf project, and not before.
+**It compiles.** That sentence was not true when this was written - the entry
+said so, and said the checks were lexical and that lexical is not a compiler.
+It is true now: see D-57.
 
 ### D-55 - Moving an arrow settles its direction, rather than re-deriving it
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
@@ -1864,6 +1906,7 @@ machine in use.
 | Suite | Runs | Covers |
 |---|---|---|
 | `tests/composite_test.js` | `npm run test:composite` (from `ui/`) | the click marker drawn into real pixels, and into a real .docx |
+| `tests/latex_compile_test.js` | `npm test`, or `node tests/latex_compile_test.js` | the LaTeX fragment handed to a real pdfTeX. **Skips**, loudly, when no engine is installed |
 | `tests/window_test.js` | `npm run test:window` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
 | `tests/*_test.js` (22) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |
 | `tests/scope_test.py` | `python tests/<file>` | window enumeration, scope precedence |
