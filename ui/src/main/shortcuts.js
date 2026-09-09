@@ -15,9 +15,16 @@
  */
 
 const DEFAULTS = {
-  // Chosen to avoid colliding with anything common: not used by Office,
-  // browsers or the shell.
-  pause: 'Control+Shift+F9',
+  // Start, pause and resume - the one pressed over and over, mid-task, while
+  // your hands are on the thing being recorded. Asked for as Ctrl+Shift+S
+  // because it is reachable without looking; F9 is a stretch and a glance.
+  //
+  // The cost is real and worth stating: a global hotkey is TAKEN FROM every
+  // other application while this one holds it, and Ctrl+Shift+S is Save As in
+  // a good deal of software. While a recording is running, the application
+  // being recorded will not see it. Rebindable in Settings, and stop is left
+  // on a function key where nothing competes.
+  pause: 'Control+Shift+S',
   stop: 'Control+Shift+F10',
 };
 

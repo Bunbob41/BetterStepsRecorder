@@ -39,6 +39,9 @@ const DEFAULTS = {
   // What colour a new box, ring or arrow is drawn in. Red is what every mark
   // was before there was a choice.
   markColour: 'red',
+  // Whether the steps column is folded away. A view, not a preference about
+  // recordings - but it belongs with the things the window remembers.
+  stepsCollapsed: false,
   // A key printed in exports, saying what each highlighter colour means. Off by
   // default: most guides use one colour and a one-entry legend is clutter.
   showHighlightLegend: false,

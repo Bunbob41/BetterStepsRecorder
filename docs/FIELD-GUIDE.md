@@ -1089,6 +1089,17 @@ Three deliberate choices:
   files into a bundle that programs cannot be run from directly, so the engine
   sits alongside as an extra resource.
 
+### Folding the steps away
+
+The list of steps takes a third of the window, and while you are drawing on a
+screenshot you are not reading it. **Ctrl+B** folds it away and gives the space
+to the picture; the same key brings it back, as does the narrow rail it leaves
+behind, which keeps the step count in view.
+
+Arrow Up and Down still move between steps while it is folded, so you can work
+through a recording without unfolding anything. Whether it is folded is
+remembered between sessions.
+
 ### The Recordings menu
 
 One button at the top, and everything to do with recordings is under it:

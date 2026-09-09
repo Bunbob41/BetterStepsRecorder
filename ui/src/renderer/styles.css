@@ -907,3 +907,41 @@ body.dropping::after {
   stroke-linecap: round;
 }
 .tool { padding: 6px 8px; line-height: 0; }
+
+/* Folding the steps away.
+
+   The picture is what somebody marking up a screenshot is looking at, and on a
+   laptop the list takes a third of the window to show forty rows nobody is
+   reading at that moment. Collapsed it leaves a rail rather than nothing: a
+   column that vanishes entirely has no obvious way back, and the count is worth
+   keeping in view. */
+.steps-rail {
+  display: none;
+  width: 100%;
+  height: 100%;
+  padding: 10px 0;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  flex-direction: column;
+}
+.steps-rail:hover { color: #e8ecf4; background: rgba(255,255,255,.04); }
+.steps-rail .chev { font-size: 18px; width: 100%; text-align: center; }
+.rail-count {
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+}
+.ghost { background: none; border: 0; color: var(--muted); padding: 0 6px; }
+.ghost:hover { color: #e8ecf4; }
+
+body.steps-collapsed main { grid-template-columns: 30px 1fr; }
+body.steps-collapsed .steps-head,
+body.steps-collapsed #step-list,
+body.steps-collapsed .findbar,
+body.steps-collapsed .steps-foot { display: none; }
+body.steps-collapsed .steps-rail { display: flex; }

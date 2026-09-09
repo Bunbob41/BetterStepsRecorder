@@ -633,6 +633,72 @@ app.whenReady().then(async () => {
   check(`every element marked hidden is invisible (${hiding.count} checked)`,
         hiding.showing.length === 0, hiding.showing.join(', '));
 
+  console.log('\nfolding the steps column away:');
+  const folded = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const list = document.getElementById('step-list');
+    const rail = document.getElementById('btn-steps-expand');
+    // The PANE, not the <img>: a picture stops at its natural width, so it
+    // cannot show that the space around it grew.
+    const pane = document.querySelector('.detail');
+
+    document.querySelector('#step-list li[data-id="s2"]').click();
+    await sleep(250);
+    const wideBefore = Math.round(pane.getBoundingClientRect().width);
+    const railBefore = getComputedStyle(rail).display;
+
+    document.getElementById('btn-steps-collapse').click();
+    await sleep(250);
+    const collapsed = {
+      listShown: getComputedStyle(list).display !== 'none',
+      rail: getComputedStyle(rail).display,
+      count: document.getElementById('rail-count').textContent,
+      wide: Math.round(pane.getBoundingClientRect().width),
+      // The step stays selected: this is a view, not a mode.
+      stillSelected: Boolean(document.querySelector('#step-list li.selected')),
+    };
+
+    // Arrow keys still move between steps with the column folded, which is what
+    // stops it being somewhere you can get stuck.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    await sleep(250);
+    const movedWhileFolded = document.querySelector('#step-list li.selected')
+      ? document.querySelector('#step-list li.selected').dataset.id : null;
+
+    // Ctrl+B brings it back.
+    document.dispatchEvent(new KeyboardEvent('keydown',
+      { key: 'b', ctrlKey: true, bubbles: true }));
+    await sleep(250);
+    const back = {
+      listShown: getComputedStyle(list).display !== 'none',
+      rail: getComputedStyle(rail).display,
+      wide: Math.round(pane.getBoundingClientRect().width),
+    };
+
+    return { wideBefore, railBefore, collapsed, movedWhileFolded, back };
+  })()`);
+
+  check('the rail is out of the way while the list is showing',
+        folded.railBefore === 'none');
+  check('folding hides the list', folded.collapsed.listShown === false);
+  check('and leaves a rail to bring it back',
+        folded.collapsed.rail !== 'none');
+  check('with the number of steps still in view',
+        folded.collapsed.count === '4', folded.collapsed.count);
+  // The whole point: the picture gets the room.
+  check('the picture gets the space',
+        folded.collapsed.wide > folded.wideBefore + 200,
+        `${folded.wideBefore}px -> ${folded.collapsed.wide}px`);
+  check('and the step you were on stays selected', folded.collapsed.stillSelected);
+  // The row after s2 is the note n1, and a note is a row you can land on.
+  check('arrow keys still move between rows while it is folded',
+        folded.movedWhileFolded === 'n1', String(folded.movedWhileFolded));
+  check('Ctrl+B brings the list back', folded.back.listShown === true);
+  check('and puts the rail away again', folded.back.rail === 'none');
+  check('and the picture returns to its old width',
+        Math.abs(folded.back.wide - folded.wideBefore) <= 2,
+        `${folded.wideBefore}px -> ${folded.back.wide}px`);
+
   console.log('\ntaking hold of a mark:');
   const grabbed = await win.webContents.executeJavaScript(`(async () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1724,7 +1790,8 @@ app.whenReady().then(async () => {
   check('and choosing one puts them back', rebind.captured.includes(false));
 
   check('the dialog opens', rebind.opened);
-  check('and shows the current chord', /Ctrl.*Shift.*F9/.test(rebind.before));
+  check('and shows the current chord', /Ctrl.*Shift.*S/.test(rebind.before),
+        rebind.before);
   check('Change starts listening', rebind.listening);
   check('the keypress reaches the main process',
         rebind.calls.length === 1 && rebind.calls[0].which === 'pause');

@@ -42,6 +42,8 @@ const el = {
   scopeBtn: $('btn-scope'), scopeDlg: $('scopedlg'), scopeList: $('scope-list'),
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
   add: $('btn-add'),
+  stepsCollapse: $('btn-steps-collapse'), stepsExpand: $('btn-steps-expand'),
+  railCount: $('rail-count'),
   libraryQuery: $('library-query'), libraryFound: $('library-found'),
   context: $('context'),
   libraryHeading: $('library-heading'), libraryUsage: $('library-usage'),
@@ -97,6 +99,30 @@ function setState(next) {
   el.scopeBtn.disabled = next !== 'idle';
 }
 
+/**
+ * Folds the steps column away, or brings it back.
+ *
+ * The picture is the thing being worked on; the list is how you got to it. On a
+ * laptop it takes a third of the window to show rows nobody is reading while
+ * they are drawing on a screenshot. Arrow Up and Down still move between steps
+ * with the column folded, so it is a view, not a mode you can get stuck in.
+ */
+let stepsCollapsed = false;
+
+function paintCollapsed() {
+  document.body.classList.toggle('steps-collapsed', stepsCollapsed);
+  el.railCount.textContent = String(steps.length);
+}
+
+async function collapseSteps(next) {
+  stepsCollapsed = Boolean(next);
+  paintCollapsed();
+  await window.bsr.setSettings({ stepsCollapsed });
+}
+
+el.stepsCollapse.addEventListener('click', () => collapseSteps(true));
+el.stepsExpand.addEventListener('click', () => collapseSteps(false));
+
 function renderList() {
   el.count.textContent = String(steps.length);
   // Adding a note to nothing, or checking nothing, are not actions.
@@ -106,6 +132,7 @@ function renderList() {
   const recorded = BsrSections.countSteps(steps);
   el.cCount.textContent = `${recorded} step${recorded === 1 ? '' : 's'}`;
   el.empty.hidden = steps.length > 0;
+  el.railCount.textContent = String(steps.length);
   el.list.replaceChildren();
 
   const matching = matchingIds();
@@ -775,6 +802,13 @@ document.addEventListener('keydown', async (e) => {
 
   // Ctrl+F wherever you are, including inside the find fields themselves, so
   // pressing it twice re-selects the query rather than doing nothing.
+  // Ctrl+B, which is what every editor uses for the side panel.
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'b') {
+    e.preventDefault();
+    collapseSteps(!stepsCollapsed);
+    return;
+  }
+
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
     e.preventDefault();
     openFind();
@@ -2907,6 +2941,8 @@ function paintSettings(v) {
   paintTemplates(v.templatePath || '');
   highlightId = v.highlightColour || 'yellow';
   markColour = v.markColour || 'red';
+  stepsCollapsed = v.stepsCollapsed === true;
+  paintCollapsed();
   paintLegendMeanings(v);
   el.marker.value = v.markerStyle || 'circle';
   el.markerBold.checked = Boolean(v.markerBold);

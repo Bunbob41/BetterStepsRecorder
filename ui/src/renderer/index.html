@@ -62,7 +62,16 @@
 
   <main>
     <aside class="steps">
+      <!-- The column folded away. Not zero width: a rail keeps the way back on
+           screen, and says how many steps are behind it. -->
+      <button id="btn-steps-expand" class="steps-rail"
+              title="Show the steps (Ctrl+B)" aria-label="Show the steps">
+        <span class="chev">›</span>
+        <span id="rail-count" class="rail-count">0</span>
+      </button>
       <div class="steps-head">
+        <button id="btn-steps-collapse" class="tiny ghost"
+                title="Hide the steps (Ctrl+B)" aria-label="Hide the steps">‹</button>
         <span>Steps</span>
         <span class="insert">
           <!-- One button, three things it can add. All three are also on the

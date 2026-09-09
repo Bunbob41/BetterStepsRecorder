@@ -223,6 +223,38 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-65 - The steps column folds, and start moves to Ctrl+Shift+S
+`(this change)` - [ui/src/renderer/styles.css](../ui/src/renderer/styles.css)
+
+Two asks from the same session of real use.
+
+**The column folds away.** The picture is what somebody marking up a screenshot
+is looking at, and on a laptop the list spends a third of the window showing
+rows nobody is reading at that moment. Ctrl+B, the button in its header, or the
+rail.
+
+It folds to a **rail, not to nothing**: a column that vanishes entirely has no
+obvious way back, and the step count is worth keeping in view. Arrow Up and
+Down still move between rows while it is folded, which is what makes this a view
+rather than a mode somebody can get stuck in - and there is a check for exactly
+that.
+
+**Start, pause and resume are Ctrl+Shift+S.** They were on Ctrl+Shift+F9,
+chosen when this was written precisely because nothing common uses it. The cost
+of the new one is worth writing down rather than discovering: **a global hotkey
+is taken from every other application while this one holds it**, and
+Ctrl+Shift+S is Save As in a good deal of software. While a recording runs, the
+application being recorded will not see that key. It was asked for because it is
+the one pressed over and over, mid-task, with your hands on the thing being
+recorded - and F9 is a stretch and a glance. Stop stays on Ctrl+Shift+F10, where
+nothing competes. Both remain rebindable in Settings.
+
+A note on how the checks for this went, because it is the second time in a day:
+a blanket `s.replace()` with no count edited the FIRST match in the file rather
+than the intended one, and left two probes referring to names they had not
+declared. The suite said `pane is not defined`, which was true and was nothing
+to do with the feature. Targeted replacements, or a count, from here.
+
 ### D-64 - Controls that float over the picture are not part of it
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
 
