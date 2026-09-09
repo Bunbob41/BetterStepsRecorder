@@ -3,7 +3,7 @@
 Notable changes, newest first. The reasoning behind each decision lives in
 [docs/ENGINEERING.md](docs/ENGINEERING.md); this is the short version.
 
-## Unreleased
+## 0.2.0
 
 ### Photographs
 
