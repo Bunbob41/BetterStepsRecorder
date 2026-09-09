@@ -21,8 +21,10 @@ A Windows screen-capture tool that turns a task performed on screen into a
 document somebody else can follow. A replacement for the deprecated
 `PSR.exe`.
 
-Current state: **v0.1.0**, packaged as an unsigned per-user NSIS installer,
-private repository, being handed to a second user for the first time.
+Current state: **v0.1.2** released and in daily use by colleagues, with builds
+since then carrying the marker, LaTeX and photograph work. Packaged as an
+unsigned per-user NSIS installer, in a PUBLIC repository - which is a fact
+about what may safely appear in a screenshot, a commit or an issue.
 
 ---
 
@@ -2133,7 +2135,14 @@ waits out because it waits for the engine's `ready`.
 
 ## 9. Repository
 
-`https://github.com/Bunbob41/BetterStepsRecorder` — **private**. Single branch,
+`https://github.com/Bunbob41/BetterStepsRecorder` — **public**. Single branch,
 `master`, linear history.
+
+It says public because it IS public: this line said private for as long as the
+repository has existed, and a document that is wrong about who can read it is
+the one mistake here with consequences outside the code. Anything committed -
+screenshots included - is readable by anyone, so a picture taken to illustrate
+a feature must not carry a customer name, a file path from work, or a window
+title from a real job.
 
 Build: `npm run dist` from `ui/` → `dist/StepsRecorder-Setup-<version>.exe`.
