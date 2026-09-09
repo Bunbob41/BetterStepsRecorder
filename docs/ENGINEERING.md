@@ -159,6 +159,31 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-50 · A marker the author dragged is cut with the picture
+`(this change)` · [ui/src/renderer/crop.js](../ui/src/renderer/crop.js)
+
+Found while working out what a photograph needs, and live in 0.1.2.
+
+A recorded marker survives a crop because it is *derived*: click point inside a
+frame, and D-32 cuts the frame by the same proportion as the picture, so the
+arithmetic lands in the same place. A marker the author **dragged** (D-40) has
+no such derivation - it is a percentage of the picture itself. Cropping moved
+the content out from under it and left it pointing at whatever slid into that
+percentage. Measured: a marker at 25%,25% of a 1000x800 picture, cropped to the
+middle, should read 0%,0%; it still read 25%,25%.
+
+`markerAtAfter` does for a dragged marker what `frameAfter` does for a recorded
+one, and returns null when the crop cuts the marked spot away entirely - in
+which case the field is removed rather than left pointing at nothing.
+
+The warning before cropping now asks about **the marker the step actually
+shows** rather than the recorded click. Those differ exactly when it matters:
+a click still inside the region while the dragged marker is not, and - once
+photographs exist - a picture with a marker and no click at all.
+
+The unit tests for crop.js passed throughout, because they exercise the module
+and the handler never called it. The invariant test now reads the handler.
+
 ### D-49 · A recording that cannot be read is damaged, not empty
 `(this change)` · [ui/src/main/session.js](../ui/src/main/session.js)
 

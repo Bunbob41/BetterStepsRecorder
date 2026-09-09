@@ -103,10 +103,55 @@
     return { x, y };
   }
 
+  /**
+   * Where a moved marker ends up after a crop.
+   *
+   * A recorded marker survives a crop because it is derived from the click
+   * point and the frame, and the frame is cut by the same proportion as the
+   * picture - so the arithmetic lands in the same place (D-32). A marker the
+   * author DRAGGED has no such derivation: it is a percentage of the picture
+   * itself, so cutting the picture moves the content out from under it and
+   * leaves the marker pointing at whatever slid into that percentage.
+   *
+   * Returns null when the crop cuts the marked spot away entirely.
+   */
+  function markerAtAfter(markerAt, crop, image) {
+    if (!markerAt
+        || !Number.isFinite(markerAt.x) || !Number.isFinite(markerAt.y)) return null;
+
+    const c = clamp(crop, image);
+    if (!c.w || !c.h) return null;
+
+    const iw = Math.max(1, Math.round(image.width));
+    const ih = Math.max(1, Math.round(image.height));
+
+    // Percentage of the old picture -> pixels -> percentage of the new one.
+    const px = (markerAt.x / 100) * iw;
+    const py = (markerAt.y / 100) * ih;
+    const x = ((px - c.x) / c.w) * 100;
+    const y = ((py - c.y) / c.h) * 100;
+
+    if (x < 0 || y < 0 || x > 100 || y > 100) return null;
+    return { x, y };
+  }
+
   /** Whether this crop would cut the click out of the picture. */
   const losesMarker = (point, frame, crop, image) =>
     Boolean(point) && Boolean(frame && frame.w)
     && markerAfter(point, frame, crop, image) === null;
 
-  return { MINIMUM, clamp, isDeliberate, frameAfter, markerAfter, losesMarker };
+  /**
+   * Whether the crop would cut away whatever marker the step actually shows.
+   *
+   * The step's own marker, not the recorded click: a dragged one is what is on
+   * screen, and asking about the click would warn about the wrong thing - or
+   * fail to warn at all on a photograph, which has no click.
+   */
+  function losesAnyMarker(step, crop, image) {
+    if (step && step.markerAt) return markerAtAfter(step.markerAt, crop, image) === null;
+    return losesMarker(step && step.point, step && step.frame, crop, image);
+  }
+
+  return { MINIMUM, clamp, isDeliberate, frameAfter, markerAfter, markerAtAfter,
+           losesMarker, losesAnyMarker };
 }));

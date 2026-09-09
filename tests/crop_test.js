@@ -107,5 +107,63 @@ console.log('\nwhen the crop cuts the click out:');
         !c.losesMarker(point, null, away, image));
 }
 
+
+console.log('\na marker the author dragged is cut with the picture:');
+{
+  // A recorded marker survives a crop because it is derived from the click and
+  // the frame, and the frame is cut to match. A dragged one is a percentage of
+  // the picture itself - so before this, cropping moved the content out from
+  // under it and left it pointing at whatever slid into that percentage.
+  const image = { width: 1000, height: 800 };
+  const rect = { x: 250, y: 200, w: 500, h: 400 };   // keep the middle
+
+  // 25%,25% of the old picture is pixel 250,200 - exactly the new corner.
+  const moved = c.markerAtAfter({ x: 25, y: 25 }, rect, image);
+  check('a marker on the new top-left corner reads as 0%',
+        moved !== null && Math.abs(moved.x) < 0.001 && Math.abs(moved.y) < 0.001,
+        JSON.stringify(moved));
+
+  const middle = c.markerAtAfter({ x: 50, y: 50 }, rect, image);
+  check('the centre of a centred crop stays the centre',
+        middle !== null && Math.abs(middle.x - 50) < 0.001
+                        && Math.abs(middle.y - 50) < 0.001);
+
+  check('a marker outside the region is cut away, not clamped',
+        c.markerAtAfter({ x: 5, y: 5 }, rect, image) === null);
+  check('and so is one past the far edge',
+        c.markerAtAfter({ x: 99, y: 99 }, rect, image) === null);
+  check('nothing to move is not an error',
+        c.markerAtAfter(null, rect, image) === null);
+  check('and neither is a marker with no numbers in it',
+        c.markerAtAfter({ x: 'a', y: 2 }, rect, image) === null);
+
+  // Cropping the whole picture changes nothing.
+  const whole = c.markerAtAfter({ x: 30, y: 70 },
+                                   { x: 0, y: 0, w: 1000, h: 800 }, image);
+  check('a crop that keeps everything moves nothing',
+        whole !== null && Math.abs(whole.x - 30) < 0.001
+                       && Math.abs(whole.y - 70) < 0.001);
+
+  // ---- which marker the warning is about ---------------------------------
+  const frame = { x: 0, y: 0, w: 1000, h: 800 };
+  const clicked = { point: { x: 500, y: 400 }, frame };            // dead centre
+  const dragged = { point: { x: 500, y: 400 }, frame, markerAt: { x: 5, y: 5 } };
+
+  check('a crop that keeps the click does not warn about it',
+        c.losesAnyMarker(clicked, rect, image) === false);
+  // The click is still inside; the marker the reader will see is not.
+  check('but it warns when the DRAGGED marker is the one being cut away',
+        c.losesAnyMarker(dragged, rect, image) === true);
+
+  // A photograph: no click, no frame, only a marker somebody placed.
+  const photo = { markerAt: { x: 50, y: 50 } };
+  check('a photograph keeps its marker when the crop contains it',
+        c.losesAnyMarker(photo, rect, image) === false);
+  check('and loses it when the crop does not',
+        c.losesAnyMarker({ markerAt: { x: 2, y: 2 } }, rect, image) === true);
+  check('a picture with no marker at all cannot lose one',
+        c.losesAnyMarker({}, rect, image) === false);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

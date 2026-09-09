@@ -210,6 +210,26 @@ console.log('\nthe control is asked about at the moment of the click:');
         !/UiaResolver\.Resolve\(/.test(rec));
 }
 
+console.log('\na crop cuts everything the marker depends on:');
+{
+  // The unit tests cover crop.js on its own and pass whether or not the
+  // handler calls it - which is exactly how the dragged marker came to drift
+  // through a crop with a full green suite. This checks the wiring.
+  const at = main.indexOf("ipcMain.handle('step:crop'");
+  // To the end of the handler, not to the first closing brace inside it -
+  // which stopped at the end of the pushUndo call and missed the write.
+  const body = main.slice(at, main.indexOf('\n});', at) + 3);
+
+  check('the crop handler was found', at > 0 && body.length > 200);
+  check('it cuts the frame with the picture', /frameAfter\(/.test(body));
+  // A recorded marker follows the frame; a dragged one is a percentage of the
+  // picture and has to be moved itself.
+  check('and moves a dragged marker with it', /markerAtAfter\(/.test(body),
+        'crop.js can move it, but step:crop never asks');
+  check('writing the result back', /markerAt: nextMarker/.test(body),
+        'the new position is computed and then discarded');
+}
+
 console.log('\nheadings are not counted as steps:');
 {
   // The count a reader is given has to be the number of things to do. Before

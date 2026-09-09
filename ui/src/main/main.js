@@ -784,8 +784,19 @@ ipcMain.handle('step:crop', (_e, { id, dataUrl, rect, image }) => {
     },
   });
 
+  // A dragged marker is a percentage of the picture, so cutting the picture
+  // moves the content out from under it. The frame is cut to match for a
+  // recorded marker; this is the same correction for one placed by hand.
+  const nextMarker = step.markerAt
+    ? crop.markerAtAfter(step.markerAt, rect, image)
+    : null;
+
   const updated = session.updateStep(id, {
     ...(nextFrame ? { frame: nextFrame } : {}),
+    // Cropped away entirely: the field goes, rather than pointing at nothing.
+    ...(step.markerAt ? { markerAt: nextMarker || undefined } : {}),
+    // Cropped away entirely: the field goes, rather than pointing at nothing.
+    // Cropped away entirely: the field goes, rather than pointing at nothing.
     cropped: true,
     editedAt: new Date().toISOString(),
   });

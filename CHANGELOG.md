@@ -3,6 +3,16 @@
 Notable changes, newest first. The reasoning behind each decision lives in
 [docs/ENGINEERING.md](docs/ENGINEERING.md); this is the short version.
 
+## Unreleased
+
+- Fixed: **a click marker you had dragged drifted when you cropped that step.**
+  A recorded marker survives cropping because the step's frame is cut with the
+  picture; a marker you moved by hand is a position on the picture itself, and
+  nothing was moving it. It is now cut with the picture too, and removed
+  outright if the crop cuts it away.
+- The warning before a crop now asks about the marker you can see rather than
+  the recorded click, which are not the same thing once you have moved one.
+
 ## 0.1.2
 
 - Fixed: **a recording whose details file could not be read opened as an empty

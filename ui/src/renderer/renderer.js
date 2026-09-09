@@ -1994,8 +1994,10 @@ async function applyCrop(sel, displayedWidth) {
   // Said before it happens, not discovered in the finished document. Cropping
   // the click out is a legitimate thing to want - trimming to a panel the
   // click was not in - but it should never be a surprise.
-  if (BsrCrop.losesMarker(step.point, step.frame, rect, image)) {
-    const ok = confirm('The click on this step is outside that region, so the '
+  // The marker the step actually shows, which is the dragged one where there
+  // is one. Asking about the recorded click would warn about the wrong thing.
+  if (BsrCrop.losesAnyMarker(step, rect, image)) {
+    const ok = confirm('The marker on this step is outside that region, so the '
       + 'step will have no marker on it. Crop anyway?');
     if (!ok) return;
   }
