@@ -174,6 +174,12 @@ const ANSWERS = {
     depthListener(DEPTH);
     return { ok: true, step };
   },
+  hideMarker: (id, hidden) => {
+    const step = SESSION.steps.find((x) => x.id === id);
+    if (!step) return { ok: false, error: 'Step not found.' };
+    if (hidden) step.markerHidden = true; else delete step.markerHidden;
+    return { ok: true, step };
+  },
   undo: () => { CALLED.push('undo'); return { ok: true, steps: SESSION.steps }; },
   redo: () => { CALLED.push('redo'); return { ok: true, steps: SESSION.steps }; },
   // The page assigns r.step back into its list, so a stub that omits it puts
@@ -829,6 +835,45 @@ app.whenReady().then(async () => {
   check('and the marker returns to where the recording put it',
         Math.abs(reset.x - 300) <= 2 && Math.abs(reset.y - 200) <= 2);
   check('and stops calling itself moved', !reset.moved);
+
+  // Turning the marker off, so somebody can draw their own arrow instead.
+  const hide = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const shot = document.getElementById('shot');
+    const r = shot.getBoundingClientRect();
+
+    document.getElementById('shot-wrap').dispatchEvent(new MouseEvent('contextmenu',
+      { bubbles: true, clientX: r.left + 200, clientY: r.top + 150 }));
+    await sleep(80);
+    const labelWhenShown = [...document.querySelectorAll('#context button')]
+      .map((b) => b.textContent).find((t) => /marker on this step/.test(t)) || '';
+    [...document.querySelectorAll('#context button')]
+      .find((b) => /Hide the marker/.test(b.textContent)).click();
+    await sleep(250);
+
+    const gone = !document.querySelector('#indicator .bsr-marker');
+
+    // And back again, from the same place in the menu.
+    document.getElementById('shot-wrap').dispatchEvent(new MouseEvent('contextmenu',
+      { bubbles: true, clientX: r.left + 200, clientY: r.top + 150 }));
+    await sleep(80);
+    const labelWhenHidden = [...document.querySelectorAll('#context button')]
+      .map((b) => b.textContent).find((t) => /marker on this step/.test(t)) || '';
+    [...document.querySelectorAll('#context button')]
+      .find((b) => /Show the marker/.test(b.textContent)).click();
+    await sleep(250);
+
+    return {
+      labelWhenShown, labelWhenHidden, gone,
+      back: Boolean(document.querySelector('#indicator .bsr-marker')),
+    };
+  })()`);
+
+  check('the menu offers to hide the marker', /Hide the marker/.test(hide.labelWhenShown));
+  check('and hiding it takes it off the screenshot', hide.gone);
+  // The same item, saying the opposite thing - not a second item that appears.
+  check('the item then offers to show it', /Show the marker/.test(hide.labelWhenHidden));
+  check('and it comes back', hide.back);
 
   const rowMenu = await win.webContents.executeJavaScript(`(async () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

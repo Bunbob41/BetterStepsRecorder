@@ -610,6 +610,19 @@ export, because both are drawn by the same piece of code.
 > picture itself rather than layering anything on top of it, so the marker
 > cannot simply be drawn over it the way it is in a web page or PDF.
 
+#### Turning it off
+
+Sometimes an arrow you draw yourself says it better than a ring around a click.
+Right-click a screenshot and choose **Hide the marker on this step**, and that
+step carries none — on screen and in everything you export. The same item shows
+it again.
+
+If that is how you always work, Settings → **Marking up** has *Mark where the
+click was*: turn it off and no screenshot carries a marker at all.
+
+The click is still recorded either way. Hiding the marker only stops it being
+drawn, so you can show it again later without losing where you clicked.
+
 #### Moving it
 
 Sometimes the marker is not quite in the right place, and there is a reason for

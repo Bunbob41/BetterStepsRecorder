@@ -255,5 +255,38 @@ console.log('\nthe stashed screenshots are freed:');
   check('and empties both stacks', h.depth.undo === 0 && h.depth.redo === 0);
 }
 
+console.log('\nhiding a marker is undone like moving one:');
+{
+  const steps = [{ id: 'a', markerAt: { x: 25, y: 25 } }];
+  const session = {
+    steps,
+    updateStep(id, patch) {
+      const i = steps.findIndex((s) => s.id === id);
+      steps[i] = { ...steps[i], ...patch };
+      for (const k of Object.keys(patch)) {
+        if (patch[k] === undefined) delete steps[i][k];
+      }
+      return steps[i];
+    },
+  };
+
+  const h = new History();
+  // What the handler pushes before hiding: where it was, and that it showed.
+  h.push({ type: 'marker', id: 'a', at: { x: 25, y: 25 }, hidden: false });
+  session.updateStep('a', { markerHidden: true });
+
+  h.undo(session);
+  check('undo shows it again', steps[0].markerHidden === undefined);
+  // The half that would be easy to lose: restoring "shown" while forgetting
+  // where it was would put the step into a state it was never in.
+  check('and keeps where it had been dragged to',
+        steps[0].markerAt && steps[0].markerAt.x === 25);
+
+  h.redo(session);
+  check('redo hides it again', steps[0].markerHidden === true);
+  check('still without losing the position',
+        steps[0].markerAt && steps[0].markerAt.x === 25);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

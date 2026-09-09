@@ -159,6 +159,41 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-51 · One answer to "is there a marker, and where"
+`(this change)` · [ui/src/renderer/marker.js](../ui/src/renderer/marker.js)
+
+Asked for as "either move the click, or turn it off and I will draw my own
+pointer". The moving half existed (D-40); turning it off did not, and building
+it exposed that the question was being answered in five places.
+
+Two of them computed the position - once in the window, once in the exporter,
+the same arithmetic written twice. The other three asked **"does this step have
+a click point?"** as a stand-in, including the one that burns the marker into
+the pixels for Word. That stand-in is wrong in both directions: a step can have
+a click and show no marker, and show a marker and have no click - a photograph,
+or a click that was cropped away.
+
+`marker.positionFor(step, opts)` is now the only answer, in the module both
+sides already share. It returns null for hidden, for turned-off, and for a
+picture with nothing placed on it, so every output agrees by construction
+rather than by being kept in step.
+
+Off in two independent ways, because they mean different things. **A setting**
+turns markers off everywhere, for somebody whose habit is to draw their own.
+**`markerHidden` on a step** turns off that one, for the screenshot where an
+arrow says it better. Neither can un-hide the other; a step that is off stays
+off. Both travel to every export, or the guide disagrees with the preview it
+was checked in.
+
+Undo carries both halves of what a marker is - where it sits and whether it
+shows - because restoring one and not the other puts the step into a state it
+was never in.
+
+The window test caught the interesting one. `placeIndicator` returned early
+when there was no position, which was harmless while selecting a step cleared
+the overlay first, and became "hiding the marker does nothing" the moment
+something could take one away in place. Emptied now, not skipped.
+
 ### D-50 · A marker the author dragged is cut with the picture
 `(this change)` · [ui/src/renderer/crop.js](../ui/src/renderer/crop.js)
 

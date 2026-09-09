@@ -5,6 +5,11 @@ Notable changes, newest first. The reasoning behind each decision lives in
 
 ## Unreleased
 
+- **The click marker can be turned off.** Right-click a screenshot to hide it
+  on that step, or turn it off everywhere in Settings → Marking up — for when
+  you would rather point things out yourself with the Arrow and Circle tools.
+  Hidden markers stay hidden in every export, not just on screen.
+
 - Fixed: **a click marker you had dragged drifted when you cropped that step.**
   A recorded marker survives cropping because the step's frame is cut with the
   picture; a marker you moved by hand is a position on the picture itself, and

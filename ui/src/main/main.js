@@ -817,7 +817,7 @@ ipcMain.handle('step:crop', (_e, { id, dataUrl, rect, image }) => {
  * Stored as a percentage of the frame, exactly like the computed position, so
  * every export and the crop arithmetic follow without knowing this exists.
  */
-ipcMain.handle('step:marker', (_e, { id, at }) => {
+ipcMain.handle('step:marker', (_e, { id, at, hidden }) => {
   if (!session) return { ok: false, error: 'No recording is open.' };
 
   const step = session.steps.find((s) => s.id === id);
@@ -827,12 +827,19 @@ ipcMain.handle('step:marker', (_e, { id, at }) => {
     ? { x: Math.max(0, Math.min(100, at.x)), y: Math.max(0, Math.min(100, at.y)) }
     : null;
 
+  // Both fields, whichever changed: one undo entry puts the step back exactly
+  // as it was rather than half of it.
   pushUndo({ type: 'marker', id,
-             at: step.markerAt ? { ...step.markerAt } : null });
+             at: step.markerAt ? { ...step.markerAt } : null,
+             hidden: step.markerHidden === true });
 
+  const patch = {};
   // `undefined` rather than null, so putting it back removes the field
   // entirely and the step reads as one that was never moved.
-  const updated = session.updateStep(id, { markerAt: wanted || undefined });
+  if (at !== undefined) patch.markerAt = wanted || undefined;
+  if (hidden !== undefined) patch.markerHidden = hidden ? true : undefined;
+
+  const updated = session.updateStep(id, patch);
   return { ok: true, step: updated };
 });
 
@@ -915,10 +922,12 @@ function shotFiles(s) {
 function markableShots(s) {
   const out = [];
   for (const step of exportable(s)) {
-    if (!step.screenshot || !step.point) continue;
+    // Not "has a click": a step can have one and show no marker, or show one
+    // and have no click. The position is the only thing that decides.
+    if (!step.screenshot) continue;
     const file = path.join(s.dir, step.screenshot);
     if (!fs.existsSync(file)) continue;
-    const pos = markerPosition(step);
+    const pos = markerPosition(step, markerOptions());
     if (pos) out.push({ file, pos });
   }
   return out;
@@ -987,6 +996,8 @@ function markerOptions() {
   return {
     style: settings.values.markerStyle || 'circle',
     bold: Boolean(settings.values.markerBold),
+    // Off means no marker anywhere, for somebody who draws their own.
+    show: settings.values.showClickMarker !== false,
   };
 }
 

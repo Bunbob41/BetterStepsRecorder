@@ -109,28 +109,10 @@ const countSteps = sections.countSteps;
  * scales with the image at any width. Returns null when the point falls
  * outside the captured frame.
  */
-function markerPosition(step) {
-  // Where the author put it, if they moved it. A typed step is anchored at the
-  // centre of the focused control because the engine cannot know where the
-  // caret is, so on a large field the marker lands in the middle of the box -
-  // and this is the correction. Already a percentage, so it needs no frame.
-  if (step.markerAt
-      && Number.isFinite(step.markerAt.x) && Number.isFinite(step.markerAt.y)) {
-    return { x: step.markerAt.x, y: step.markerAt.y };
-  }
-
-  // The captured frame, not the window: framing by monitor or full screen means
-  // the screenshot is larger than the window and window-relative maths is wrong.
-  const rect = (step.frame && step.frame.w ? step.frame : null)
-            || (step.window && step.window.rect);
-  if (!rect || !rect.w || !rect.h) return null;
-
-  const x = ((step.point.x - rect.x) / rect.w) * 100;
-  const y = ((step.point.y - rect.y) / rect.h) * 100;
-  if (x < 0 || y < 0 || x > 100 || y > 100) return null;
-
-  return { x, y };
+function markerPosition(step, opts) {
+  return marker.positionFor(step, opts);
 }
+
 
 /** A logo, embedded so the document stays a single portable file. */
 function logoTag(brand) {
@@ -203,7 +185,7 @@ function buildHtml(session, { title, embedImages = true, brand = null,
       : embedImages ? dataUri(abs)
       : step.screenshot;
 
-    const at = markerPosition(step);
+    const at = markerPosition(step, markerOpts);
     const markerHtml = at ? marker.html(at, markerOpts) : '';
 
     // The process only: the description already names the window at exactly the

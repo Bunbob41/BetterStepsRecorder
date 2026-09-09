@@ -53,6 +53,7 @@ const el = {
   cElapsed: $('c-elapsed'),
   build: $('build'),
   marker: $('set-marker'), markerBold: $('set-marker-bold'),
+  showMarker: $('set-show-marker'),
   legend: $('set-legend'), legendMeanings: $('legend-meanings'),
   notice: $('notice'), noticeText: $('notice-text'),
   noticeSettings: $('notice-settings'), noticeClose: $('notice-close'),
@@ -273,7 +274,7 @@ function verifyLabel(v) {
 }
 
 /** How the click should be marked, as chosen in Settings. */
-let markerOpts = { style: 'circle', bold: false };
+let markerOpts = { style: 'circle', bold: false, show: true };
 
 /**
  * Where the marker belongs, as a percentage of the picture.
@@ -288,26 +289,25 @@ let markerOpts = { style: 'circle', bold: false };
  * is what the document shows.
  */
 function markerPos(step) {
-  const at = step.markerAt;
-  if (at && Number.isFinite(at.x) && Number.isFinite(at.y)) {
-    return { x: at.x, y: at.y, moved: true };
-  }
-
-  // The frame actually captured. With monitor or full-screen framing the
-  // screenshot is bigger than the window, so window-relative maths is wrong.
-  const rect = (step.frame?.w ? step.frame : null) || step.window?.rect;
-  if (!rect || !step.point) return null;
-
-  const x = ((step.point.x - rect.x) / rect.w) * 100;
-  const y = ((step.point.y - rect.y) / rect.h) * 100;
-  if (x < 0 || y < 0 || x > 100 || y > 100) return null;
-  return { x, y, moved: false };
+  // The same function the exporters use, so what is previewed is what is
+  // produced - including the decision not to draw one at all.
+  return BsrMarker.positionFor(step, markerOpts);
 }
+
 
 function placeIndicator(step) {
   if (!el.shot.naturalWidth) return;
   const pos = markerPos(step);
-  if (!pos) return;
+  if (!pos) {
+    // No marker for this step: hidden, turned off everywhere, or a picture
+    // with none placed on it. The overlay has to be EMPTIED, not left showing
+    // the last one drawn - selecting a step clears it first, so returning
+    // early was harmless until something could take a marker away in place.
+    el.indicator.replaceChildren();
+    el.indicator.style.display = 'none';
+    el.indicator.classList.remove('moved', 'movable');
+    return;
+  }
 
   // render(), not html(): a style attribute would be refused by the content
   // policy this window runs under, and the marker would sit at 0,0 unstyled.
@@ -1359,6 +1359,21 @@ async function commitMarker(id, at) {
   }
 }
 
+/** Hides or shows the marker on one step. */
+async function hideMarker(id, hidden) {
+  const step = steps.find((s) => s.id === id);
+  const r = await window.bsr.hideMarker(id, hidden);
+  if (!r || !r.ok) {
+    showNotice((r && r.error) || 'Could not change the marker.');
+    return;
+  }
+  if (step) {
+    Object.assign(step, r.step);
+    if (!r.step.markerHidden) delete step.markerHidden;
+    placeIndicator(step);
+  }
+}
+
 el.indicator.addEventListener('mousedown', (e) => {
   if (e.button !== 0 || armedTool || !selectedId) return;
   if (!e.target.closest('.bsr-marker')) return;
@@ -1519,9 +1534,15 @@ el.wrap.addEventListener('contextmenu', (e) => {
   const step = steps.find((s) => s.id === selectedId);
   const moved = Boolean(step && step.markerAt);
 
+  const hidden = Boolean(step && step.markerHidden);
+
   showContext(e.clientX, e.clientY, [
     ...historyItems(),
     null,
+    { label: hidden ? 'Show the marker on this step'
+                    : 'Hide the marker on this step',
+      enabled: Boolean(step),
+      run: () => hideMarker(step.id, !hidden) },
     { label: 'Put the marker back where it was recorded',
       enabled: moved,
       run: () => commitMarker(step.id, null) },
@@ -2137,7 +2158,11 @@ function paintSettings(v) {
   paintLegendMeanings(v);
   el.marker.value = v.markerStyle || 'circle';
   el.markerBold.checked = Boolean(v.markerBold);
-  markerOpts = { style: el.marker.value, bold: el.markerBold.checked };
+  // Absent means shown, matching the settings file: somebody upgrading expects
+  // the marker they have always had.
+  el.showMarker.checked = v.showClickMarker !== false;
+  markerOpts = { style: el.marker.value, bold: el.markerBold.checked,
+                 show: el.showMarker.checked };
   el.format.value = v.imageFormat;
   el.quality.value = v.imageQuality;
   el.qualityVal.textContent = String(v.imageQuality);
@@ -2333,15 +2358,17 @@ el.format.addEventListener('change', async () => {
   paintSettings(await window.bsr.setSettings({ imageFormat: el.format.value }));
 });
 
-for (const control of ['marker', 'markerBold']) {
+for (const control of ['marker', 'markerBold', 'showMarker']) {
   el[control].addEventListener('change', async () => {
-    markerOpts = { style: el.marker.value, bold: el.markerBold.checked };
+    markerOpts = { style: el.marker.value, bold: el.markerBold.checked,
+                   show: el.showMarker.checked };
     await window.bsr.setSettings({
       markerStyle: el.marker.value, markerBold: el.markerBold.checked,
+      showClickMarker: el.showMarker.checked,
     });
     // Redraw the step on screen, so the choice can be seen rather than imagined.
     const step = steps.find((x) => x.id === selectedId);
-    if (step && step.point) placeIndicator(step);
+    if (step) placeIndicator(step);
   });
 }
 

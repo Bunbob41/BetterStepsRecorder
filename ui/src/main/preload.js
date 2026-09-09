@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('bsr', {
   undo: () => ipcRenderer.invoke('edit:undo'),
   redo: () => ipcRenderer.invoke('edit:redo'),
   moveMarker: (id, at) => ipcRenderer.invoke('step:marker', { id, at }),
+  hideMarker: (id, hidden) => ipcRenderer.invoke('step:marker', { id, hidden }),
   undoDepth: () => ipcRenderer.invoke('edit:undoDepth'),
 
   verifySession: () => ipcRenderer.invoke('session:verify'),

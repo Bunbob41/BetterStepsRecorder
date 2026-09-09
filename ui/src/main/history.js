@@ -122,9 +122,20 @@ function applyEntry(session, entry) {
       const step = session.steps.find((s) => s.id === entry.id);
       if (!step) return { ok: false, error: 'That step is no longer here.' };
 
-      const now = step.markerAt ? { ...step.markerAt } : null;
-      session.updateStep(entry.id, { markerAt: entry.at || undefined });
-      return { ok: true, inverse: { type: 'marker', id: entry.id, at: now } };
+      // Both halves of what the marker is: where it sits and whether it is
+      // shown. Restoring one and not the other would put the step back into a
+      // state it was never in.
+      const now = {
+        at: step.markerAt ? { ...step.markerAt } : null,
+        hidden: step.markerHidden === true,
+      };
+      session.updateStep(entry.id, {
+        markerAt: entry.at || undefined,
+        markerHidden: entry.hidden ? true : undefined,
+      });
+      return { ok: true,
+               inverse: { type: 'marker', id: entry.id,
+                          at: now.at, hidden: now.hidden } };
     }
 
     default:

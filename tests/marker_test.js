@@ -119,5 +119,54 @@ console.log('\none source, two applications:');
         markup.includes('position:absolute') && markup.includes('border-radius:50%'));
 }
 
+console.log('\nis there a marker at all, and where:');
+{
+  // One answer for the window, the exporters and the burn-in. It used to be
+  // written twice and stood in for three times more by asking "does this step
+  // have a click point?" - which is wrong in both directions: a step can have
+  // a click and show no marker, and show a marker with no click.
+  const frame = { x: 0, y: 0, w: 1000, h: 800 };
+  const clicked = { point: { x: 250, y: 200 }, frame };
+
+  const at = m.positionFor(clicked);
+  check('a recorded click is a quarter across and a quarter down',
+        at && Math.abs(at.x - 25) < 0.001 && Math.abs(at.y - 25) < 0.001);
+  check('and is not reported as moved', at && at.moved === false);
+
+  const dragged = m.positionFor({ ...clicked, markerAt: { x: 70, y: 10 } });
+  check('a dragged position wins over the recorded one',
+        dragged && dragged.x === 70 && dragged.y === 10);
+  check('and says so, which is how the window marks it',
+        dragged && dragged.moved === true);
+
+  // ---- turned off, two ways ----------------------------------------------
+  check('hidden on the step means no marker',
+        m.positionFor({ ...clicked, markerHidden: true }) === null);
+  check('and it stays hidden even though the click is still recorded',
+        m.positionFor({ ...clicked, markerHidden: true, markerAt: { x: 5, y: 5 } })
+          === null);
+  check('turned off everywhere means no marker',
+        m.positionFor(clicked, { show: false }) === null);
+  check('and absent options mean shown, so nothing changes for anyone',
+        m.positionFor(clicked, {}) !== null && m.positionFor(clicked) !== null);
+  check('only false turns it off, not any falsey thing',
+        m.positionFor(clicked, { show: undefined }) !== null);
+
+  // ---- a picture with no click -------------------------------------------
+  // A photograph has no click point, no window and no frame. It can still
+  // carry a marker somebody placed on it.
+  check('a picture with a placed marker has one',
+        JSON.stringify(m.positionFor({ markerAt: { x: 40, y: 60 } }))
+          === JSON.stringify({ x: 40, y: 60, moved: true }));
+  check('a picture with nothing placed has none',
+        m.positionFor({ screenshot: 'photo.jpg' }) === null);
+  check('a written step has none', m.positionFor({ action: 'note' }) === null);
+  check('and nothing at all is not an error', m.positionFor(null) === null);
+
+  // ---- a click outside its own frame -------------------------------------
+  check('a click outside the captured frame is not marked',
+        m.positionFor({ point: { x: 5000, y: 5000 }, frame }) === null);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -40,6 +40,9 @@ const DEFAULTS = {
   // default: most guides use one colour and a one-entry legend is clutter.
   showHighlightLegend: false,
   highlightMeanings: {},
+  // A marker on every screenshot, showing where the click landed. Off for
+  // somebody who would rather draw their own arrow with the marking tools.
+  showClickMarker: true,
   markerStyle: 'circle',
   markerBold: false,
   hotkeyPause: '',    // blank means the built-in default
@@ -81,6 +84,9 @@ class Settings {
     v.imageQuality = Math.min(100, Math.max(1, Number(v.imageQuality) || 85));
     v.imageScale = Math.min(1, Math.max(0.25, Number(v.imageScale) || 1));
     v.recordKeyboard = v.recordKeyboard !== false;
+    // Absent means shown: an older settings file predates this and its owner
+    // expects the marker they have always had.
+    v.showClickMarker = v.showClickMarker !== false;
     if (!['window', 'monitor', 'screen'].includes(v.imageFrame)) v.imageFrame = 'window';
     for (const k of ['brandName', 'brandLogo', 'brandFooter', 'templatePath',
                      'hotkeyPause', 'hotkeyStop']) {

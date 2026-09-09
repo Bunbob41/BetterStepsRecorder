@@ -128,6 +128,47 @@
     return { plan: p, declarations: d };
   }
 
+  /**
+   * Where a step's marker belongs, as a percentage of its picture - or null
+   * when it should not have one at all.
+   *
+   * The single answer to "is there a marker, and where". This was written
+   * twice, once for the window and once for the exporter, while three other
+   * places asked "does this step have a click point?" as a stand-in for the
+   * same question. That stand-in is wrong in both directions: a step can have
+   * a click and no marker (hidden, so the author can draw their own), and a
+   * marker and no click (a photograph, or a click that was cropped away).
+   *
+   * `moved` says the position came from the author rather than the recording,
+   * which the window uses to mark it and the exporters ignore.
+   */
+  function positionFor(step, opts) {
+    if (!step) return null;
+    const show = !opts || opts.show !== false;
+
+    // Two ways to say the same thing - off everywhere, or off for this step -
+    // and every output has to honour both, or the guide disagrees with the
+    // preview it was checked in.
+    if (!show || step.markerHidden === true) return null;
+
+    const at = step.markerAt;
+    if (at && Number.isFinite(at.x) && Number.isFinite(at.y)) {
+      return { x: at.x, y: at.y, moved: true };
+    }
+
+    // The frame actually captured, not the window: with monitor or full-screen
+    // framing the picture is bigger than the window and window-relative maths
+    // is wrong.
+    const rect = (step.frame && step.frame.w ? step.frame : null)
+              || (step.window && step.window.rect);
+    if (!rect || !rect.w || !rect.h || !step.point) return null;
+
+    const x = ((step.point.x - rect.x) / rect.w) * 100;
+    const y = ((step.point.y - rect.y) / rect.h) * 100;
+    if (x < 0 || y < 0 || x > 100 || y > 100) return null;
+    return { x, y, moved: false };
+  }
+
   /** camelCase to the hyphenated form a style attribute needs. */
   function toCss(d) {
     return Object.entries(d)
@@ -231,5 +272,5 @@
   }
 
   return { DEFAULTS, SIZES, REFERENCE_WIDTH, direction, plan, declarations,
-           toCss, html, render, arrowSvg, scaleFor, svg };
+           toCss, html, render, arrowSvg, scaleFor, svg, positionFor };
 }));
