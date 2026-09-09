@@ -2336,6 +2336,11 @@ function markUnder(clientX, clientY) {
   return at ? BsrAnnotate.markAt(step.marks, at.x, at.y) : null;
 }
 
+/** Anything belonging to the controls, rather than to the picture. */
+const onTheControls = (target) =>
+  Boolean(target && target.closest
+          && target.closest('#mark-bar, #label-input'));
+
 // Picking one up. Not on the marks layer itself: it takes no pointer events, so
 // that a drag which starts over a mark can still draw a new one when a tool is
 // armed, and the picture underneath stays draggable for the click marker.
@@ -2343,6 +2348,13 @@ el.wrap.addEventListener('mousedown', (e) => {
   if (e.button !== 0 || armedTool || !selectedId) return;
   // The click marker and its handle are on a layer above this and speak first.
   if (e.target.closest && e.target.closest('.bsr-marker, .rotate-handle')) return;
+  // The strip and the label box float over the picture, so a click on either
+  // is also a mousedown on the picture's wrapper. Reported as "I cannot
+  // interact with its options": the handler found no mark under the strip,
+  // deselected, and took the button out of the document before the click
+  // arrived on it. A select never opened at all, because preventDefault on a
+  // mousedown is what stops a dropdown.
+  if (onTheControls(e.target)) return;
 
   const mark = markUnder(e.clientX, e.clientY);
   if (!mark) { if (selectedMarkId) selectMark(null); return; }
@@ -2391,12 +2403,13 @@ window.addEventListener('mouseup', async (e) => {
 // The pointer says when there is something to pick up.
 el.wrap.addEventListener('mousemove', (e) => {
   if (armedTool || markMove) return;
+  if (onTheControls(e.target)) { el.wrap.classList.remove('pickable'); return; }
   el.wrap.classList.toggle('pickable', Boolean(markUnder(e.clientX, e.clientY)));
 });
 
 // Double-clicking a label is the obvious way to retype it.
 el.wrap.addEventListener('dblclick', (e) => {
-  if (armedTool) return;
+  if (armedTool || onTheControls(e.target)) return;
   const mark = markUnder(e.clientX, e.clientY);
   if (mark && mark.tool === 'text') openLabel(0, 0, mark);
 });

@@ -690,8 +690,60 @@ app.whenReady().then(async () => {
     await sleep(300);
     const afterMove = where();
 
-    // Make it large.
+    // The controls are PRESSED, with a mouse, not called.
+    //
+    // Calling .click() on a button skips the mousedown, and the mousedown was
+    // the whole bug: the strip floats inside the picture's wrapper, so pressing
+    // anything on it is also a press on the picture - which deselected the mark
+    // and took the button out of the document before the click could land.
+    // Reported as "I cannot interact with its options" while every check here
+    // passed.
+    // Judged at the mousedown, and reported. A click dispatched at a saved node
+    // fires its handler even if the strip has just been taken off screen, so
+    // asking afterwards whether the colour changed says nothing about whether a
+    // real mouse could have done it: the click a real mouse sends goes to
+    // whatever is under the pointer when the button comes up, and if the strip
+    // has gone, that is the picture.
+    const press = async (node) => {
+      const b = node.getBoundingClientRect();
+      const where = { clientX: Math.round(b.left + b.width / 2),
+                      clientY: Math.round(b.top + b.height / 2), bubbles: true,
+                      button: 0 };
+      node.dispatchEvent(new MouseEvent('mousedown', where));
+      await sleep(30);
+      // Not "is a strip on screen" - "is it still about the same mark". A press
+      // that falls through to the picture can land on a DIFFERENT mark and
+      // leave a strip open about that one, which looks identical from here and
+      // is not the same thing at all.
+      const survived = !bar.hidden
+        && document.getElementById('mark-kind').textContent === 'Label';
+      node.dispatchEvent(new MouseEvent('mouseup', where));
+      node.dispatchEvent(new MouseEvent('click', where));
+      await sleep(250);
+      return survived;
+    };
+
+    // A colour, by pressing its swatch.
+    const colourBefore = layer.querySelector('text').getAttribute('fill');
+    const swatch = document.querySelectorAll('#mark-colours button')[1];
+    const stillSelectedAfterSwatch = await press(swatch);
+    const kindAfterSwatch = document.getElementById('mark-kind').textContent;
+    const colourAfter = layer.querySelector('text')
+      ? layer.querySelector('text').getAttribute('fill') : null;
+
+    // And the size. A native dropdown cannot be opened from script, so what is
+    // checked is that pressing it does not dismiss the strip - which is what
+    // stopped it ever being opened by hand.
     const size = document.getElementById('mark-size');
+    const sizeBox = size.getBoundingClientRect();
+    size.dispatchEvent(new MouseEvent('mousedown',
+      { bubbles: true, button: 0,
+        clientX: Math.round(sizeBox.left + sizeBox.width / 2),
+        clientY: Math.round(sizeBox.top + sizeBox.height / 2) }));
+    await sleep(120);
+    const stillSelectedAfterSize = !bar.hidden
+      && document.getElementById('mark-kind').textContent === 'Label';
+
     const fontBefore = Number(layer.querySelector('text').getAttribute('font-size'));
     size.value = 'large';
     size.dispatchEvent(new Event('change', { bubbles: true }));
@@ -719,7 +771,9 @@ app.whenReady().then(async () => {
 
     return { barBefore, startX, selected, during, afterMove,
              fontBefore, fontAfter, letGo, left, activeAtEscape,
-             barBeforeDelete, marksBeforeDelete };
+             barBeforeDelete, marksBeforeDelete,
+             colourBefore, colourAfter, kindAfterSwatch,
+             stillSelectedAfterSwatch, stillSelectedAfterSize };
   })()`);
 
   check('nothing is selected to begin with', grabbed.barBefore === false);
@@ -743,6 +797,14 @@ app.whenReady().then(async () => {
   check('and it stays where it was let go',
         grabbed.afterMove !== null && Math.abs(grabbed.afterMove - grabbed.during) < 30,
         `${grabbed.during} -> ${grabbed.afterMove}`);
+  check('pressing a swatch keeps the SAME mark in hand',
+        grabbed.stillSelectedAfterSwatch,
+        `the strip was about a ${grabbed.kindAfterSwatch} afterwards`);
+  check('and recolours it',
+        grabbed.colourAfter && grabbed.colourAfter !== grabbed.colourBefore,
+        `${grabbed.colourBefore} -> ${grabbed.colourAfter}`);
+  check('pressing the size control keeps it selected too',
+        grabbed.stillSelectedAfterSize);
   check('choosing a larger size redraws it larger',
         grabbed.fontAfter > grabbed.fontBefore, `${grabbed.fontBefore} -> ${grabbed.fontAfter}`);
   check('Escape lets it go', grabbed.letGo,

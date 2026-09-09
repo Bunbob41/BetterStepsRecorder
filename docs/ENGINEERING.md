@@ -223,6 +223,48 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-64 - Controls that float over the picture are not part of it
+`(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
+
+Reported the same day the strip shipped: "I cannot interact with its options,
+cannot make font bigger or change color."
+
+The strip floats INSIDE `#shot-wrap` - D-62 put it there so that selecting a
+mark would not push the picture down under the pointer. But the picture's own
+mousedown handler is on that wrapper, so every press on the strip was also a
+press on the picture. It looked for a mark beneath the strip, usually found
+none, and deselected - which took the button being pressed out of the document
+before the click could land on it. Where it DID find something, it selected that
+instead, and the strip stayed open describing a different mark.
+
+The select was worse: `preventDefault` on a mousedown is exactly what stops a
+native dropdown opening, so it could never be opened at all.
+
+One guard, `onTheControls`, on the three handlers that treat the wrapper as the
+picture. The fix is small; the lesson is that **an element positioned over
+something is still inside it as far as events are concerned**, and floating a
+control into a surface that has its own pointer behaviour means telling that
+surface what is not its own.
+
+**Why the suite said this was fine.** The check called `.click()` on the button.
+That fires the handler and skips the mousedown - and the mousedown WAS the bug.
+Worse, dispatching a click at a saved node fires it even after the strip has
+left the screen, so the colour still changed and the check still passed. A real
+mouse sends its click to whatever is under the pointer when the button comes up;
+if the strip has gone, that is the picture.
+
+The press is now a real one - mousedown, read, mouseup, click - and what it
+asks is not "is a strip on screen" but **"is it still about the same mark"**.
+The first version asked the weaker question and passed under mutation, because
+falling through to a leftover arrow leaves a strip open about the arrow, which
+from the DOM is indistinguishable. Under mutation it now fails with `the strip
+was about a Arrow afterwards`, which is the bug in one line.
+
+That makes three in a row - D-52, D-62 and this - where a control was present,
+correct, styled, and did not behave the way the object model said. Every one was
+found by a person using it, and every one was invisible to a check that spoke to
+the element instead of to the page.
+
 ### D-63 - One button for recordings, and Check stops being furniture
 `(this change)` - [ui/src/renderer/index.html](../ui/src/renderer/index.html)
 
