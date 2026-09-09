@@ -29,6 +29,7 @@ const el = {
   hueMenu: $('huemenu'),
   photo: $('btn-photo'),
   marks: $('marks'),
+  text: $('btn-text'), labelInput: $('label-input'),
   exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
   expTitle: $('exp-title'), expFormat: $('exp-format'),
   expGo: $('exp-go'), expCancel: $('exp-cancel'), expNote: $('exp-note'),
@@ -1800,6 +1801,9 @@ el.wrap.addEventListener('contextmenu', (e) => {
       enabled: Boolean(step),
       run: () => hideMarker(step.id, !hidden) },
     ...(hitMark ? [
+      ...(hitMark.tool === 'text'
+        ? [{ label: 'Edit this label', run: () => openLabel(0, 0, hitMark) }]
+        : []),
       { label: `Delete this ${hitName}`,
         run: () => commitMarks(step, withoutHit()) },
       // Not offered for a highlight: its colours are the highlighter's own,
@@ -2155,6 +2159,100 @@ function previewDrag(from, to) {
 let dragStart = null;
 
 /**
+ * Writing a label on the picture.
+ *
+ * Typed where it will appear rather than in a dialog: a caption is a thing
+ * about a particular spot on a screenshot, and typing it three inches away
+ * from that spot is how labels end up pointing at nothing.
+ *
+ * `editing` is the mark being changed, or null for a new one.
+ */
+let labelAt = null;
+let labelEditing = null;
+
+function openLabel(clientX, clientY, editing = null) {
+  const shot = el.shot.getBoundingClientRect();
+  if (!shot.width || !shot.height) return;
+
+  labelEditing = editing;
+  labelAt = editing
+    ? { x: editing.at.x, y: editing.at.y }
+    : { x: ((clientX - shot.left) / shot.width) * 100,
+        y: ((clientY - shot.top) / shot.height) * 100 };
+
+  const wrap = el.wrap.getBoundingClientRect();
+  const left = shot.left - wrap.left + (labelAt.x / 100) * shot.width;
+  const top = shot.top - wrap.top + (labelAt.y / 100) * shot.height;
+
+  // Roughly the size it will end up, so what is typed looks like what appears.
+  const scale = el.shot.naturalWidth ? shot.width / el.shot.naturalWidth : 1;
+  const size = BsrAnnotate.fontFor(el.shot.naturalWidth || 1000,
+                                   el.shot.naturalHeight || 1000) * scale;
+
+  el.labelInput.value = editing ? (editing.text || '') : '';
+  el.labelInput.style.left = `${Math.round(left)}px`;
+  // The anchor is the baseline of the lettering, so the box sits above it.
+  el.labelInput.style.top = `${Math.round(top - size)}px`;
+  el.labelInput.style.fontSize = `${Math.max(11, Math.round(size))}px`;
+  el.labelInput.style.color = BsrAnnotate.colourValue(
+    editing ? editing.colour : markColour);
+  el.labelInput.hidden = false;
+  el.labelInput.focus();
+  el.labelInput.select();
+}
+
+function closeLabel() {
+  el.labelInput.hidden = true;
+  el.labelInput.value = '';
+  labelAt = null;
+  labelEditing = null;
+}
+
+async function commitLabel() {
+  const text = el.labelInput.value.trim();
+  const step = steps.find((s) => s.id === selectedId);
+  const at = labelAt;
+  const editing = labelEditing;
+  closeLabel();
+  if (!step || !at) return;
+
+  // Empty words are not a label. Emptying an existing one deletes it, which is
+  // what somebody who selects all and presses Delete means by it.
+  if (!text) {
+    if (editing) {
+      await commitMarks(step, (step.marks || []).filter((m) => m.id !== editing.id));
+    }
+    return;
+  }
+
+  if (editing) {
+    await commitMarks(step, (step.marks || [])
+      .map((m) => (m.id === editing.id ? { ...m, text } : m)));
+    return;
+  }
+
+  const mark = {
+    id: `mk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    tool: 'text',
+    colour: markColour,
+    at,
+    text,
+  };
+  await commitMarks(step, [...(step.marks || []), mark]);
+}
+
+el.labelInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); commitLabel(); }
+  else if (e.key === 'Escape') { e.preventDefault(); closeLabel(); }
+  // Typing a label is not typing at the window: without this a letter or a
+  // space would also reach the shortcuts.
+  e.stopPropagation();
+});
+el.labelInput.addEventListener('blur', () => {
+  if (!el.labelInput.hidden) commitLabel();
+});
+
+/**
  * Right-clicking the highlighter offers its colours. A guide that uses more
  * than one colour needs them chosen deliberately, and a menu on the tool is
  * where a person looks for that rather than in Settings.
@@ -2166,7 +2264,7 @@ let dragStart = null;
  * one place to look for "what colour" is better than a menu on the tool and a
  * setting in a dialog that disagree.
  */
-for (const name of ['box', 'ellipse', 'arrow']) {
+for (const name of ['box', 'ellipse', 'arrow', 'text']) {
   el[name].addEventListener('contextmenu', (e) => {
     e.preventDefault();
     el.hueMenu.replaceChildren();
@@ -2239,7 +2337,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') el.hueMenu.hidden = true;
 });
 
-for (const name of ['blur', 'crop', 'box', 'ellipse', 'arrow', 'highlight']) {
+for (const name of ['blur', 'crop', 'box', 'ellipse', 'arrow', 'highlight', 'text']) {
   el[name].addEventListener('click', () => armTool(name));
 }
 
@@ -2252,6 +2350,10 @@ el.wrap.addEventListener('mousedown', (e) => {
   // actually placed an arrow", which is exactly what it did.
   if (e.button !== 0) return;
   e.preventDefault();
+
+  // A label is placed, not dragged: there is no region to choose, only a spot
+  // for the words to start at.
+  if (armedTool === 'text') { openLabel(e.clientX, e.clientY); return; }
   const r = el.shot.getBoundingClientRect();
   dragStart = { x: e.clientX - r.left, y: e.clientY - r.top };
   Object.assign(el.selection.style, { left: `${dragStart.x}px`, top: `${dragStart.y}px`,

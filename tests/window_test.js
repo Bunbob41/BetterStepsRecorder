@@ -520,6 +520,79 @@ app.whenReady().then(async () => {
         !marks.awayLabels.some((l) => /Delete this/.test(l)),
         marks.awayLabels.join(' | '));
 
+  console.log('\nwriting a label on the picture:');
+  const label = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const wrap = document.getElementById('shot-wrap');
+    const shot = document.getElementById('shot');
+    const layer = document.getElementById('marks');
+    const box = document.getElementById('label-input');
+    const r = shot.getBoundingClientRect();
+    const at = (fx, fy) => ({ clientX: Math.round(r.left + r.width * fx),
+                              clientY: Math.round(r.top + r.height * fy) });
+
+    document.querySelector('#step-list li[data-id="s3"]').click();
+    await sleep(250);
+
+    document.getElementById('btn-text').click();
+    await sleep(20);
+    wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.4, 0.5) }));
+    await sleep(60);
+
+    const opened = !box.hidden;
+    // Where it is typed matters: a caption written three inches from the spot
+    // it is about is how labels end up pointing at nothing.
+    const onPicture = box.getBoundingClientRect();
+    const nearClick = Math.abs(onPicture.left - (r.left + r.width * 0.4)) < 40;
+
+    box.value = 'Check the serial number here';
+    box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await sleep(300);
+
+    const written = layer.querySelector('text');
+    const closed = box.hidden;
+
+    // Retyping it through the menu.
+    document.getElementById('btn-text').click();   // disarm
+    await sleep(20);
+    wrap.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, ...at(0.42, 0.49) }));
+    await sleep(80);
+    const edit = [...document.querySelectorAll('#context button')]
+      .find((b) => /Edit this label/.test(b.textContent));
+    const hasEdit = Boolean(edit);
+    if (edit) edit.click();
+    await sleep(120);
+    const reopenedWith = box.value;
+    box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(80);
+
+    // And emptying one deletes it, which is what a person means by clearing it.
+    wrap.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, ...at(0.42, 0.49) }));
+    await sleep(80);
+    const again = [...document.querySelectorAll('#context button')]
+      .find((b) => /Edit this label/.test(b.textContent));
+    if (again) again.click();
+    await sleep(120);
+    box.value = '   ';
+    box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await sleep(300);
+    const leftAfterEmptying = layer.querySelectorAll('[data-mark]').length;
+
+    return { opened, nearClick, text: written ? written.textContent : null,
+             closed, hasEdit, reopenedWith, leftAfterEmptying };
+  })()`);
+
+  check('the Label tool opens a box on the picture', label.opened);
+  check('at the spot that was clicked', label.nearClick);
+  check('the words become a mark', label.text === 'Check the serial number here',
+        String(label.text));
+  check('and the box closes once they are written', label.closed);
+  check('right-clicking a label offers to retype it', label.hasEdit);
+  check('with the words it already has', label.reopenedWith === 'Check the serial number here',
+        String(label.reopenedWith));
+  check('and emptying it takes the label away', label.leftAfterEmptying === 0,
+        `${label.leftAfterEmptying} left`);
+
   console.log('\nthe right button does not draw:');
   const rightClick = await win.webContents.executeJavaScript(`(async () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

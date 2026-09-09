@@ -981,7 +981,7 @@ that:
 
 ### Marking up a screenshot
 
-Select a step and you get four tools above the picture:
+Select a step and you get six tools above the picture:
 
 - **Box** — a rectangle around the thing that matters
 - **Circle** — an oval inscribed in what you drag, so a square drag gives a
@@ -990,15 +990,32 @@ Select a step and you get four tools above the picture:
   The preview shows the arrow itself, not the region dragged
 - **Highlight** — a translucent wash. **Right-click the button** to choose the
   colour: yellow, green, blue, pink or orange
+- **Label** — click where the words should start, type them, press Enter. The
+  box appears on the picture, at the spot it is about, in roughly the size and
+  colour the finished label will be
 - **Blur** — the privacy one, described below
 
-The first three are annotations: they say *look here*, which the recorder cannot
-know. They are drawn into the picture itself, so they appear in every export
-including Word. That also means they cannot be restyled afterwards - press
-**Ctrl+Z** if a mark goes wrong.
+The first five say *look here*, which the recorder cannot know. They are held as
+**data on the step**, not painted into the screenshot, and that is what lets you
+change your mind:
+
+- **Right-click any mark to delete it** — that one, whichever order you drew
+  them in. Not undo, and not the four marks you drew after it.
+- **Right-click it to change its colour** — red, blue, green, amber or black.
+- **Right-click a label to retype it.** Clearing the words removes it.
+
+To set the colour of the *next* mark, right-click the Box, Circle, Arrow or
+Label tool and choose. That choice is remembered.
+
+You still see the same picture everywhere: the marks are laid over the
+screenshot in the app, in HTML and in PDF, and drawn *into* it for Word and
+LaTeX, because those embed an image and cannot lay anything on top of it. Crop a
+marked screenshot and the marks move with it; anything cropped out of the
+picture entirely is dropped.
 
 Only blur counts as redaction. An arrow you drew is never reported as though you
-had hidden something.
+had hidden something — and unlike the others, blur cannot be right-clicked away
+afterwards, because there is nothing left to remove. See below.
 
 **If you use more than one highlighter colour**, turn on *Explain the
 highlighting in exports* in Settings and say what each colour means - "green:

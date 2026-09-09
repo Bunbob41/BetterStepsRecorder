@@ -131,7 +131,7 @@ console.log('\nthe key printed in a guide:');
 console.log('\nthe tools on offer:');
 {
   check('box, ellipse, arrow and highlight',
-        a.TOOLS.join() === 'box,ellipse,arrow,highlight');
+        a.TOOLS.join() === 'box,ellipse,arrow,highlight,text');
   check('blur is not among them - it is a privacy act, not an annotation',
         !a.TOOLS.includes('blur'));
 }

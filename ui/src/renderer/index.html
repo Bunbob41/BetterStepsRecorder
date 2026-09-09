@@ -126,6 +126,8 @@
             <button id="btn-arrow" class="tool" title="Point at something">Arrow</button>
             <button id="btn-highlight" class="tool"
                     title="Highlight an area — right-click to choose a colour">Highlight</button>
+            <button id="btn-text" class="tool"
+                    title="Write a label on the picture &mdash; right-click to choose a colour">Label</button>
             <button id="btn-blur" class="tool">Blur area</button>
           </div>
           <span class="divider"></span>
@@ -151,6 +153,12 @@
                it shows the region dragged rather than the mark that will
                be made. This draws the actual shape instead. -->
           <svg id="drag-preview" class="drag-preview" hidden></svg>
+          <!-- Where a label is typed. Sits on the picture at the point that
+               was clicked, so the words are written where they will appear
+               rather than in a dialog somewhere else. -->
+          <input id="label-input" class="label-input" type="text" hidden
+                 maxlength="120" spellcheck="false"
+                 aria-label="Label text" />
         </div>
       </div>
     </section>

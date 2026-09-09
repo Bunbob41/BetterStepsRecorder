@@ -31,7 +31,10 @@
   else root.BsrAnnotate = api;
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
 
-  const TOOLS = ['box', 'ellipse', 'arrow', 'highlight'];
+  // Blur is not here and never will be: it destroys pixels rather than adding
+  // a mark to them, and nothing in this list can be deleted afterwards if it
+  // is in that list.
+  const TOOLS = ['box', 'ellipse', 'arrow', 'highlight', 'text'];
 
   /**
    * Highlighter colours. Named, because a colour used consistently through a

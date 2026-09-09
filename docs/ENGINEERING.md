@@ -164,6 +164,94 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-59 - Marks are data, and the reason they were not has expired
+`(this change)` - [ui/src/renderer/annotate.js](../ui/src/renderer/annotate.js)
+
+Reported in one sentence: "there's no way to delete it." There was not. A box,
+ring, arrow or highlight was painted into the screenshot's pixels the instant it
+was drawn, so there was no arrow to delete - only an image that had one in it.
+The only way back was undo, in order, taking every later mark with it.
+
+**The original decision was right and had gone stale.** Marks were burned in
+because Word embeds a picture and cannot lay anything over it, so a mark held as
+data would have been missing from the format most likely to reach a company.
+Then D-31 built `composite.js` to burn the CLICK marker into the pixels for
+Word - machinery that draws anything an SVG can express into an image on the way
+out. From that moment the constraint was gone, and nobody noticed for months.
+Worth remembering as a class of bug: a decision that documents its own reason
+can still be wrong later, and the thing that invalidates it is usually a
+capability built for something else.
+
+So a mark is now `{ id, tool, colour, geometry }` on the step, in percentages of
+the picture - the same units as the click marker, for the same two reasons: a
+step can be cropped, and its screenshot can be re-encoded at a different size on
+the way into a document. Pixels survive neither.
+
+**One piece of code draws them.** `annotate.svgAll` produces the overlay; the
+window lays it over the picture, the HTML and PDF exports lay the same thing
+over the same picture, and `composite` draws it into the pixels for Word and
+LaTeX - under the click marker, exactly as on screen. Drawing them once in the
+window and again in each export is how a preview starts lying.
+
+Consequences that had to be handled rather than discovered later:
+
+- **A crop moves them**, and drops only a mark that has left the picture
+  entirely. Half a box around a field that is still visible is worth keeping;
+  deciding for the author that their mark is now worthless is not the crop's
+  business.
+- **A step with marks and no placeable click now reaches the compositor.** The
+  old filter was "has a click marker", so a photograph somebody drew on would
+  have arrived in Word with nothing on it.
+- **`annotated` follows the list** rather than being set once. Left true over an
+  empty list it would tell the compliance summary about marks that are not
+  there.
+- **The overlay takes no pointer events at all.** Which mark was right-clicked
+  is worked out from where the marks are, not by hit-testing the SVG, so a drag
+  that starts over a mark still draws and the picture underneath is still there
+  to be dragged. The hit box is generous around an arrow, because a line is
+  nearly impossible to hit with a mouse and "click on the arrow" does not mean
+  "click on the two pixels of its shaft".
+
+**Blur is not one of these and never will be.** It destroys pixels on purpose,
+because a redacted guide whose screenshot still holds the data is a lie (D-2).
+It keeps the pre-edit stash and the `pixels` undo entry; everything else moved.
+
+Marks already burned into existing recordings stay burned. They are pixels;
+there is nothing to convert them from.
+
+Proven in pixels rather than in structure: a blue box burned into a real image,
+its edge drawn, its middle untouched, the rest of the picture untouched, and the
+click marker still over it.
+
+### D-60 - A label is typed where it will appear
+`(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
+
+Asked for alongside the colours: a text box on a screenshot. It is a mark like
+any other - the same store, the same undo, the same delete - so what was left to
+decide was where the words get typed.
+
+On the picture, at the point that was clicked. A caption is a claim about a
+particular spot, and typing it in a dialog three inches away is how a guide ends
+up with labels pointing at nothing. The input is placed at the click, sized to
+roughly what the lettering will be, and coloured the colour it will be, so what
+is being typed looks like what will appear.
+
+Enter writes it, Escape abandons it, and **emptying an existing label deletes
+it** - which is what a person means by selecting the words and pressing Delete.
+Keystrokes are stopped from reaching the window, or a space bar in a caption
+would also be a shortcut.
+
+The lettering is painted stroke-then-fill, the same pale outline the shapes get,
+because a label has to be readable on a white dialog and on a dark terminal and
+that is the one thing that works on both. Its size scales with the picture like
+every other mark: fixed points are illegible on a 4K capture and enormous on a
+small dialog.
+
+Escaping matters more here than anywhere else in the window: the words are typed
+by a person, but they end up inside an SVG that is parsed in three places and
+drawn into a canvas in a fourth. `svgFor` escapes them, and a check feeds it a
+closing tag and a script element to prove it.
+
 ### D-58 - Photographs are steps with no click
 `(this change)` - [ui/src/main/photos.js](../ui/src/main/photos.js)
 
