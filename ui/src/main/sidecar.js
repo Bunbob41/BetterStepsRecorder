@@ -17,7 +17,9 @@ class Sidecar extends EventEmitter {
     const candidates = [
       // Packaged: shipped alongside the app as an extra resource.
       path.join(process.resourcesPath || '', 'capture', EXE),
-      // Development: whichever build config was produced last.
+      // Development: the single-file build the installer ships is preferred,
+      // so `npm start` exercises the same engine a user would get.
+      path.join(projectRoot, 'capture', 'bin', 'packed', EXE),
       path.join(projectRoot, 'capture', 'bin', 'Release', 'net10.0-windows', EXE),
       path.join(projectRoot, 'capture', 'bin', 'Debug', 'net10.0-windows', EXE),
     ];
