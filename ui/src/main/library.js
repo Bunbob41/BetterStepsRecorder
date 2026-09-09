@@ -64,8 +64,23 @@ function list(root, { readdir = fs.readdirSync, readFile = fs.readFileSync,
     const meta = path.join(dir, 'session.json');
     if (!exists(meta)) continue;
 
+    let data;
     try {
-      const data = JSON.parse(readFile(meta, 'utf8'));
+      data = JSON.parse(readFile(meta, 'utf8'));
+    } catch {
+      // Listed, not skipped. This used to drop the recording from the screen
+      // entirely, which is the failure D-24 is about: a recording that has
+      // vanished from the list looks exactly like one that has been lost,
+      // while its folder sits on disk with every screenshot in it.
+      entries.push({
+        dir, name, steps: 0, savedAt: null, app: '',
+        bytes: folderBytes(dir, { readdir, statOf }),
+        unreadable: format.damaged(),
+      });
+      continue;
+    }
+
+    try {
       const steps = Array.isArray(data.steps) ? data.steps : [];
       entries.push({
         dir,
@@ -91,7 +106,9 @@ function list(root, { readdir = fs.readdirSync, readFile = fs.readFileSync,
         unreadable: format.canRead(data) ? '' : format.refusal(data),
       });
     } catch {
-      // A half-written session is skipped, not fatal.
+      // Anything else going wrong while describing a recording - an odd
+      // directory entry, a stat that fails - costs that one entry, not the
+      // listing.
     }
   }
 

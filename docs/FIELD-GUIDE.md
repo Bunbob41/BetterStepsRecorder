@@ -327,6 +327,21 @@ misrepresent what the document is. And if you rewrote a step's wording yourself,
 your words are emitted exactly as you wrote them. Your prose is not ours to
 correct.
 
+### A recording that will not open
+
+Very occasionally a recording's details file gets damaged — a crash part-way
+through a save, or something else editing the folder. When that happens the
+recording is **listed, dimmed, and left completely alone**, with an explanation
+rather than a shrug.
+
+It is deliberately not opened as an empty recording, which is what it used to
+do. That was the dangerous behaviour: the app would show you a recording with
+nothing in it, and because there is no Save button, your next click would write
+that emptiness over the real file. The screenshots would still be on disk, with
+nothing left pointing at them.
+
+If you see one, the folder is intact — the screenshots are all still there.
+
 ### Recordings made by a different version
 
 Every recording records which version of the app made it. An older one opens

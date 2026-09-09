@@ -68,9 +68,20 @@ console.log('\nwhat is not a recording:');
   fs.writeFileSync(path.join(root, 'session-broken', 'session.json'), '{ not json');
 
   const found = library.list(root);
-  check('a folder with no session.json is ignored', found.length === 2);
-  check('and one with an unreadable session.json is skipped, not fatal',
-        !found.some((e) => e.dir.endsWith('session-broken')));
+  check('a folder with no session.json is ignored',
+        !found.some((e) => e.dir.endsWith('holiday photos')));
+
+  // It used to be dropped from the listing, which is the failure D-24 is
+  // about: a recording that has vanished looks exactly like one that has been
+  // lost, while its folder sits on disk with every screenshot still in it.
+  const broken = found.find((e) => e.dir.endsWith('session-broken'));
+  check('a recording whose details will not parse is still listed',
+        Boolean(broken));
+  check('and marked, with a reason a person can act on',
+        Boolean(broken) && /damaged|edited by hand/.test(broken.unreadable));
+  check('with no steps claimed for it', Boolean(broken) && broken.steps === 0);
+  check('and the two good ones are unaffected',
+        found.filter((e) => !e.unreadable).length === 2);
 }
 
 console.log('\nedge cases:');

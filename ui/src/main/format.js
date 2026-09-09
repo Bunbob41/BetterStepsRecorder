@@ -63,4 +63,19 @@ function refusal(data) {
        + `open it.`;
 }
 
-module.exports = { CURRENT, versionOf, canRead, refusal };
+/**
+ * What to tell somebody whose recording will not parse.
+ *
+ * Distinct from `refusal`, which is about a version this build is too old for.
+ * This one is damage: a byte order mark an editor added, a write cut short by a
+ * crash, a file somebody hand-edited. The wording says the recording was left
+ * alone, because the screenshots are still there and the folder is still worth
+ * keeping.
+ */
+function damaged() {
+  return 'The details of this recording could not be read - the file may be '
+       + 'damaged or have been edited by hand. Nothing has been changed, and '
+       + 'the screenshots are still in the folder.';
+}
+
+module.exports = { CURRENT, versionOf, canRead, refusal, damaged };

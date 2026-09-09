@@ -122,28 +122,32 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     D-9; this is not optional, it is how Windows dispatches hook callbacks.
 11. **A capture never fails.** If a window cannot draw itself, the screen is
     copied instead; a step is never lost for want of a screenshot.
-12. **A recording from a newer version is never written to.** Refused at load
+12. **A recording whose metadata cannot be parsed is never written to**, and is
+    listed rather than hidden. Refused at load, flagged, and refused again in
+    `flush()` - the operation that would otherwise replace it with the empty
+    thing the parse failure produced.
+13. **A recording from a newer version is never written to.** Refused at load
     and never adopted as the session: flushing it would rewrite the whole file
     in this version's shape and discard what it does not understand.
-13. **Nothing in a `session.json` may name a file outside its own folder.** A
+14. **Nothing in a `session.json` may name a file outside its own folder.** A
     recording is something people send each other, so its paths are claims.
     Rejected at load and re-checked at every read, write and delete.
-14. **A screenshot is exactly the size of the `frame` recorded with its step.**
+15. **A screenshot is exactly the size of the `frame` recorded with its step.**
     The click marker is a percentage of that rectangle, so any mismatch
     misplaces the marker on every step of the guide.
-15. **Step numbers run through the whole guide, never restarting at a heading.**
+16. **Step numbers run through the whole guide, never restarting at a heading.**
     A reader who says "step 9" must mean the ninth step of the procedure. Every
     format counts rows that are neither notes nor headings, via
     `sections.countSteps`.
-16. **A heading that has no name, or nothing under it, never reaches the
+17. **A heading that has no name, or nothing under it, never reaches the
     reader.** Applied after exclusion, so holding back a phase's last step
     takes the phase too.
-17. **Every edit that can touch more than one step is one undo entry.** Bulk
+18. **Every edit that can touch more than one step is one undo entry.** Bulk
     delete and replace-all both; twenty presses of Ctrl+Z is not undo.
-18. **`textEdited` means a person wrote those words.** Only an explicit claim
+19. **`textEdited` means a person wrote those words.** Only an explicit claim
     sets it. Inferring it from a mechanical substitution freezes that step's
     tense at export.
-19. **Applying an undo entry returns the entry that puts it back.** Redo is not
+20. **Applying an undo entry returns the entry that puts it back.** Redo is not
     a second implementation; it is the same traversal run the other way. An
     entry type whose branch returns no inverse is a dead end - undo would work
     once and redo would silently do nothing - and `invariants_test.js` fails on
@@ -154,6 +158,40 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 ## 4. Decision changelog
 
 Newest first. Each entry records what was decided, why, and what it replaced.
+
+### D-49 · A recording that cannot be read is damaged, not empty
+`(this change)` · [ui/src/main/session.js](../ui/src/main/session.js)
+
+The worst defect found in this project, and it had been there from the start.
+
+`Session.load` ended in `catch { s.steps = []; }`. A `session.json` that would
+not parse therefore opened as a recording with no name and no steps, with
+nothing said - and because everything saves as you go, the next edit flushed
+that emptiness over the real file. Measured before fixing: two steps and a
+name on disk, one `rename`, and the steps were gone with their screenshots
+orphaned beside them. A byte order mark is enough to trigger it, which is what
+`Set-Content -Encoding utf8` writes, and what put it in front of us.
+
+The listing had the matching half: `catch { }` around the parse meant a damaged
+recording **disappeared from the library entirely**, which is exactly the
+failure D-24 exists to prevent - one that has vanished from the screen looks
+like one that has been lost, while its folder sits there with every screenshot
+in it.
+
+Both now use the machinery D-38 already built for a recording from a newer
+version: `unreadable` is set, the library lists it dimmed with the reason, and
+`recording:open` refuses to adopt it. The wording is separate from the version
+refusal because the situations differ - one is "your app is too old", the other
+is "this file is damaged, and your screenshots are still there".
+
+**And `flush()` now refuses outright while `unreadable` is set.** Every caller
+is supposed to check first and the IPC handler does, but this is the single
+operation that can destroy somebody's work, and a guard at the point of writing
+does not depend on every future caller remembering. Removing it turns three
+checks red, and the recording is destroyed again.
+
+Found by chasing a loose end rather than by a test, in a build already in daily
+use by other people.
 
 ### D-48 · The documentation's diagrams are checked, by two different means
 `(this change)` · [tests/diagrams_test.js](../tests/diagrams_test.js)
@@ -721,7 +759,7 @@ pictures a reader can follow and one where every step is a full desktop with a
 small ring somewhere in it.
 
 The pixels were never the hard part. **The click marker is stored as a
-percentage of the step's `frame`** (invariant 12), so cutting the image without
+percentage of the step's `frame`** (invariant 15), so cutting the image without
 cutting the frame by the same proportion moves the marker off what it points
 at - on every export, silently, with nothing on screen to show it happened.
 `frameAfter()` scales the frame by the crop, in the frame's own coordinates

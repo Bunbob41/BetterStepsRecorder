@@ -3,6 +3,22 @@
 Notable changes, newest first. The reasoning behind each decision lives in
 [docs/ENGINEERING.md](docs/ENGINEERING.md); this is the short version.
 
+## 0.1.2
+
+- Fixed: **a recording whose details file could not be read opened as an empty
+  recording** — and because there is no Save button, the next edit wrote that
+  emptiness over the real file and orphaned every screenshot in the folder. A
+  single stray byte was enough. It is now listed, dimmed, explained and left
+  strictly alone, and the app refuses to write to it at all.
+- Fixed: such a recording also **vanished from the library**, which looks
+  exactly like one that has been lost. It is listed and marked instead.
+- Fixed: **the click marker drifted upwards** in the app's own preview on any
+  screenshot taller than the pane — most of them on a tall window. Exports were
+  never affected, which is why it went unnoticed.
+- Fixed: a broken diagram in the field guide rendered on GitHub as an error box
+  instead of a picture. Every diagram in the documentation is now checked.
+- The README and field guide have screenshots.
+
 ## 0.1.1
 
 Everything here was found by using 0.1.0 rather than by reading it: the

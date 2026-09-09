@@ -331,7 +331,17 @@ class Session {
     return true;
   }
 
+  /**
+   * Writes the metadata.
+   *
+   * Refuses outright while `unreadable` is set. Every caller is supposed to
+   * check that first, and `recording:open` does - but this is the one
+   * operation that can destroy somebody's work, and a guard at the point of
+   * writing costs nothing and does not depend on every future caller
+   * remembering.
+   */
   flush() {
+    if (this.unreadable) return;
     const payload = {
       v: format.CURRENT,
       name: this.name, purpose: this.purpose, templatePath: this.templatePath,
@@ -386,6 +396,16 @@ class Session {
         s.purpose = data.purpose || 'sop';
         s.templatePath = data.templatePath || '';
       } catch {
+        // NOT an empty recording. Left as one, this is data loss with a single
+        // stray byte behind it: the window shows a recording with no steps,
+        // and because everything saves as you go, the next edit flushes that
+        // emptiness over the real file. Measured - two steps on disk, a
+        // rename, and the steps were gone with the screenshots orphaned
+        // beside them.
+        //
+        // Marked instead, exactly as a recording from a newer version is
+        // (D-38): listed, explained, and never adopted as the open session.
+        s.unreadable = format.damaged();
         s.steps = [];
       }
     }

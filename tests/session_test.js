@@ -382,5 +382,66 @@ console.log('\nsharing one screenshot between two steps:');
   for (const d of [dir2, dir3, dir4]) fs.rmSync(d, { recursive: true, force: true });
 }
 
+
+// ---------------------------------------------------------------------------
+// A session.json that will not parse.
+//
+// This was silent data loss with one stray byte behind it. The file was read,
+// the parse failed, the catch set `steps = []`, and the window showed a
+// recording with nothing in it - then, because everything saves as you go, the
+// next edit wrote that emptiness over the real file and orphaned every
+// screenshot beside it. A byte order mark from an editor is enough.
+console.log('\na recording whose details cannot be read:');
+{
+  const dir5 = path.join(os.tmpdir(), 'bsr-damaged-' + Date.now());
+  fs.mkdirSync(path.join(dir5, 'steps'), { recursive: true });
+
+  const real = {
+    v: 1,
+    name: 'Quarterly close procedure',
+    steps: [
+      { id: 'a', seq: 1, action: 'leftClick', text: 'Clicked the "Post" button',
+        point: { x: 1, y: 1 }, screenshot: 'steps/0001.png' },
+      { id: 'b', seq: 2, action: 'leftClick', text: 'Clicked the "Confirm" button',
+        point: { x: 2, y: 2 }, screenshot: 'steps/0002.png' },
+    ],
+  };
+  const meta5 = path.join(dir5, 'session.json');
+  // A byte order mark: what an editor, or PowerShell's Set-Content, writes.
+  fs.writeFileSync(meta5, '\ufeff' + JSON.stringify(real, null, 2));
+  const before = fs.readFileSync(meta5, 'utf8');
+
+  const damaged = Session.load(dir5);
+  check('it is flagged rather than opened as empty',
+        Boolean(damaged.unreadable));
+  check('and says what happened without blaming the reader',
+        /damaged|edited by hand/.test(damaged.unreadable || ''));
+  check('it claims no steps', damaged.steps.length === 0);
+
+  // The guard that actually prevents the loss: every caller is meant to check
+  // `unreadable` first, but this is the operation that destroys work.
+  damaged.rename('anything at all');
+  damaged.updateStep('a', { text: 'something else' });
+  check('nothing it could not read is ever written back',
+        fs.readFileSync(meta5, 'utf8') === before);
+
+  const still = JSON.parse(fs.readFileSync(meta5, 'utf8').replace(/^\ufeff/, ''));
+  check('so the real steps are still on disk', still.steps.length === 2);
+  check('and so is the name', still.name === 'Quarterly close procedure');
+
+  // A readable one still writes, or the guard would have broken saving.
+  const dir6 = path.join(os.tmpdir(), 'bsr-fine-' + Date.now());
+  fs.mkdirSync(path.join(dir6, 'steps'), { recursive: true });
+  fs.writeFileSync(path.join(dir6, 'session.json'), JSON.stringify(real));
+  const fine = Session.load(dir6);
+  check('a recording that parses is not flagged', !fine.unreadable);
+  fine.rename('renamed');
+  check('and still saves as you go',
+        JSON.parse(fs.readFileSync(path.join(dir6, 'session.json'), 'utf8')).name
+          === 'renamed');
+
+  for (const d of [dir5, dir6]) fs.rmSync(d, { recursive: true, force: true });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
