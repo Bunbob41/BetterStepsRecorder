@@ -159,6 +159,44 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-54 - The marker is drawn from one place, or it drifts
+`(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
+
+Reported the day after D-53 shipped: "when I drag it by the triangle it still
+does your old 45 rotation." Turning an arrow worked, and moving one worked, but
+moving a turned one snapped it back to the automatic diagonal for the whole
+drag and only put it right on release.
+
+`placeIndicator` is the one function that knows how to draw the marker for a
+step - it reads `markerAngle`, falls back to the automatic direction, and adds
+the handle. The drag's `mousemove` did not use it. It called `BsrMarker.render`
+directly with the shared options, which carry no angle, so the live drawing
+came out of a second, simpler path that had never heard of turning.
+
+The fix is to have no second path: the drag redraws through `placeIndicator`
+with the step and the position it would have, `{ ...step, markerAt: at }`. The
+same shape as the rotate drag beside it, which had been written that way from
+the start and never had this bug.
+
+Worth naming as a rule, because this is the third time a preview and a final
+render have disagreed in this file: **anything that draws the marker goes
+through `placeIndicator`.** A grep for `BsrMarker.render` outside it should
+return the one call inside it. That grep is what found this.
+
+The check drags a turned arrow and asserts the marker box stays tall - wide
+would mean it had swung back to a diagonal - before, during, and after, with
+the handle still present mid-drag. Mutated by restoring the direct `render`
+call: four of them fail.
+
+**A note on the check itself, which cost more than the fix.** It borrows a step,
+turns it, drags it, and has to hand it back for the checks that follow. Putting
+it back by calling the bridge directly left the marker where the drag had
+dropped it: the bridge updates the main process, and the window keeps its own
+copy of the steps. The restore now drags it back and uses the menu, the way a
+person would - which is the same lesson as D-52 wearing different clothes. If a
+probe reaches past the interface to set things up, it is no longer testing the
+thing anybody uses.
+
 ### D-53 · The arrow marker turns, which meant making it polar
 `(this change)` · [ui/src/renderer/marker.js](../ui/src/renderer/marker.js)
 

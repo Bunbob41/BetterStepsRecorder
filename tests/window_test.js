@@ -724,6 +724,93 @@ app.whenReady().then(async () => {
     return out;
   })()`);
 
+  // Moving a turned arrow must not un-turn it, even for the moment the mouse
+  // is down. This redrew from the shared options and dropped the step's own
+  // angle, so a turned arrow snapped back to the automatic diagonal for the
+  // whole drag - which is indistinguishable from not being able to turn it.
+  const keepsAngle = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const ind = document.getElementById('indicator');
+    const shot = document.getElementById('shot');
+    const sel = document.getElementById('set-marker');
+    sel.value = 'arrow';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(300);
+
+    // Point it straight up, then take hold of the arrow itself and move it.
+    await window.bsr.turnMarker('s2', 270);
+    document.querySelector('#step-list li[data-id="s2"]').click();
+    await sleep(300);
+
+    const shape = () => {
+      const b = ind.querySelector('.bsr-marker').getBoundingClientRect();
+      return { w: Math.round(b.width), h: Math.round(b.height) };
+    };
+    const before = shape();
+
+    const r = shot.getBoundingClientRect();
+    const mark = ind.querySelector('.bsr-marker');
+    const mb = mark.getBoundingClientRect();
+    mark.dispatchEvent(new MouseEvent('mousedown',
+      { bubbles: true, button: 0,
+        clientX: Math.round(mb.left + mb.width / 2),
+        clientY: Math.round(mb.top + mb.height / 2) }));
+    await sleep(20);
+    window.dispatchEvent(new MouseEvent('mousemove',
+      { bubbles: true, clientX: Math.round(r.left + r.width * 0.7),
+        clientY: Math.round(r.top + r.height * 0.7) }));
+    await sleep(80);
+    const during = shape();
+    const handleDuring = Boolean(ind.querySelector('.rotate-handle'));
+    window.dispatchEvent(new MouseEvent('mouseup',
+      { bubbles: true, clientX: Math.round(r.left + r.width * 0.7),
+        clientY: Math.round(r.top + r.height * 0.7) }));
+    await sleep(300);
+    const after = shape();
+
+    // Put the step back exactly as it was found, THROUGH THE APPLICATION.
+    // Calling the bridge directly updates the main process and leaves the
+    // window's own copy of the steps untouched, so the marker stayed where
+    // this probe had dragged it and later checks measured that instead.
+    const mark2 = ind.querySelector('.bsr-marker');
+    const mb2 = mark2.getBoundingClientRect();
+    mark2.dispatchEvent(new MouseEvent('mousedown',
+      { bubbles: true, button: 0,
+        clientX: Math.round(mb2.left + mb2.width / 2),
+        clientY: Math.round(mb2.top + mb2.height / 2) }));
+    await sleep(20);
+    window.dispatchEvent(new MouseEvent('mousemove',
+      { bubbles: true, clientX: Math.round(r.left + r.width * 0.25),
+        clientY: Math.round(r.top + r.height * 0.25) }));
+    await sleep(60);
+    window.dispatchEvent(new MouseEvent('mouseup',
+      { bubbles: true, clientX: Math.round(r.left + r.width * 0.25),
+        clientY: Math.round(r.top + r.height * 0.25) }));
+    await sleep(250);
+
+    // And hand the direction back, from the menu the way a person would.
+    document.getElementById('shot-wrap').dispatchEvent(new MouseEvent('contextmenu',
+      { bubbles: true, clientX: r.left + 200, clientY: r.top + 150 }));
+    await sleep(80);
+    const back = [...document.querySelectorAll('#context button')]
+      .find((b) => /the way it chooses/.test(b.textContent));
+    if (back) back.click();
+    await sleep(250);
+
+    sel.value = 'circle';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(250);
+    return { before, during, after, handleDuring };
+  })()`);
+
+  // Pointing straight up is a tall, narrow box; a diagonal is roughly square.
+  const pointsUp = (b) => b.h > b.w * 1.5;
+  check('a turned arrow is tall before the drag', pointsUp(keepsAngle.before));
+  check('and stays turned while it is being moved', pointsUp(keepsAngle.during));
+  if (!pointsUp(keepsAngle.during)) console.log('   ', JSON.stringify(keepsAngle));
+  check('and after the drag', pointsUp(keepsAngle.after));
+  check('with its handle still there mid-drag', keepsAngle.handleDuring);
+
   check('a circle has no handle to turn', turn.circleHandle === false);
   check('an arrow has one', turn.hadHandle === true);
   // Pointing straight up means a tall, narrow box where a diagonal was square.
@@ -847,6 +934,7 @@ app.whenReady().then(async () => {
   // fill the undo history with edits nobody made.
   check('a click that does not move it writes nothing',
         Math.abs(nudge.sent.at.x - 25) < 1);
+  if (Math.abs(nudge.x - 150) > 2) console.log('    nudge:', JSON.stringify(nudge));
   check('and leaves it exactly where it was', Math.abs(nudge.x - 150) <= 2);
 
   const armed = await win.webContents.executeJavaScript(`(async () => {

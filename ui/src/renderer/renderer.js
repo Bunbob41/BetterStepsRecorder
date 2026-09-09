@@ -1474,7 +1474,12 @@ window.addEventListener('mousemove', (e) => {
   if (Math.abs(e.clientX - markerDrag.from.x) > 2
    || Math.abs(e.clientY - markerDrag.from.y) > 2) markerDrag.moved = true;
 
-  el.indicator.replaceChildren(BsrMarker.render({ x, y }, markerOpts, '#e5484d'));
+  // Through the one drawing path, with the step's own angle and its handle.
+  // Rendering directly here dropped markerAngle, so a turned arrow snapped
+  // back to the automatic diagonal for as long as you held the mouse down -
+  // which looked exactly like being unable to turn it at all.
+  const step = steps.find((s) => s.id === markerDrag.id);
+  if (step) placeIndicator({ ...step, markerAt: { x, y } });
 });
 
 window.addEventListener('mouseup', async () => {
