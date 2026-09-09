@@ -2142,6 +2142,12 @@ for (const name of ['blur', 'crop', 'box', 'ellipse', 'arrow', 'highlight']) {
 
 el.wrap.addEventListener('mousedown', (e) => {
   if (!armedTool || !selectedId) return;
+  // The left button only. Every other mousedown here starts a drag that means
+  // something - moving the marker, turning it - and each of those checks the
+  // button; this one never did, so with a tool armed a RIGHT-click drew a mark
+  // as well as opening the menu. Reported as "I tried to right click and it
+  // actually placed an arrow", which is exactly what it did.
+  if (e.button !== 0) return;
   e.preventDefault();
   const r = el.shot.getBoundingClientRect();
   dragStart = { x: e.clientX - r.left, y: e.clientY - r.top };

@@ -433,6 +433,59 @@ app.whenReady().then(async () => {
   check('and not the rectangle dragged', !arrow.rubberBandShown);
   check('drawn where it can be seen', arrow.previewShown && arrow.previewHasArea);
 
+  // Reported from a real session: "I tried to right click and it actually
+  // placed an arrow." With a tool armed, the drawing mousedown never asked
+  // which button had been pressed - so a right-click both opened the menu and
+  // drew a mark, and the mark was the last thing the author wanted at the
+  // moment they were reaching for a menu to get rid of one.
+  console.log('\nthe right button does not draw:');
+  const rightClick = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const wrap = document.getElementById('shot-wrap');
+    const shot = document.getElementById('shot');
+    const sel = document.getElementById('selection');
+    const preview = document.getElementById('drag-preview');
+    const r = shot.getBoundingClientRect();
+
+    document.getElementById('btn-arrow').click();     // arm it
+    await sleep(20);
+
+    wrap.dispatchEvent(new MouseEvent('mousedown',
+      { bubbles: true, button: 2, clientX: r.left + 40, clientY: r.top + 40 }));
+    await sleep(15);
+    window.dispatchEvent(new MouseEvent('mousemove',
+      { bubbles: true, clientX: r.left + 200, clientY: r.top + 160 }));
+    await sleep(30);
+
+    const drew = { rubberBand: !sel.hasAttribute('hidden'),
+                   preview: !preview.hasAttribute('hidden') };
+
+    window.dispatchEvent(new MouseEvent('mouseup',
+      { bubbles: true, button: 2, clientX: r.left + 200, clientY: r.top + 160 }));
+    await sleep(60);
+
+    // And the left button still does, so this did not simply disable drawing.
+    wrap.dispatchEvent(new MouseEvent('mousedown',
+      { bubbles: true, button: 0, clientX: r.left + 40, clientY: r.top + 40 }));
+    await sleep(15);
+    window.dispatchEvent(new MouseEvent('mousemove',
+      { bubbles: true, clientX: r.left + 200, clientY: r.top + 160 }));
+    await sleep(30);
+    const left = { preview: !preview.hasAttribute('hidden') };
+    window.dispatchEvent(new MouseEvent('mouseup',
+      { bubbles: true, button: 0, clientX: r.left + 40, clientY: r.top + 40 }));
+    await sleep(60);
+
+    document.getElementById('btn-arrow').click();     // disarm, for what follows
+    await sleep(20);
+    return { drew, left };
+  })()`);
+
+  check('a right-click with the arrow tool armed starts nothing',
+        !rightClick.drew.preview && !rightClick.drew.rubberBand,
+        JSON.stringify(rightClick.drew));
+  check('while the left button still draws', rightClick.left.preview);
+
   for (const tool of ['box', 'highlight', 'blur']) {
     const r = await win.webContents.executeJavaScript(DRAG(tool, 220, 160));
     check(`${tool} shows the region being dragged`, r.rubberBandShown);
