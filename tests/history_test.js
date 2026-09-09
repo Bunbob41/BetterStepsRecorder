@@ -288,5 +288,81 @@ console.log('\nhiding a marker is undone like moving one:');
         steps[0].markerAt && steps[0].markerAt.x === 25);
 }
 
+console.log('\nundoing a crop puts back everything the crop moved:');
+{
+  // A crop rewrites the hand-placed marker and every mark into the NEW
+  // picture's percentages, because that is what a percentage means once the
+  // picture has been cut. Undo restores the old pixels - so unless it restores
+  // those too, a marker and a set of boxes that were right before the crop come
+  // back pointing at the wrong things on a picture that has been restored
+  // around them. From the outside it looks as though the marks moved on their
+  // own.
+  const s = fakeSession([{ id: 'c', screenshot: 'steps/0001.png',
+                           frame: { x: 0, y: 0, w: 50, h: 50 },
+                           size: { w: 50, h: 50 },
+                           markerAt: { x: 80, y: 20 },
+                           marks: [{ id: 'm1', tool: 'box', colour: 'red',
+                                     rect: { x: 40, y: 40, w: 60, h: 60 } }],
+                           cropped: true, annotated: true }]);
+  s.files['steps/0001.png'] = 'cropped';
+  const token = s.stash('steps/0001.png');
+  s.files['steps/0001.png'] = 'cropped';
+
+  // What the crop handler writes down before it changes anything.
+  const entry = {
+    type: 'pixels', id: 'c', screenshot: 'steps/0001.png', token,
+    state: {
+      redacted: false, annotated: true, highlights: [], cropped: false,
+      frame: { x: 0, y: 0, w: 100, h: 100 },
+      markerAt: { x: 40, y: 60 },
+      marks: [{ id: 'm1', tool: 'box', colour: 'red',
+                rect: { x: 20, y: 20, w: 30, h: 30 } }],
+      size: { w: 100, h: 100 },
+    },
+  };
+
+  const undone = applyEntry(s, entry);
+  check('the undo succeeds', undone.ok);
+
+  const back = s.steps[0];
+  check('the marker goes back where it was',
+        Boolean(back.markerAt) && back.markerAt.x === 40 && back.markerAt.y === 60);
+  check('and so do the marks',
+        Boolean(back.marks) && back.marks[0].rect.x === 20 && back.marks[0].rect.w === 30);
+  check('and the recorded size of a photograph',
+        Boolean(back.size) && back.size.w === 100);
+  check('and the frame, as it always did',
+        Boolean(back.frame) && back.frame.w === 100);
+
+  // Redo is the same traversal the other way, so the inverse has to carry them
+  // as well - the property this whole file rests on.
+  const redone = applyEntry(s, undone.inverse);
+  check('redo succeeds', redone.ok);
+  const after = s.steps[0];
+  check('the marker is back where the crop put it',
+        Boolean(after.markerAt) && after.markerAt.x === 80);
+  check('and so are the marks',
+        Boolean(after.marks) && after.marks[0].rect.x === 40);
+  check('and the size', Boolean(after.size) && after.size.w === 50);
+
+  // An entry written before any of this existed carries none of these fields.
+  // It must leave them alone rather than wiping them.
+  const old = fakeSession([{ id: 'c', screenshot: 'steps/0001.png',
+                             markerAt: { x: 12, y: 34 },
+                             marks: [{ id: 'm9', tool: 'box', colour: 'red',
+                                       rect: { x: 1, y: 2, w: 3, h: 4 } }] }]);
+  old.files['steps/0001.png'] = 'now';
+  const oldToken = old.stash('steps/0001.png');
+  old.files['steps/0001.png'] = 'now';
+  applyEntry(old, {
+    type: 'pixels', id: 'c', screenshot: 'steps/0001.png', token: oldToken,
+    state: { redacted: false, annotated: false, highlights: [], cropped: false,
+             frame: null },
+  });
+  check('an entry from before this change leaves the marker alone',
+        Boolean(old.steps[0].markerAt) && old.steps[0].markerAt.x === 12);
+  check('and the marks', Boolean(old.steps[0].marks));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

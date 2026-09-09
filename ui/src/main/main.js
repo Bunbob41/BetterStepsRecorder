@@ -701,8 +701,30 @@ ipcMain.handle('session:open', async () => {
     title: 'Open recording', properties: ['openDirectory'],
   });
   if (r.canceled || !r.filePaths[0]) return { ok: false };
-  session = Session.load(r.filePaths[0]);
-  return { ok: true, dir: session.dir, steps: session.steps };
+
+  // The same three things the library route does, because it is the same act.
+  // This path had none of them: it adopted a recording this version must not
+  // write to, and photographs dropped in the folder of a recording opened from
+  // here were never taken in - which looks exactly like the feature not
+  // working, and only on this one route.
+  const opened = Session.load(r.filePaths[0]);
+  if (opened.unreadable) {
+    log.warn(`refused ${opened.dir}: ${opened.unreadable}`);
+    return { ok: false, error: opened.unreadable };
+  }
+
+  closeSession();
+  session = opened;
+
+  const found = photos.waiting(session.dir);
+  const taken = found.length
+    ? photos.importInto(session, found, { onWarn: log.warn })
+    : null;
+  if (taken && taken.added.length) log.info(`took in ${taken.added.length} photo(s)`);
+
+  return { ok: true, dir: session.dir, name: session.name, steps: session.steps,
+           photos: taken && taken.added.length ? taken.added.length : 0,
+           photoErrors: (taken && taken.failed) || [] };
 });
 
 /**
@@ -805,6 +827,17 @@ ipcMain.handle('step:crop', (_e, { id, dataUrl, rect, image }) => {
       // The frame goes back with the pixels. One without the other is what a
       // crop must never leave behind.
       frame: step.frame ? { ...step.frame } : null,
+      // And everything else a crop moves.
+      //
+      // A crop rewrites the hand-placed marker and every mark into the new
+      // picture's percentages. Undo put the old pixels back and left those
+      // rewritten - so a marker and a set of boxes that were correct before the
+      // crop came back pointing at the wrong things, on a picture that had been
+      // restored around them. Whatever a change touches, its undo entry has to
+      // carry.
+      markerAt: step.markerAt ? { ...step.markerAt } : null,
+      marks: Array.isArray(step.marks) ? step.marks.map((m) => ({ ...m })) : null,
+      size: step.size ? { ...step.size } : null,
     },
   });
 
@@ -822,8 +855,16 @@ ipcMain.handle('step:crop', (_e, { id, dataUrl, rect, image }) => {
     ? crop.marksAfter(step.marks, rect, image)
     : null;
 
+  // A photograph has no frame, so `size` is the only record of how big it is -
+  // and a crop makes the old one a lie. Marks are drawn against it outside the
+  // window, so a stale size distorts every one of them in an export.
+  const nextSize = step.size
+    ? { w: Math.max(1, Math.round(rect.w)), h: Math.max(1, Math.round(rect.h)) }
+    : null;
+
   const updated = session.updateStep(id, {
     ...(nextFrame ? { frame: nextFrame } : {}),
+    ...(nextSize ? { size: nextSize } : {}),
     ...(nextMarks ? { marks: nextMarks.length ? nextMarks : undefined } : {}),
     // Cropped away entirely: the field goes, rather than pointing at nothing.
     ...(step.markerAt ? { markerAt: nextMarker || undefined } : {}),

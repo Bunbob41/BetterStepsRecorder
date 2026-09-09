@@ -109,6 +109,17 @@ Notable changes, newest first. The reasoning behind each decision lives in
 
 ### Fixes
 
+- Fixed: **undoing a crop left the marker and any marks where the crop had put
+  them.** Cropping moves them to match the smaller picture; undo brought the
+  picture back and left them moved, so they pointed at the wrong things
+  afterwards.
+- Fixed: **opening a recording from a folder was not the same as opening it
+  from the library** — photographs dropped in its folder were not picked up,
+  and a damaged recording was opened rather than refused.
+- Fixed: a cropped photograph kept its old recorded size, which is what marks
+  on it are measured against.
+- Fixed: a failed *Check this recording* left "Checking…" in the status line.
+
 - Fixed: **the step's description box stopped showing anything** in builds 99 to
   104, because the new Label tool and the description box were both captured
   under the same name internally.

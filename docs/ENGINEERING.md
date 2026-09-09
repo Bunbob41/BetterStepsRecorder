@@ -223,6 +223,47 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-66 - Whatever a change touches, its undo entry has to carry
+`(this change)` - [ui/src/main/history.js](../ui/src/main/history.js)
+
+Found by reading the seams this session created, with 0.2.0 drafted and not yet
+published - which is the cheapest moment there is to look.
+
+**Undoing a crop left the marker and the marks where the crop had put them.**
+A crop rewrites the hand-placed marker and every mark into the new picture's
+percentages, because that is what a percentage means once the picture is cut.
+Undo restored the pixels and the frame and nothing else, so a marker and a set
+of boxes that were right before the crop came back pointing at the wrong things,
+on a picture that had been restored around them. From the outside it looks as
+though the marks moved by themselves.
+
+The rule the `pixels` entry already stated for the frame - "one without the
+other is what a crop must never leave behind" - was right and was applied to one
+field. It now carries `markerAt`, `marks` and `size`, and the inverse carries
+them back, so redo stays the same traversal in the other direction. An entry
+written before this change has none of those keys, and the restore leaves those
+fields alone rather than wiping them.
+
+Three smaller ones, all on paths that had no second pair of eyes:
+
+- **Opening a recording from a folder was not the same act as opening one from
+  the library.** `session:open` adopted a recording this version must not write
+  to - the guard from D-49 was on the other route only - and never took in
+  photographs dropped in its folder. That is the route for a recording somebody
+  sent you, so the photo feature simply did not work there, which looks exactly
+  like the feature being broken rather than one route missing.
+- **A cropped photograph kept its old size.** A photo has no frame, so `size` is
+  the only record of how big it is, and marks are measured against it outside
+  the window. Cropping made it a lie.
+- **A failed check left "Checking..." in the status line** for the rest of the
+  session. It came from converting a button whose label was restored in a
+  `finally`; the status line had no such restore.
+
+The first of those is worth the most as a lesson: two routes to one act, one of
+them getting every improvement and the other quietly staying behind. The photo
+scan and the damaged-recording refusal were both added to the route that was in
+front of me at the time.
+
 ### D-65 - The steps column folds, and start moves to Ctrl+Shift+S
 `(this change)` - [ui/src/renderer/styles.css](../ui/src/renderer/styles.css)
 

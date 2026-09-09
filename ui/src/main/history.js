@@ -101,6 +101,9 @@ function applyEntry(session, entry) {
         highlights: [...(step.highlights || [])],
         cropped: step.cropped === true,
         frame: step.frame ? { ...step.frame } : null,
+        markerAt: step.markerAt ? { ...step.markerAt } : null,
+        marks: Array.isArray(step.marks) ? step.marks.map((m) => ({ ...m })) : null,
+        size: step.size ? { ...step.size } : null,
       };
 
       session.updateStep(entry.id, {
@@ -109,6 +112,15 @@ function applyEntry(session, entry) {
         highlights: entry.state.highlights,
         cropped: entry.state.cropped,
         ...(entry.state.frame ? { frame: entry.state.frame } : {}),
+        // Put back where the marker and the marks were on THIS picture. An
+        // entry written before these were carried has neither, and undefined
+        // leaves them alone rather than wiping them.
+        ...(entry.state.markerAt !== undefined
+              ? { markerAt: entry.state.markerAt || undefined } : {}),
+        ...(entry.state.marks !== undefined
+              ? { marks: entry.state.marks || undefined } : {}),
+        ...(entry.state.size !== undefined
+              ? { size: entry.state.size || undefined } : {}),
         editedAt: new Date().toISOString(),
       });
 

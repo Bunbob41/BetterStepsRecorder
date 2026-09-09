@@ -761,7 +761,13 @@ el.stop.addEventListener('click', async () => {
 
 async function openFromDisk() {
   const r = await window.bsr.openSession();
-  if (!r.ok) return;
+  if (!r.ok) { if (r.error) showNotice(r.error); return; }
+  if (r.photos) {
+    showNotice(`${r.photos} photo${r.photos === 1 ? '' : 's'} from the `
+             + `recording's folder ${r.photos === 1 ? 'was' : 'were'} added `
+             + `at the end. The originals are in its originals folder.`);
+  }
+  if (r.photoErrors && r.photoErrors.length) showNotice(r.photoErrors.join(' '));
   el.saveState.textContent = `${r.steps.length} steps · ${r.dir}`;
   openDir = r.dir;
   el.reveal.disabled = false;
@@ -962,7 +968,12 @@ async function checkRecording() {
   el.saveState.textContent = 'Checking\u2026';
   try {
     const r = await window.bsr.verifySession();
-    if (!r.ok) { alert(r.error); return; }
+    if (!r.ok) {
+      // Or the status line reads "Checking..." for the rest of the session.
+      el.saveState.textContent = '';
+      alert(r.error);
+      return;
+    }
 
     steps = r.steps;
     renderList();
