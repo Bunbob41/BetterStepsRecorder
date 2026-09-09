@@ -78,4 +78,18 @@ function damaged() {
        + 'the screenshots are still in the folder.';
 }
 
-module.exports = { CURRENT, versionOf, canRead, refusal, damaged };
+/**
+ * The same two situations, in a few words.
+ *
+ * The full sentences above are what somebody is told when they try to open the
+ * recording. A row in the list has space for a phrase, and the phrase has to
+ * distinguish them: the renderer used to hard-code "Made by a newer version"
+ * for anything flagged, which was true while that was the only way to be
+ * flagged and became a lie the moment damage was another.
+ */
+const REFUSAL_LABEL = 'Made by a newer version \u2014 cannot be opened here';
+const DAMAGED_LABEL = 'Damaged \u2014 left alone; the screenshots are still there';
+
+module.exports = {
+  CURRENT, versionOf, canRead, refusal, damaged, REFUSAL_LABEL, DAMAGED_LABEL,
+};

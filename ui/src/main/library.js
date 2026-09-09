@@ -76,6 +76,7 @@ function list(root, { readdir = fs.readdirSync, readFile = fs.readFileSync,
         dir, name, steps: 0, savedAt: null, app: '',
         bytes: folderBytes(dir, { readdir, statOf }),
         unreadable: format.damaged(),
+        unreadableLabel: format.DAMAGED_LABEL,
       });
       continue;
     }
@@ -104,6 +105,7 @@ function list(root, { readdir = fs.readdirSync, readFile = fs.readFileSync,
         // Listed either way - a recording this version cannot open is still
         // one somebody has, and hiding it would look like it had been lost.
         unreadable: format.canRead(data) ? '' : format.refusal(data),
+        unreadableLabel: format.canRead(data) ? '' : format.REFUSAL_LABEL,
       });
     } catch {
       // Anything else going wrong while describing a recording - an odd

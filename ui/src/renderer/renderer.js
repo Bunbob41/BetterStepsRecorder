@@ -1008,8 +1008,11 @@ function libraryRow(r, query) {
   // carries its timestamp, and printing it twice reads as a mistake.
   const meta = document.createElement('div');
   meta.className = 'lib-meta';
+  // The reason comes with the row. Hard-coding one here said "made by a newer
+  // version" over a recording that was simply damaged - the listing was right,
+  // the refusal was right, and the words under it were wrong.
   meta.textContent = r.unreadable
-    ? 'Made by a newer version — cannot be opened here'
+    ? (r.unreadableLabel || 'Cannot be opened here')
     : (r.app || 'No application recorded');
 
   const count = document.createElement('div');

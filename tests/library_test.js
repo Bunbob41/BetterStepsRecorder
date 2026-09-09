@@ -80,6 +80,12 @@ console.log('\nwhat is not a recording:');
   check('and marked, with a reason a person can act on',
         Boolean(broken) && /damaged|edited by hand/.test(broken.unreadable));
   check('with no steps claimed for it', Boolean(broken) && broken.steps === 0);
+  // The row used to say "Made by a newer version" for anything flagged, which
+  // was true while that was the only way to be flagged and became a lie the
+  // moment damage was another.
+  check('and a short label that says damaged, not out of date',
+        Boolean(broken) && /Damaged/.test(broken.unreadableLabel || ''),
+        broken && broken.unreadableLabel);
   check('and the two good ones are unaffected',
         found.filter((e) => !e.unreadable).length === 2);
 }
