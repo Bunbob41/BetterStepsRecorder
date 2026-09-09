@@ -1,0 +1,9 @@
+{
+  "name": "steps-recorder",
+  "private": true,
+  "type": "commonjs",
+  "description": "Root marker. Node resolves a module by walking UP the directory tree looking for the nearest package.json, so without this file that search leaves the repository entirely and lands on whatever happens to be above it. A malformed one up there - a JavaScript file misnamed package.json in a temp folder, say - makes every script here fail with ERR_INVALID_PACKAGE_CONFIG naming a path with no connection to this project. Declaring the type here stops the walk at the repository root. The application's own manifest is ui/package.json.",
+  "scripts": {
+    "test": "node scripts/run-tests.js"
+  }
+}
