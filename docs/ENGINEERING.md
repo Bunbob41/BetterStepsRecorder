@@ -132,9 +132,12 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 14. **Nothing in a `session.json` may name a file outside its own folder.** A
     recording is something people send each other, so its paths are claims.
     Rejected at load and re-checked at every read, write and delete.
-15. **A screenshot is exactly the size of the `frame` recorded with its step.**
-    The click marker is a percentage of that rectangle, so any mismatch
-    misplaces the marker on every step of the guide.
+15. **A screenshot captured from the screen is exactly the size of the `frame`
+    recorded with its step.** The click marker is a percentage of that
+    rectangle, so any mismatch misplaces the marker on every step of the guide.
+    A photograph has no frame, no window and no click; every marker decision
+    already answers "there is none" for a step shaped that way, which is why
+    photographs needed nothing taught to them.
 16. **Step numbers run through the whole guide, never restarting at a heading.**
     A reader who says "step 9" must mean the ninth step of the procedure. Every
     format counts rows that are neither notes nor headings, via
@@ -158,6 +161,60 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 ## 4. Decision changelog
 
 Newest first. Each entry records what was decided, why, and what it replaced.
+
+### D-58 - Photographs are steps with no click
+`(this change)` - [ui/src/main/photos.js](../ui/src/main/photos.js)
+
+Asked for months ago and built now: half the work this tool is used for is
+physical - a cable in a socket, a switch in a position, a serial number on the
+underside of a unit - and a recording could only ever show what a mouse did.
+The step that says "connect the battery" had no picture and could not have one.
+
+**A photo step is a step with a screenshot and nothing else**: no `point`, no
+`window`, no `frame`. That shape is the whole design. Every marker decision
+already answers "there is none" for a step like that, `windowTracker` already
+says nothing for a step with no window, and every export already keys off
+`screenshot` - so photographs travel through HTML, PDF, Markdown, Word and
+LaTeX without any of them being taught what a photograph is. Invariant 15 was
+reworded to admit them rather than any code being changed to accommodate them.
+
+**Two ways in, one implementation.** Chosen or dragged onto the window while
+the recording is open; or dropped into the recording's folder and taken in when
+it is next opened. The second is the one that matters after a job - thirty
+pictures come off a camera in a lump and nobody will add them one at a time
+through a dialog - and both go through `importInto`, because two answers to
+"what does a photo become" would drift and the drift would only ever show up in
+somebody's finished manual.
+
+**2000 pixels on the long edge**, by the long edge specifically: a photo held
+upright is as common as one held sideways, and resizing by width shrinks a
+landscape photo correctly while leaving a portrait one enormous. Both cases are
+measured in `photos_image_test.js`, because that is the sort of thing that
+looks right in the code and is wrong on the page.
+
+**The original is moved, never deleted.** What the recording keeps is smaller
+than what arrived, so deleting the source would make this the reason somebody's
+full-sized photograph no longer exists. It goes to `originals/` inside the
+recording - which is also what stops the folder route importing the same photo
+on every opening, the one failure here that would be invisible until the same
+picture appeared in a guide four times. The scan looks at the top level of the
+folder only, and never at `steps/` or `originals/`.
+
+**HEIC is refused by name and told what to do about it.** It is what an iPhone
+writes by default and Windows cannot decode it here. Reporting it is the whole
+point: dropping twenty photos in a folder and getting nineteen, silently, is
+the failure worth designing against.
+
+Placing a marker by hand came with this, from the screenshot's right-click
+menu. Without it the arrow could point at things this tool watched happen and
+at nothing a person photographed - and a marker placed on a step whose marker
+is hidden now unhides it, because putting one somewhere and showing nothing
+reads as the menu item being broken.
+
+What is NOT covered by a test is the two ways in that live in the window: the
+button and the drop. The route they both end at is checked end to end - folder
+to step to a compiled document - but the drag itself is a real mouse on a real
+window, and that has to be tried by hand.
 
 ### D-57 - The LaTeX output is compiled, by a compiler
 `(this change)` - [tests/latex_compile_test.js](../tests/latex_compile_test.js)
@@ -1906,6 +1963,7 @@ machine in use.
 | Suite | Runs | Covers |
 |---|---|---|
 | `tests/composite_test.js` | `npm run test:composite` (from `ui/`) | the click marker drawn into real pixels, and into a real .docx |
+| `tests/photos_image_test.js` | `npm run test:photos` (from `ui/`) | a photograph resized and re-encoded, and the whole folder-to-guide route |
 | `tests/latex_compile_test.js` | `npm test`, or `node tests/latex_compile_test.js` | the LaTeX fragment handed to a real pdfTeX. **Skips**, loudly, when no engine is installed |
 | `tests/window_test.js` | `npm run test:window` (from `ui/`) | the real page in a real window: the drag preview, and that the console stays clean |
 | `tests/*_test.js` (22) | `npm test` (from `ui/`), or `node tests/<file>` | export rendering, templates, .docx, sessions, section headings, annotations, shortcut conversion, window fitting, screenshot sizing, library listing, build identity, click markers, renderer wiring |

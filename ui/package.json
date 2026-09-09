@@ -17,6 +17,7 @@
     "test": "node ../scripts/run-tests.js",
     "test:window": "electron ../tests/window_test.js",
     "test:composite": "electron ../tests/composite_test.js",
+    "test:photos": "electron ../tests/photos_image_test.js",
     "test:diagrams": "electron ../tests/diagrams_test.js"
   },
   "devDependencies": {

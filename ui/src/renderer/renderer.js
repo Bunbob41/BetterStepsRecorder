@@ -27,6 +27,7 @@ const el = {
   box: $('btn-box'), ellipse: $('btn-ellipse'), arrow: $('btn-arrow'),
   highlight: $('btn-highlight'), dragPreview: $('drag-preview'),
   hueMenu: $('huemenu'),
+  photo: $('btn-photo'),
   exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
   expTitle: $('exp-title'), expFormat: $('exp-format'),
   expGo: $('exp-go'), expCancel: $('exp-cancel'), expNote: $('exp-note'),
@@ -141,7 +142,9 @@ function renderList() {
     title.className = 'title';
     title.textContent = isSection
       ? (s.text || '').trim() || 'Untitled section'
-      : s.text || s.action;
+      // A photograph with no caption yet shows the name its camera gave it,
+      // which is the only thing distinguishing thirty of them in a list.
+      : s.text || (s.action === 'photo' ? s.source || 'Photo' : s.action);
 
     const v = s.verify;
     const stale = v && (v.status === 'missing');
@@ -951,6 +954,16 @@ async function openRecording(dir, at = null) {
   const res = await window.bsr.openLibrary(dir);
   if (!res.ok) { showNotice(res.error); renderLibrary(); return false; }
 
+  // Photographs that were sitting in the folder are now steps. Said out loud,
+  // because a recording that quietly grew four steps between one opening and
+  // the next would be alarming rather than convenient.
+  if (res.photos) {
+    showNotice(`${res.photos} photo${res.photos === 1 ? '' : 's'} from the `
+             + `recording's folder ${res.photos === 1 ? 'was' : 'were'} added `
+             + `at the end. The originals are in its originals folder.`);
+  }
+  if (res.photoErrors && res.photoErrors.length) showNotice(res.photoErrors.join(' '));
+
   steps = res.steps;
   selectedId = null;
   // Ids are GUIDs, so a leftover selection cannot match a step in the recording
@@ -1254,6 +1267,80 @@ el.note.addEventListener('click', async () => {
   renderList();
   select(r.step.id);
   el.text.focus();     // it is empty on purpose: the user types the instruction
+});
+
+// ---- photographs ---------------------------------------------------------------
+// Not everything in a procedure happens on a screen. These come from a camera,
+// so there is no click, no window and no frame - just a picture and whatever
+// the author writes under it.
+
+async function addPhotos(files) {
+  const r = await window.bsr.addPhotos(files || null, selectedId);
+  if (!r || r.ok === false) {
+    if (r && r.cancelled) return;
+    showNotice((r && r.error) || 'Could not add the photos.');
+    return;
+  }
+
+  for (const { index, step } of r.added) steps.splice(index, 0, step);
+  renderList();
+
+  if (r.added.length) {
+    // The last one, so a set added at once leaves the newest in front of you.
+    await select(r.added[r.added.length - 1].step.id);
+    el.text.focus();
+  }
+  if (r.failed.length) showNotice(r.failed.join(' '));
+}
+
+// Not disabled on an empty recording, unlike + Note: a recording that is all
+// photographs is a legitimate thing to make, and the first one has to be able
+// to go into nothing. The main process says so if none is open.
+el.photo.addEventListener('click', () => addPhotos(null));
+
+// Dragging photographs onto the window.
+//
+// The counter is not decoration: dragover and dragleave both fire as the
+// pointer crosses every child element, so a single boolean flickers the hint
+// on and off all the way across the window.
+let dragDepth = 0;
+const carriesFiles = (e) => Boolean(e.dataTransfer)
+  && [...(e.dataTransfer.types || [])].includes('Files');
+
+window.addEventListener('dragenter', (e) => {
+  if (!carriesFiles(e)) return;
+  e.preventDefault();
+  dragDepth += 1;
+  document.body.classList.add('dropping');
+});
+
+window.addEventListener('dragover', (e) => {
+  if (!carriesFiles(e)) return;
+  // Without this the window navigates to the file, replacing the application
+  // with a picture and losing whatever was not yet saved.
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+});
+
+window.addEventListener('dragleave', (e) => {
+  if (!carriesFiles(e)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (!dragDepth) document.body.classList.remove('dropping');
+});
+
+window.addEventListener('drop', async (e) => {
+  if (!carriesFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove('dropping');
+
+  // A dropped File no longer carries a path of its own; only the preload can
+  // say where it came from.
+  const paths = [...(e.dataTransfer.files || [])]
+    .map((f) => window.bsr.pathForFile(f))
+    .filter(Boolean);
+  if (!paths.length) return;
+  await addPhotos(paths);
 });
 
 // ---- sections ----------------------------------------------------------------
@@ -1643,6 +1730,21 @@ el.wrap.addEventListener('contextmenu', (e) => {
 
   const hidden = Boolean(step && step.markerHidden);
 
+  // Where on the picture this menu was opened, as a percentage of it - the
+  // same units a recorded click is stored in, so a marker placed by hand and
+  // one recorded by the engine are the same thing from here on.
+  //
+  // A photograph has no click at all, so this is the ONLY way it can have a
+  // marker. Without it the arrow could point at things this tool watched
+  // happen and at nothing a person photographed.
+  const shot = el.shot.getBoundingClientRect();
+  const inside = e.clientX >= shot.left && e.clientX <= shot.right
+              && e.clientY >= shot.top && e.clientY <= shot.bottom;
+  const at = inside && shot.width && shot.height
+    ? { x: ((e.clientX - shot.left) / shot.width) * 100,
+        y: ((e.clientY - shot.top) / shot.height) * 100 }
+    : null;
+
   showContext(e.clientX, e.clientY, [
     ...historyItems(),
     null,
@@ -1650,6 +1752,14 @@ el.wrap.addEventListener('contextmenu', (e) => {
                     : 'Hide the marker on this step',
       enabled: Boolean(step),
       run: () => hideMarker(step.id, !hidden) },
+    { label: moved || !at ? 'Move the marker here' : 'Put a marker here',
+      enabled: Boolean(step) && Boolean(at),
+      run: () => {
+        // Placing one on a step whose marker is hidden would put it somewhere
+        // and show nothing, which reads as the menu item not working.
+        if (step.markerHidden) hideMarker(step.id, false);
+        commitMarker(step.id, at);
+      } },
     { label: 'Point the arrow the way it chooses',
       enabled: Boolean(step) && Number.isFinite(step.markerAngle),
       run: () => window.bsr.turnMarker(step.id, null).then((r) => {

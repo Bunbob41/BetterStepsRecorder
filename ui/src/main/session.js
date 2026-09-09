@@ -256,6 +256,59 @@ class Session {
   }
 
   /**
+   * Inserts a photograph as a step of its own.
+   *
+   * Takes the bytes rather than a path, because deciding what a photo should
+   * weigh needs an image decoder and this file is deliberately runnable under
+   * plain node. The caller converts; this owns where the file goes, what it is
+   * called, and where the step lands.
+   *
+   * A photo step has a screenshot and NO click: no `point`, no `window`, no
+   * `frame`. Everything that positions a marker already answers "there isn't
+   * one" for a step shaped like this, so nothing had to be taught about
+   * photographs in order for them to travel through every export.
+   *
+   * `source` is the name of the file it came from. It is kept because a person
+   * looking at forty pictures needs to know which was which, and the name their
+   * camera gave it is the only handle they have.
+   */
+  addPhoto(bytes, { ext = '.jpg', source = '', text = '', afterId = null } = {}) {
+    if (!bytes || !bytes.length) return null;
+
+    // Named for what it is, and never as a number: the engine numbers its own
+    // captures in sequence, and a photo that borrowed that scheme could collide
+    // with the next screenshot the recorder writes.
+    const stamp = Date.now().toString(36);
+    const salt = Math.random().toString(36).slice(2, 7);
+    const relative = `steps/photo-${stamp}-${salt}${ext}`;
+    const to = safeJoin(this.dir, relative);
+    if (!to) return null;
+
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.writeFileSync(to, bytes);
+
+    const step = {
+      id: `photo-${stamp}-${salt}`,
+      action: 'photo',
+      ts: new Date().toISOString(),
+      text: text || '',
+      // Empty and authored: nobody but the person who took the photograph can
+      // say what it shows, and a caption invented from a file name would be
+      // worse than the blank they will fill in.
+      textEdited: true,
+      screenshot: relative,
+      source: source || '',
+    };
+
+    const at = afterId ? this.steps.findIndex((s) => s.id === afterId) : -1;
+    if (at === -1) this.steps.push(step);
+    else this.steps.splice(at + 1, 0, step);
+
+    this.flush();
+    return { index: at === -1 ? this.steps.length - 1 : at + 1, step };
+  }
+
+  /**
    * Inserts a heading. A recording of forty clicks is three or four phases of
    * work, and a reader who cannot see the joins has to infer them.
    *

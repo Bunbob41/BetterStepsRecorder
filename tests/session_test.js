@@ -443,5 +443,65 @@ console.log('\na recording whose details cannot be read:');
   for (const d of [dir5, dir6]) fs.rmSync(d, { recursive: true, force: true });
 }
 
+console.log('\na photograph as a step:');
+{
+  const pdir = path.join(os.tmpdir(), 'bsr-photo-' + Date.now());
+  fs.mkdirSync(path.join(pdir, 'steps'), { recursive: true });
+  const ps = new Session(pdir);
+  ps.addStep({ id: 'first', seq: 1, action: 'leftClick', text: 'Clicked',
+               point: { x: 1, y: 1 }, window: { title: 'W', rect: { x: 0, y: 0, w: 8, h: 6 } },
+               screenshot: 'steps/0001.png' });
+
+  const r = ps.addPhoto(Buffer.from('pretend-jpeg-bytes'),
+                        { source: 'DSC_0042.JPG', afterId: 'first' });
+
+  check('it lands where it was asked to go', r && r.index === 1);
+  check('and is a numbered step, not a note', r.step.action === 'photo');
+  check('with the file it came from remembered', r.step.source === 'DSC_0042.JPG');
+  check('and no caption invented for it', r.step.text === '');
+  // The words under a photograph are the author's, always: there is no engine
+  // sentence to rewrite into an instruction on the way out.
+  check('its wording counts as authored', r.step.textEdited === true);
+
+  // The whole reason a photograph needs no special handling anywhere else.
+  check('it has no click', !r.step.point);
+  check('no window', !r.step.window);
+  check('and no frame', !r.step.frame);
+
+  const written = path.join(pdir, r.step.screenshot);
+  check('the picture is written inside the recording', fs.existsSync(written));
+  check('with the bytes it was given',
+        fs.readFileSync(written).toString() === 'pretend-jpeg-bytes');
+  check('under steps/, with the rest of the pictures',
+        r.step.screenshot.startsWith('steps/'));
+  // The engine numbers its own captures 0001, 0002 - a photo that borrowed
+  // that scheme could take the name of the next screenshot recorded.
+  check('named so it cannot collide with a capture',
+        /^steps\/photo-/.test(r.step.screenshot), r.step.screenshot);
+
+  const second = ps.addPhoto(Buffer.from('another'), { source: 'b.jpg' });
+  check('with no step named, it goes at the end', second.index === 2);
+  check('and two photos added at once do not share a file name',
+        second.step.screenshot !== r.step.screenshot);
+
+  const reloaded = Session.load(pdir);
+  check('it survives the recording being reopened',
+        reloaded.steps.filter((x) => x.action === 'photo').length === 2);
+  // A recording is a folder people send each other, and every path in it is a
+  // claim rather than a fact - so the name a photo is written under is checked
+  // the same way a step's screenshot is.
+  const escape = path.join(pdir, '..', 'escaped.jpg');
+  fs.rmSync(escape, { force: true });
+  // Three levels: steps/photo-x/../../ is the recording itself, which is
+  // allowed. One more leaves it, which is not.
+  const refused = ps.addPhoto(Buffer.from('x'), { ext: '/../../../escaped.jpg' });
+  check('a name that climbs out of the recording is refused', refused === null);
+  check('and nothing is written where it pointed', !fs.existsSync(escape));
+  check('empty bytes are refused rather than writing an unopenable file',
+        ps.addPhoto(Buffer.alloc(0), { source: 'empty.jpg' }) === null);
+
+  fs.rmSync(pdir, { recursive: true, force: true });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -769,6 +769,44 @@ doing that part way through a recording would quietly alter the record, and if
 what you are making is an evidence record, that is the last thing it should do.
 Dismiss it and it goes away.
 
+### Photographs from a camera
+
+Not everything in a procedure happens on a screen. A cable in the right socket,
+a switch in the right position, a serial number on the underside of a unit —
+these are photographs, and they can be steps like any other.
+
+**Three ways to add them**, and they all end up in the same place:
+
+- **The + Photo button**, above the step list. The photos land after whichever
+  step is selected, so you can put them exactly where they belong.
+- **Drag them onto the window.** Anywhere on it — the whole window is the
+  target, so you do not have to aim.
+- **Drop them in the recording's own folder**, and they are added the next time
+  you open that recording. This is the one to use after a job: the pictures come
+  off a camera or a phone in a lump, and adding thirty of them one at a time
+  through a dialog is nobody's idea of an afternoon.
+
+A photo step has no click, because nothing was clicked. It has a picture and
+whatever you write under it, and it is numbered like every other step. If you
+want to point at something in it, right-click the picture and choose **Put a
+marker here** — then drag it, or turn it, exactly as you would on a screenshot.
+
+**What happens to your photos.** Each one is copied into the recording at 2000
+pixels on its long edge, saved as JPEG. That is a sensible size for a page and
+small enough that a recording with forty photos in it can still be emailed. The
+file you dropped in is **moved into an `originals` folder inside the recording**
+— not deleted. What the recording keeps is a smaller copy, and this tool is not
+going to be the reason your full-sized photograph no longer exists. Photos you
+add with the button or by dragging are copied, and left where they were.
+
+Moving the original is also what stops the same picture being added again every
+time you open the recording.
+
+**iPhone photos (HEIC) cannot be read** — Windows itself cannot open them
+without an extra codec, and neither can this. You will be told which file, by
+name, rather than finding one missing later. Set the phone to save as JPEG, or
+convert them first.
+
 ### LaTeX, for a manual in Overleaf
 
 If your team writes its manuals in LaTeX, this exports the procedure as a

@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // The renderer gets this narrow surface and no Node. Everything that touches
 // the filesystem or the capture process stays in the main process.
@@ -18,6 +18,14 @@ contextBridge.exposeInMainWorld('bsr', {
 
   updateStep: (id, patch) => ipcRenderer.invoke('step:update', { id, patch }),
   addNote: (text, afterId) => ipcRenderer.invoke('step:addNote', { text, afterId }),
+  // No files: the main process asks. Files: they were dragged onto the window.
+  addPhotos: (files, afterId) => ipcRenderer.invoke('photo:add', { files, afterId }),
+  // A dropped File carries no usable path of its own any more; this is the
+  // only supported way to learn where it came from, and it has to happen on
+  // this side of the bridge.
+  pathForFile: (file) => {
+    try { return webUtils.getPathForFile(file); } catch { return ''; }
+  },
   addSection: (text, afterId) => ipcRenderer.invoke('step:addSection', { text, afterId }),
   replaceAll: (query, replacement, options) =>
     ipcRenderer.invoke('steps:replaceAll', { query, replacement, options }),

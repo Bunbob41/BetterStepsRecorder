@@ -10,6 +10,7 @@ const log = require('./log');
 const { buildHtml, buildMarkdown, copyImages, exportable,
         markerPosition } = require('./export');
 const composite = require('./composite');
+const photos = require('./photos');
 const { buildLatex, writeImages } = require('./latex');
 const screenshots = require('./screenshots');
 const { toJpeg } = require('./transcode');
@@ -576,6 +577,28 @@ ipcMain.handle('session:get', () => ({
   purpose: session ? session.purpose : 'sop',
   templatePath: session ? session.templatePath : '',
 }));
+
+ipcMain.handle('photo:add', async (_e, { files, afterId }) => {
+  if (!session) return { ok: false, error: 'Open or start a recording first.' };
+
+  // No files named means "ask me": the button and a drag both end up here, and
+  // only one of them arrives with paths.
+  let chosen = Array.isArray(files) ? files.filter(Boolean) : [];
+  if (!chosen.length) {
+    const r = await dialog.showOpenDialog(win, {
+      title: 'Add photos',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Photos', extensions: ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'] }],
+    });
+    if (r.canceled || !r.filePaths.length) return { ok: false, cancelled: true };
+    chosen = r.filePaths;
+  }
+
+  // Chosen from elsewhere on the disk: those files are not the recording's to
+  // move, so they are copied in and left where they were.
+  return photos.importInto(session, chosen,
+                           { afterId, keepOriginal: true, onWarn: log.warn });
+});
 
 ipcMain.handle('step:addNote', (_e, { text, afterId }) =>
   session ? session.addNote(text, afterId) : null);
@@ -1405,7 +1428,19 @@ ipcMain.handle('library:open', (_e, { dir }) => {
 
   closeSession();
   session = opened;
-  return { ok: true, dir: session.dir, name: session.name, steps: session.steps };
+
+  // Photos dropped into the folder since it was last open. This is the route
+  // that matters after a job: thirty pictures come off a camera in one lump,
+  // and nobody is going to add them one at a time through a dialog.
+  const found = photos.waiting(session.dir);
+  const taken = found.length
+    ? photos.importInto(session, found, { onWarn: log.warn })
+    : null;
+  if (taken && taken.added.length) log.info(`took in ${taken.added.length} photo(s)`);
+
+  return { ok: true, dir: session.dir, name: session.name, steps: session.steps,
+           photos: taken && taken.added.length ? taken.added.length : 0,
+           photoErrors: (taken && taken.failed) || [] };
 });
 
 ipcMain.handle('session:rename', (_e, { name }) =>

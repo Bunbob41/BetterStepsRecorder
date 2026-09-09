@@ -803,3 +803,21 @@ button.tool.active {
    armed, so one drag cannot mean two things. */
 .indicator.movable .rotate-handle { display: block; pointer-events: auto; }
 .indicator.movable .rotate-handle:active { cursor: grabbing; }
+
+/* While photographs are being dragged over the window. The whole window is the
+   target rather than a small zone: somebody dragging thirty photos in should
+   not have to aim. */
+body.dropping::after {
+  content: 'Drop the photos to add them';
+  position: fixed;
+  inset: 12px;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  color: #e8ecf4;
+  background: rgba(12, 16, 24, .72);
+  border: 2px dashed #6b8afd;
+  border-radius: 10px;
+  pointer-events: none;
+}
