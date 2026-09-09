@@ -165,5 +165,39 @@ console.log('\na marker the author dragged is cut with the picture:');
         c.losesAnyMarker({}, rect, image) === false);
 }
 
+console.log('\nmarks move with the picture when it is cropped:');
+{
+  const image = { width: 1000, height: 1000 };
+  // Keeping the bottom-right quarter: everything shifts and doubles in scale.
+  const region = { x: 500, y: 500, w: 500, h: 500 };
+
+  const inside = { id: 'k', tool: 'box', colour: 'red',
+                   rect: { x: 60, y: 60, w: 20, h: 20 } };
+  const outside = { id: 'g', tool: 'box', colour: 'red',
+                    rect: { x: 5, y: 5, w: 10, h: 10 } };
+  const crossing = { id: 'a', tool: 'arrow', colour: 'red',
+                     from: { x: 20, y: 20 }, to: { x: 80, y: 80 } };
+
+  const after = c.marksAfter([inside, outside, crossing], region, image);
+
+  check('a mark inside the crop is kept', after.some((m) => m.id === 'k'));
+  check('one cropped away entirely is dropped', !after.some((m) => m.id === 'g'));
+  check('an arrow crossing into the crop is kept',
+        after.some((m) => m.id === 'a'));
+
+  const kept = after.find((m) => m.id === 'k');
+  // 60% of 1000 is 600px; 100px into a 500px-wide crop is 20%.
+  check('and it points at the same pixels it did before',
+        Math.abs(kept.rect.x - 20) < 0.001 && Math.abs(kept.rect.y - 20) < 0.001,
+        JSON.stringify(kept.rect));
+  check('scaled to the new picture, not left at its old fraction',
+        Math.abs(kept.rect.w - 40) < 0.001, String(kept.rect.w));
+
+  check('a crop with no marks answers with none',
+        c.marksAfter([], region, image).length === 0);
+  check('and nothing throws on a mark that is missing its geometry',
+        Array.isArray(c.marksAfter([null], region, image)));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

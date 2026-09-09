@@ -28,6 +28,7 @@ const el = {
   highlight: $('btn-highlight'), dragPreview: $('drag-preview'),
   hueMenu: $('huemenu'),
   photo: $('btn-photo'),
+  marks: $('marks'),
   exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
   expTitle: $('exp-title'), expFormat: $('exp-format'),
   expGo: $('exp-go'), expCancel: $('exp-cancel'), expNote: $('exp-note'),
@@ -298,7 +299,38 @@ function markerPos(step) {
 }
 
 
+/**
+ * Draws the marks a person has added to this step.
+ *
+ * The same SVG the exports use, at the picture's own size and scaled by CSS -
+ * so what is on screen is what goes into the document, from one piece of code.
+ * The alternative, drawing them here and again in each export, is how a preview
+ * starts lying.
+ */
+function placeMarks(step) {
+  const marks = (step && step.marks) || [];
+  if (!marks.length || !el.shot.naturalWidth) {
+    el.marks.replaceChildren();
+    return;
+  }
+
+  const svg = BsrAnnotate.svgAll(marks, el.shot.naturalWidth, el.shot.naturalHeight);
+  // Parsed rather than assigned: innerHTML with text that came off somebody's
+  // screen is how a window title gets to write elements. This produces nodes
+  // and nothing else - scripts do not run, and an attribute that looked like a
+  // handler would sit inertly on an element in a document that is never
+  // executed.
+  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+  const root = doc.documentElement;
+  if (root && root.nodeName !== 'parsererror') {
+    el.marks.replaceChildren(document.importNode(root, true));
+  } else {
+    el.marks.replaceChildren();
+  }
+}
+
 function placeIndicator(step) {
+  placeMarks(step);
   if (!el.shot.naturalWidth) return;
   const pos = markerPos(step);
   if (!pos) {
@@ -2012,6 +2044,10 @@ const TOOL_BUTTONS = () => ({
 /** The highlighter colour in force, remembered between sessions. */
 let highlightId = 'yellow';
 
+// What colour a new box, ring, arrow or label is drawn in. Red is what every
+// mark used to be, so nothing changes for anybody who never opens the menu.
+let markColour = 'red';
+
 function armTool(tool) {
   armedTool = armedTool === tool ? null : tool;
   for (const [name, button] of Object.entries(TOOL_BUTTONS())) {
@@ -2201,7 +2237,7 @@ window.addEventListener('mouseup', async (e) => {
 
   if (!BsrAnnotate.isDeliberate(armedTool, rect, from, to)) return;
 
-  await applyMark(armedTool, { sel, from, to }, r.width);
+  await applyMark(armedTool, { sel, from, to }, r.width, r.height);
 });
 
 /**
@@ -2270,7 +2306,61 @@ async function applyCrop(sel, displayedWidth) {
   select(step.id);
 }
 
-async function applyMark(tool, { sel, from, to }, displayedWidth) {
+/** A new mark, in percentages of the picture, from a drag in CSS pixels. */
+function markFromDrag(tool, { sel, from, to }, displayedWidth, displayedHeight) {
+  const pc = (v, span) => (v / span) * 100;
+  const base = {
+    id: `mk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    tool,
+    colour: tool === 'highlight' ? highlightId : markColour,
+  };
+
+  if (tool === 'arrow') {
+    return { ...base,
+             from: { x: pc(from.x, displayedWidth), y: pc(from.y, displayedHeight) },
+             to: { x: pc(to.x, displayedWidth), y: pc(to.y, displayedHeight) } };
+  }
+  return { ...base,
+           rect: { x: pc(sel.left, displayedWidth), y: pc(sel.top, displayedHeight),
+                   w: pc(sel.width, displayedWidth), h: pc(sel.height, displayedHeight) } };
+}
+
+/** Sends a step's marks, and puts them on screen. */
+async function commitMarks(step, marks) {
+  const r = await window.bsr.setMarks(step.id, marks);
+  if (!r || !r.ok) {
+    showNotice((r && r.error) || 'Could not change the marks.');
+    placeMarks(step);
+    return false;
+  }
+  // A reply that says ok without handing back the step would otherwise write
+  // `undefined` into the list, and the next thing to read `.id` off it dies -
+  // a page-wide failure a long way from the cause.
+  if (r.step) steps[steps.indexOf(step)] = r.step;
+  placeMarks(steps.find((s) => s && s.id === step.id) || step);
+  renderList();
+  return true;
+}
+
+async function applyMark(tool, drag, displayedWidth, displayedHeight) {
+  const step = steps.find((s) => s.id === selectedId);
+  if (!step) return;
+
+  // A box, a ring, an arrow or a highlight is DATA now: it can be deleted,
+  // recoloured or moved afterwards, and it is burned into the pixels only on
+  // the way into a document that cannot layer anything over a picture.
+  if (tool !== 'blur') {
+    const mark = markFromDrag(tool, drag, displayedWidth, displayedHeight);
+    await commitMarks(step, [...(step.marks || []), mark]);
+    return;
+  }
+
+  // Blur is the exception, and always will be. It destroys the pixels on
+  // purpose: a redacted guide whose screenshot still holds the data is a lie.
+  await applyPixels(tool, drag, displayedWidth);
+}
+
+async function applyPixels(tool, { sel, from, to }, displayedWidth) {
   const step = steps.find((s) => s.id === selectedId);
   if (!step) return;
 

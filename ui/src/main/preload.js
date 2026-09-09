@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('bsr', {
 
   updateStep: (id, patch) => ipcRenderer.invoke('step:update', { id, patch }),
   addNote: (text, afterId) => ipcRenderer.invoke('step:addNote', { text, afterId }),
+  setMarks: (id, marks) => ipcRenderer.invoke('step:marks', { id, marks }),
   // No files: the main process asks. Files: they were dragged onto the window.
   addPhotos: (files, afterId) => ipcRenderer.invoke('photo:add', { files, afterId }),
   // A dropped File carries no usable path of its own any more; this is the

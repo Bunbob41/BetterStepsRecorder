@@ -181,6 +181,13 @@ const ANSWERS = {
     depthListener(DEPTH);
     return { ok: true, step };
   },
+  setMarks: (id, marks) => {
+    const step = SESSION.steps.find((x) => x.id === id);
+    if (!step) return { ok: false, error: 'Step not found.' };
+    step.marks = (marks || []).length ? marks : undefined;
+    step.annotated = Boolean(step.marks) || step.redacted === true;
+    return { ok: true, step };
+  },
   turnMarker: (id, angle) => {
     const step = SESSION.steps.find((x) => x.id === id);
     if (!step) return { ok: false, error: 'Step not found.' };

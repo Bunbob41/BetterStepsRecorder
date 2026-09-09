@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const marker = require('../renderer/marker');
 const sections = require('../renderer/sections');
 const appName = require('../renderer/appname');
+const annotate = require('../renderer/annotate');
 const path = require('node:path');
 
 /**
@@ -185,6 +186,13 @@ function buildHtml(session, { title, embedImages = true, brand = null,
       : embedImages ? dataUri(abs)
       : step.screenshot;
 
+    // Laid over the picture rather than drawn into it, exactly as the window
+    // shows them and from the same code. A .docx cannot do this, which is why
+    // it takes the other route entirely - see composite.js.
+    const size = annotate.sizeOf(step);
+    const marksSvg = annotate.svgAll(step.marks, size.w, size.h);
+    const marksHtml = marksSvg ? `<div class="bsr-marks">${marksSvg}</div>` : '';
+
     const at = markerPosition(step, markerOpts);
     // The step's own angle, if it has been turned, over the shared options.
     const markerHtml = at
@@ -209,6 +217,7 @@ function buildHtml(session, { title, embedImages = true, brand = null,
       ${context && describe.changed ? `<p class="context">${context}</p>` : ''}
       ${src ? `<figure class="shot">
         <img src="${src}" alt="Step ${i + 1}" loading="lazy" />
+        ${marksHtml}
         ${markerHtml}
       </figure>` : ''}
     </li>`;
@@ -275,6 +284,9 @@ function buildHtml(session, { title, embedImages = true, brand = null,
     border: 1px solid var(--line); border-radius: 8px;
   }
   .bsr-marker svg { display: block; }
+  /* Over the picture, and never in the way of selecting the text under it. */
+  .bsr-marks { position: absolute; inset: 0; pointer-events: none; }
+  .bsr-marks svg { width: 100%; height: 100%; display: block; }
   .legend {
     margin: 0 0 32px; padding: 14px 16px;
     background: var(--panel); border: 1px solid var(--line); border-radius: 8px;

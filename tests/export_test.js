@@ -170,6 +170,23 @@ check('hand-written wording is untouched either way',
       buildHtml({ dir, steps: [{ id: 'e', action: 'note',
         text: 'Approve it', textEdited: true }] }, { title: 'X' }).includes('Approve it'));
 
+console.log('\nmarks in the exported page:');
+{
+  const marked = {
+    dir,
+    steps: [{ ...session.steps[0],
+              marks: [{ id: 'e1', tool: 'ellipse', colour: 'green',
+                        rect: { x: 20, y: 20, w: 30, h: 30 } }] }],
+  };
+  const page = buildHtml(marked, { title: 'Marked', embedImages: true });
+  check('the mark is laid over the picture', page.includes('bsr-marks'));
+  check('drawn in the colour it was given', page.includes('#1a9d52'));
+  check('and positioned by the stylesheet, not by an inline style',
+        page.includes('.bsr-marks { position: absolute'));
+  check('a step with no marks gets no overlay',
+        !buildHtml(session, { title: 'Plain' }).includes('bsr-marks"'));
+}
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log('\nthe window is worth saying once:');
 {

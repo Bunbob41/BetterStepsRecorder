@@ -815,8 +815,16 @@ ipcMain.handle('step:crop', (_e, { id, dataUrl, rect, image }) => {
     ? crop.markerAtAfter(step.markerAt, rect, image)
     : null;
 
+  // The marks move with the picture for the same reason the marker does: they
+  // are percentages of it, and a crop changes what a percentage means. One that
+  // has left the picture entirely is dropped.
+  const nextMarks = Array.isArray(step.marks) && step.marks.length
+    ? crop.marksAfter(step.marks, rect, image)
+    : null;
+
   const updated = session.updateStep(id, {
     ...(nextFrame ? { frame: nextFrame } : {}),
+    ...(nextMarks ? { marks: nextMarks.length ? nextMarks : undefined } : {}),
     // Cropped away entirely: the field goes, rather than pointing at nothing.
     ...(step.markerAt ? { markerAt: nextMarker || undefined } : {}),
     // Cropped away entirely: the field goes, rather than pointing at nothing.
@@ -872,6 +880,25 @@ ipcMain.handle('step:marker', (_e, { id, at, hidden, angle }) => {
   }
 
   const updated = session.updateStep(id, patch);
+  return { ok: true, step: updated };
+});
+
+/**
+ * Replaces the marks on a step.
+ *
+ * One handler for drawing, deleting, recolouring and retyping, because from
+ * here they are all the same operation: the window says what the step's marks
+ * are now. That is also what makes each of them exactly one Ctrl+Z.
+ */
+ipcMain.handle('step:marks', (_e, { id, marks }) => {
+  if (!session) return { ok: false, error: 'No recording is open.' };
+
+  const step = session.steps.find((s) => s.id === id);
+  if (!step) return { ok: false, error: 'Step not found.' };
+
+  pushUndo({ type: 'marks', id, marks: [...(step.marks || [])] });
+
+  const updated = session.setMarks(id, marks);
   return { ok: true, step: updated };
 });
 
@@ -945,7 +972,8 @@ function shotFiles(s) {
 }
 
 /**
- * Every screenshot that has a click to mark, with where the click fell.
+ * Every screenshot that has anything to draw on it: a click to mark, marks
+ * somebody added, or both.
  *
  * The same `markerPosition` the HTML export uses, so Word puts the marker in
  * the place the guide beside it does. A step whose click landed outside the
@@ -960,10 +988,17 @@ function markableShots(s) {
     const file = path.join(s.dir, step.screenshot);
     if (!fs.existsSync(file)) continue;
     const pos = markerPosition(step, markerOptions());
-    if (pos) {
-      out.push(Number.isFinite(step.markerAngle)
-        ? { file, pos, opts: { angle: step.markerAngle } }
-        : { file, pos });
+    const marks = Array.isArray(step.marks) && step.marks.length ? step.marks : null;
+    // A step with marks but no placeable click still needs this pass, or a
+    // photograph somebody drew on would reach Word with nothing on it.
+    if (pos || marks) {
+      out.push({
+        file,
+        ...(pos ? { pos } : {}),
+        ...(marks ? { marks } : {}),
+        ...(pos && Number.isFinite(step.markerAngle)
+              ? { opts: { angle: step.markerAngle } } : {}),
+      });
     }
   }
   return out;

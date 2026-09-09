@@ -272,7 +272,8 @@ class Session {
    * looking at forty pictures needs to know which was which, and the name their
    * camera gave it is the only handle they have.
    */
-  addPhoto(bytes, { ext = '.jpg', source = '', text = '', afterId = null } = {}) {
+  addPhoto(bytes, { ext = '.jpg', source = '', text = '', size = null,
+                    afterId = null } = {}) {
     if (!bytes || !bytes.length) return null;
 
     // Named for what it is, and never as a number: the engine numbers its own
@@ -298,6 +299,11 @@ class Session {
       textEdited: true,
       screenshot: relative,
       source: source || '',
+      // A photograph has no captured frame, so this is the only record of how
+      // big it is - which is what a mark drawn on it is measured against
+      // outside the window.
+      ...(size && size.width && size.height
+            ? { size: { w: size.width, h: size.height } } : {}),
     };
 
     const at = afterId ? this.steps.findIndex((s) => s.id === afterId) : -1;
@@ -333,6 +339,38 @@ class Session {
 
     this.flush();
     return { index: at === -1 ? this.steps.length - 1 : at + 1, step: section };
+  }
+
+  /**
+   * The marks on a step: boxes, rings, arrows, highlights and labels.
+   *
+   * Held as data rather than painted into the screenshot, so any one of them
+   * can be deleted, recoloured or retyped later. They are stored as
+   * percentages of the picture - like the click marker, and for the same
+   * reason: a step can be cropped and its screenshot re-encoded at a different
+   * size on the way into a document, and percentages survive both.
+   *
+   * The whole list goes in and out at once. A mark is a few numbers, a
+   * recording has a handful per step, and one array is one thing to write, one
+   * thing to undo, and one thing that cannot get out of step with itself.
+   */
+  setMarks(id, marks) {
+    const i = this.steps.findIndex((s) => s.id === id);
+    if (i === -1) return null;
+
+    const list = Array.isArray(marks) ? marks.filter(Boolean) : [];
+    this.steps[i] = { ...this.steps[i], marks: list.length ? list : undefined };
+    // `annotated` is what the compliance summary and the exports read to know a
+    // step was marked up by hand; it has to follow the marks rather than being
+    // set once and left true over an empty list.
+    this.steps[i].annotated = list.length > 0 || this.steps[i].redacted === true;
+    this.flush();
+    return this.steps[i];
+  }
+
+  marksOf(id) {
+    const step = this.steps.find((s) => s.id === id);
+    return step && Array.isArray(step.marks) ? step.marks : [];
   }
 
   updateStep(id, patch) {

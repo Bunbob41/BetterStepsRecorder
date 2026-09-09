@@ -136,5 +136,60 @@ console.log('\nthe tools on offer:');
         !a.TOOLS.includes('blur'));
 }
 
+console.log('\nmarks, held as data:');
+{
+  const box = { id: 'b1', tool: 'box', colour: 'blue',
+                rect: { x: 25, y: 25, w: 50, h: 50 } };
+  const svg = a.svgAll([box], 800, 600);
+
+  // Percentages in, pixels out: 25% of 800 is 200, 25% of 600 is 150.
+  check('a mark is drawn where its percentages say',
+        svg.includes('x="200"') && svg.includes('y="150"'), svg.slice(0, 120));
+  check('at the size its percentages say',
+        svg.includes('width="400"') && svg.includes('height="300"'));
+  check('in the colour it was given', svg.includes('#2f6fed'));
+  check('over a pale outline, so it survives a light or dark screenshot',
+        svg.includes('rgba(255,255,255,.85)'));
+  check('carrying its id, so it can be found again',
+        svg.includes('data-mark="b1"'));
+  // Letterboxing an overlay would put every mark in the wrong PLACE, which is
+  // worse than drawing one slightly wrong.
+  check('stretched to the picture rather than fitted inside it',
+        svg.includes('preserveAspectRatio="none"'));
+  check('nothing at all when there are no marks', a.svgAll([], 800, 600) === '');
+
+  const arrow = { id: 'a1', tool: 'arrow', colour: 'red',
+                  from: { x: 10, y: 10 }, to: { x: 60, y: 40 } };
+  const asvg = a.svgFor(arrow, 800, 600);
+  check('an arrow is a shaft and a head', asvg.includes('<line')
+        && asvg.includes('<polygon'));
+
+  console.log('\nand found by where they are:');
+  check('a click inside a box finds it', a.markAt([box], 50, 50) === box);
+  check('a click outside finds nothing', a.markAt([box], 5, 5) === null);
+  check('a click near an arrow finds it - a line cannot be hit exactly',
+        a.markAt([arrow], 35, 25) === arrow);
+  // The one on top is the one being looked at.
+  const over = { ...box, id: 'b2' };
+  check('the last one drawn wins where they overlap',
+        a.markAt([box, over], 50, 50) === over);
+
+  console.log('\nand text cannot write markup:');
+  const nasty = { id: 't1', tool: 'text', colour: 'red', at: { x: 10, y: 10 },
+                  text: '</text><script>alert(1)</script> & "quoted"' };
+  const tsvg = a.svgFor(nasty, 800, 600);
+  check('a closing tag in the text is escaped', !tsvg.includes('</text><script>'));
+  check('an ampersand is escaped', tsvg.includes('&amp;'));
+  check('and the words still come through', tsvg.includes('quoted'));
+
+  console.log('\nthe size a mark is measured against:');
+  check('a screenshot uses its captured frame',
+        a.sizeOf({ frame: { x: 0, y: 0, w: 1920, h: 1080 } }).w === 1920);
+  check('a photograph uses its recorded size',
+        a.sizeOf({ size: { w: 2000, h: 1500 } }).h === 1500);
+  check('and something with neither still gets a usable answer',
+        a.sizeOf({}).w > 0);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

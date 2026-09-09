@@ -821,3 +821,15 @@ body.dropping::after {
   border-radius: 10px;
   pointer-events: none;
 }
+
+/* The marks drawn on a screenshot. The layer never takes the pointer - marks
+   are found by where they are, not by hit-testing an SVG - so a drag that
+   starts over one still draws, and the picture underneath is still draggable
+   for the click marker. */
+.marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.marks svg { width: 100%; height: 100%; display: block; }

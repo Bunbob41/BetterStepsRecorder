@@ -117,6 +117,20 @@ function applyEntry(session, entry) {
                           token: displaced, state: now } };
     }
 
+    // ---- the marks drawn on a screenshot -----------------------------------
+    case 'marks': {
+      const step = session.steps.find((s) => s.id === entry.id);
+      if (!step) return { ok: false, error: 'That step is no longer here.' };
+
+      // The list as it stands becomes the inverse, so undo and redo are the
+      // same traversal run in opposite directions - the rule invariant 20 is
+      // about, and the reason this can be one entry rather than one per mark.
+      const now = [...(step.marks || [])];
+      session.setMarks(entry.id, entry.marks || []);
+      return { ok: true,
+               inverse: { type: 'marks', id: entry.id, marks: now } };
+    }
+
     // ---- where the click indicator sits ------------------------------------
     case 'marker': {
       const step = session.steps.find((s) => s.id === entry.id);

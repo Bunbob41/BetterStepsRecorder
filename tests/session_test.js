@@ -503,5 +503,38 @@ console.log('\na photograph as a step:');
   fs.rmSync(pdir, { recursive: true, force: true });
 }
 
+console.log('\nthe marks on a step:');
+{
+  const mdir = path.join(os.tmpdir(), 'bsr-marks-' + Date.now());
+  fs.mkdirSync(path.join(mdir, 'steps'), { recursive: true });
+  const ms = new Session(mdir);
+  ms.addStep({ id: 'm', seq: 1, action: 'leftClick', text: 'Clicked',
+               point: { x: 1, y: 1 },
+               window: { title: 'W', rect: { x: 0, y: 0, w: 8, h: 6 } },
+               screenshot: 'steps/0001.png' });
+
+  const one = { id: 'x1', tool: 'box', colour: 'red',
+                rect: { x: 10, y: 10, w: 20, h: 20 } };
+  const step = ms.setMarks('m', [one]);
+  check('they are stored on the step', step.marks.length === 1);
+  // What the compliance summary and the exports read to know a step was marked
+  // up by hand. Left true over an empty list, it would claim marks that are
+  // not there.
+  check('and the step counts as annotated', step.annotated === true);
+
+  const cleared = ms.setMarks('m', []);
+  check('removing the last one clears the field rather than storing an empty list',
+        cleared.marks === undefined);
+  check('and the step stops claiming to be annotated', cleared.annotated === false);
+
+  ms.setMarks('m', [one, { ...one, id: 'x2' }]);
+  const reopened = Session.load(mdir);
+  check('they survive the recording being reopened',
+        reopened.marksOf('m').length === 2);
+  check('a step that is not there is refused', ms.setMarks('nope', [one]) === null);
+
+  fs.rmSync(mdir, { recursive: true, force: true });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -20,6 +20,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const marker = require('../renderer/marker');
+const annotate = require('../renderer/annotate');
 
 /** A blank page with nothing in it but a canvas we drive from here. */
 const BLANK = 'data:text/html,<!doctype html><meta charset="utf-8"><title>bsr</title>';
@@ -114,7 +115,11 @@ function dispose() {
 async function markAll(items, { images = null, markerOpts = {}, colour = '#e5484d',
                                 quality = 0.9, onError = null } = {}) {
   const out = new Map(images || []);
-  const work = (items || []).filter((i) => i && i.file && i.pos);
+  // A screenshot needs this pass if anything at all is drawn on it: a click
+  // marker, marks a person added, or both. Filtering on the marker alone lost
+  // every hand-drawn mark on a step whose click could not be placed.
+  const work = (items || []).filter(
+    (i) => i && i.file && (i.pos || (i.marks && i.marks.length)));
   if (!work.length) return { images: out, marked: 0, failed: 0 };
 
   let marked = 0;
@@ -141,7 +146,7 @@ async function markAll(items, { images = null, markerOpts = {}, colour = '#e5484
   }
 
   {
-    for (const { file, pos, opts: itemOpts } of work) {
+    for (const { file, pos, opts: itemOpts, marks } of work) {
       if (seen.has(file)) { shared++; continue; }
       try {
         const prepared = out.get(file);
@@ -159,13 +164,27 @@ async function markAll(items, { images = null, markerOpts = {}, colour = '#e5484
           + ` i.onload = res; i.onerror = rej; i.src = ${JSON.stringify(source)}; });`
           + ` return { w: i.naturalWidth, h: i.naturalHeight }; })()`);
 
+        // The marks a person drew go on FIRST, so the click marker sits over
+        // them exactly as it does in the window and in the HTML. The overlay is
+        // the whole picture, because that is the coordinate system marks are
+        // stored in.
+        let current = source;
+        if (marks && marks.length) {
+          const svg = annotate.svgAll(marks, size.w, size.h);
+          current = await win.webContents.executeJavaScript(
+            DRAW(current, svg, 0, 0, size.w, size.h, mime, quality));
+        }
+
         // Per item where it has any: the angle an arrow is turned to belongs
         // to the step, not to the export, so one options object for the whole
         // run would point every arrow the same way.
-        const opts = itemOpts ? { ...markerOpts, ...itemOpts } : markerOpts;
-        const m = marker.svg(pos, opts, colour, size.w, size.h);
-        const url = await win.webContents.executeJavaScript(
-          DRAW(source, m.svg, m.left, m.top, m.width, m.height, mime, quality));
+        let url = current;
+        if (pos) {
+          const opts = itemOpts ? { ...markerOpts, ...itemOpts } : markerOpts;
+          const m = marker.svg(pos, opts, colour, size.w, size.h);
+          url = await win.webContents.executeJavaScript(
+            DRAW(current, m.svg, m.left, m.top, m.width, m.height, mime, quality));
+        }
 
         const base64 = String(url).slice(String(url).indexOf(',') + 1);
         // The same shape `screenshots.prepare` produces, `mime` included.

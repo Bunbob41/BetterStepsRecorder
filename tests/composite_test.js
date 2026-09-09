@@ -289,10 +289,72 @@ app.whenReady().then(async () => {
           pbytes.equals(fs.readFileSync(abs)));
   }
 
+  // ---------------------------------------------------------------------------
+  // Marks a person drew, burned into the picture.
+  //
+  // This is the whole justification for holding them as data. They are an
+  // overlay in the window, in the HTML and in the PDF; Word embeds the picture
+  // and can lay nothing over it, so if they do not arrive HERE they are simply
+  // missing from the format most likely to reach a company - and the author
+  // would have no way of knowing.
+  console.log('\nthe marks somebody drew, in the pixels:');
+  {
+    const BLUE = [47, 111, 237];        // annotate's 'blue'
+    const isBlue = ([r, g, b]) => Math.abs(r - BLUE[0]) < 60
+                               && Math.abs(g - BLUE[1]) < 60
+                               && Math.abs(b - BLUE[2]) < 70;
+
+    // A box around the middle quarter of an 800x600 picture: from (200,150) to
+    // (600,450) in pixels.
+    const box = { id: 'm1', tool: 'box', colour: 'blue',
+                  rect: { x: 25, y: 25, w: 50, h: 50 } };
+
+    const marked = await composite.markAll(
+      [{ file: shot, marks: [box] }], {});
+
+    check('a step with marks and no click is still worked on', marked.marked === 1);
+
+    const [onEdge, insideBox, outside] = await pixels(
+      marked.images.get(shot).data,
+      [[200, 300],      // the left edge of the box
+       [400, 300],      // the middle of it, which a box does not fill
+       [40, 40]]);      // well outside
+
+    check(`the edge of the box is drawn (${onEdge})`, isBlue(onEdge));
+    check(`its middle is left alone (${insideBox})`, isGrey(insideBox));
+    check(`and so is the rest of the picture (${outside})`, isGrey(outside));
+
+    // And with a click marker as well: the two must not fight over the file.
+    const both = await composite.markAll(
+      [{ file: shot, pos: { x: 50, y: 50 }, marks: [box] }],
+      { markerOpts: { style: 'circle' } });
+    // The top of the ring, not its middle: a circle marker is hollow, and the
+    // pixel at the click is the picture showing through it.
+    const ring = marker.svg({ x: 50, y: 50 }, { style: 'circle' }, '#e5484d', 800, 600);
+    const [edgeAgain, onRing] = await pixels(
+      both.images.get(shot).data,
+      [[200, 300], [Math.round(ring.left + ring.width / 2), ring.top + 2]]);
+    check(`the mark survives alongside the click marker (${edgeAgain})`,
+          isBlue(edgeAgain));
+    check(`and the marker is drawn as well (${onRing})`, isMarker(onRing));
+
+    // A highlight is a translucent wash: the pixels under it change without
+    // becoming the mark's own colour, which is the only way to tell it apart
+    // from a box that was drawn as a fill by mistake.
+    const wash = await composite.markAll(
+      [{ file: shot,
+         marks: [{ id: 'm2', tool: 'highlight', colour: 'yellow',
+                   rect: { x: 10, y: 10, w: 30, h: 30 } }] }], {});
+    const [washed, unwashed] = await pixels(
+      wash.images.get(shot).data, [[150, 150], [700, 500]]);
+    check(`a highlight tints what is under it (${washed})`, !isGrey(washed));
+    check(`and leaves the rest (${unwashed})`, isGrey(unwashed));
+  }
+
   if (reader) reader.destroy();
   composite.dispose();
   fs.rmSync(dir, { recursive: true, force: true });
   clearTimeout(watchdog);
-  console.log(`\n${pass} passed, ${fail} failed`);
+console.log(`\n${pass} passed, ${fail} failed`);
   app.exit(fail ? 1 : 0);
 }).catch((e) => { console.error(e); app.exit(1); });

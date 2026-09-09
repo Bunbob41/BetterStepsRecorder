@@ -5,12 +5,21 @@
  * that matters" or "look here first" - that is the author's knowledge, and
  * without a way to add it every screenshot is a flat picture of a screen.
  *
- * Drawn into the image itself rather than stored beside it. Storing them as
- * data would keep them editable, but Word embeds the picture and cannot layer
- * anything over it, so an annotation held as data would be missing from the one
- * format most likely to reach a company. Burning it in means every format shows
- * the same thing. The cost is that it cannot be restyled afterwards, which is
- * why the pre-edit image is stashed for undo - the same bargain blur makes.
+ * Held as DATA on the step, not painted into the picture.
+ *
+ * They were painted in, once, and the reason was sound at the time: Word embeds
+ * a screenshot and cannot layer anything over it, so a mark held as data would
+ * have been missing from the format most likely to reach a company. The cost
+ * was that a mark could never be undrawn - "delete this arrow" had no answer
+ * except undo, in order, taking every later mark with it.
+ *
+ * That reason expired when `composite.js` was built to burn the CLICK marker
+ * into the pixels for Word (D-31). The same machinery draws anything an SVG can
+ * express into an image on the way out - so marks can be data everywhere, and
+ * become pixels only in the formats that need them to be.
+ *
+ * Blur is NOT one of these and never will be: it is destructive on purpose,
+ * because a redacted guide whose source image still holds the data is a lie.
  *
  * The geometry is separated from the drawing so the awkward parts - an arrow's
  * head, a stroke that stays visible at any image size - can be tested without a
@@ -39,6 +48,201 @@
 
   const highlightFill = (id) =>
     (HIGHLIGHTS.find((h) => h.id === id) || HIGHLIGHTS[0]).fill;
+
+  /**
+   * Colours a mark can be drawn in.
+   *
+   * Named, and few. A palette of thirty is a colour picker; five is a decision
+   * somebody can make in a second and still recognise on the next screenshot.
+   * Red first because it is what every mark was until now, so nothing anybody
+   * has already drawn changes appearance.
+   */
+  const COLOURS = [
+    { id: 'red', name: 'Red', value: '#e5484d' },
+    { id: 'blue', name: 'Blue', value: '#2f6fed' },
+    { id: 'green', name: 'Green', value: '#1a9d52' },
+    { id: 'amber', name: 'Amber', value: '#e08c00' },
+    { id: 'black', name: 'Black', value: '#14181f' },
+  ];
+
+  const colourValue = (id) =>
+    (COLOURS.find((c) => c.id === id) || COLOURS[0]).value;
+
+  /**
+   * How big lettering should be on an image of this size.
+   *
+   * The same argument as the stroke: fixed points are illegible on a 4K capture
+   * and enormous on a dialog. Clamped, so a very small screenshot still gets
+   * letters that fit and a very large one does not get a headline.
+   */
+  function fontFor(width, height) {
+    const diagonal = Math.sqrt(width * width + height * height);
+    return Math.max(13, Math.min(64, Math.round(diagonal / 46)));
+  }
+
+  const XML = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  const escapeXml = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => XML[c]);
+
+  /**
+   * A mark's geometry in image pixels.
+   *
+   * Marks are stored as percentages of the picture, exactly like the click
+   * marker and for the same reason: a step can be cropped, and a screenshot can
+   * be re-encoded at a different size on its way into a document. Percentages
+   * survive both; pixels survive neither.
+   */
+  function pixelsOf(mark, width, height) {
+    const px = (v, span) => (Number(v) / 100) * span;
+    if (mark.tool === 'arrow') {
+      return {
+        from: { x: px(mark.from.x, width), y: px(mark.from.y, height) },
+        to: { x: px(mark.to.x, width), y: px(mark.to.y, height) },
+      };
+    }
+    if (mark.tool === 'text') {
+      return { at: { x: px(mark.at.x, width), y: px(mark.at.y, height) } };
+    }
+    return {
+      rect: {
+        x: px(mark.rect.x, width), y: px(mark.rect.y, height),
+        w: px(mark.rect.w, width), h: px(mark.rect.h, height),
+      },
+    };
+  }
+
+  /**
+   * One mark as SVG, in image pixels.
+   *
+   * Deliberately the same shapes `draw()` puts on a canvas - a pale outline
+   * under a coloured stroke - because the two have to agree. What is on screen
+   * IS what goes into the document; if these drifted, the guide would stop
+   * matching the preview and there would be no way to see it here.
+   */
+  function svgFor(mark, width, height) {
+    const stroke = strokeFor(width, height);
+    const colour = colourValue(mark.colour);
+    const p = pixelsOf(mark, width, height);
+    const id = escapeXml(mark.id || '');
+    const open = `<g data-mark="${id}" class="mark mark-${escapeXml(mark.tool)}">`;
+
+    if (mark.tool === 'highlight') {
+      const fill = highlightFill(mark.colour);
+      return `${open}<rect x="${p.rect.x}" y="${p.rect.y}" `
+           + `width="${p.rect.w}" height="${p.rect.h}" fill="${fill}"/></g>`;
+    }
+
+    if (mark.tool === 'text') {
+      const size = fontFor(width, height);
+      // Painted stroke-then-fill, which is how the shapes get their pale
+      // outline: lettering has to be readable on a white dialog and on a dark
+      // terminal, and this is the one thing that works on both.
+      return `${open}<text x="${p.at.x}" y="${p.at.y}" font-size="${size}" `
+           + `font-family="Segoe UI, system-ui, sans-serif" font-weight="600" `
+           + `paint-order="stroke" stroke="rgba(255,255,255,.9)" `
+           + `stroke-width="${Math.max(3, Math.round(size / 6))}" `
+           + `stroke-linejoin="round" fill="${colour}" `
+           + `xml:space="preserve">${escapeXml(mark.text || '')}</text></g>`;
+    }
+
+    if (mark.tool === 'ellipse') {
+      const cx = p.rect.x + p.rect.w / 2;
+      const cy = p.rect.y + p.rect.h / 2;
+      const rx = Math.abs(p.rect.w) / 2;
+      const ry = Math.abs(p.rect.h) / 2;
+      const ring = (c, w) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" `
+                           + `fill="none" stroke="${c}" stroke-width="${w}"/>`;
+      return open + ring('rgba(255,255,255,.85)', stroke + 4) + ring(colour, stroke) + '</g>';
+    }
+
+    if (mark.tool === 'box') {
+      const box = (c, w) => `<rect x="${p.rect.x}" y="${p.rect.y}" `
+                          + `width="${p.rect.w}" height="${p.rect.h}" fill="none" `
+                          + `stroke="${c}" stroke-width="${w}" stroke-linejoin="round"/>`;
+      return open + box('rgba(255,255,255,.85)', stroke + 4) + box(colour, stroke) + '</g>';
+    }
+
+    // arrow
+    const g = arrowGeometry(p.from, p.to, stroke);
+    const barbs = `${p.to.x},${p.to.y} ${g.barbs[0].x},${g.barbs[0].y} `
+                + `${g.barbs[1].x},${g.barbs[1].y}`;
+    const paint = (c, extra) =>
+      `<line x1="${p.from.x}" y1="${p.from.y}" x2="${g.shaft.x}" y2="${g.shaft.y}" `
+      + `stroke="${c}" stroke-width="${stroke + extra}" stroke-linecap="round"/>`
+      + `<polygon points="${barbs}" fill="${c}" stroke="${c}" `
+      + `stroke-width="${extra}" stroke-linejoin="round"/>`;
+    return open + paint('rgba(255,255,255,.85)', 4) + paint(colour, 0) + '</g>';
+  }
+
+  /**
+   * How big a step's picture is, as far as anything outside the window can
+   * know: the captured frame for a screenshot, the recorded size for a
+   * photograph. A square is the fallback - marks are percentages, so they still
+   * land in the right place, and only the thickness of a stroke is affected.
+   */
+  function sizeOf(step) {
+    const frame = step && step.frame;
+    if (frame && frame.w > 0 && frame.h > 0) return { w: frame.w, h: frame.h };
+    const size = step && step.size;
+    if (size && size.w > 0 && size.h > 0) return { w: size.w, h: size.h };
+    return { w: 1000, h: 1000 };
+  }
+
+  /** Every mark on a step, as one overlay sized to the picture. */
+  function svgAll(marks, width, height) {
+    const list = (marks || []).filter(Boolean);
+    if (!list.length) return '';
+    // Stretched, not fitted. The overlay is laid over a picture whose
+    // displayed shape is decided by a stylesheet somewhere else; letterboxing
+    // it to preserve the aspect ratio would put every mark in the wrong place
+    // rather than merely drawing it slightly wrong.
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" `
+         + `preserveAspectRatio="none" width="${width}" height="${height}">`
+         + list.map((m) => svgFor(m, width, height)).join('')
+         + '</svg>';
+  }
+
+  /**
+   * The box a mark occupies, in percentages, for working out which one somebody
+   * clicked on.
+   *
+   * Generous around thin things on purpose: an arrow is a line, and a line is
+   * nearly impossible to hit with a mouse. A few percent of slack turns "click
+   * exactly on the shaft" into "click near the arrow", which is what a person
+   * means by clicking on it.
+   */
+  function boundsOf(mark, pad = 1.5) {
+    if (mark.tool === 'arrow') {
+      return {
+        x: Math.min(mark.from.x, mark.to.x) - pad,
+        y: Math.min(mark.from.y, mark.to.y) - pad,
+        w: Math.abs(mark.to.x - mark.from.x) + pad * 2,
+        h: Math.abs(mark.to.y - mark.from.y) + pad * 2,
+      };
+    }
+    if (mark.tool === 'text') {
+      // Lettering hangs to the right of and above its anchor, which is the
+      // baseline at the left end of the line.
+      const len = Math.max(1, String(mark.text || '').length);
+      return { x: mark.at.x - pad, y: mark.at.y - 6 - pad,
+               w: Math.min(100, len * 1.4) + pad * 2, h: 8 + pad * 2 };
+    }
+    return { x: Math.min(mark.rect.x, mark.rect.x + mark.rect.w) - pad,
+             y: Math.min(mark.rect.y, mark.rect.y + mark.rect.h) - pad,
+             w: Math.abs(mark.rect.w) + pad * 2,
+             h: Math.abs(mark.rect.h) + pad * 2 };
+  }
+
+  /**
+   * Which mark is at a point, in percentages. The LAST one drawn wins, because
+   * that is the one on top and the one a person is looking at.
+   */
+  function markAt(marks, x, y, pad = 1.5) {
+    for (let i = (marks || []).length - 1; i >= 0; i -= 1) {
+      const b = boundsOf(marks[i], pad);
+      if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return marks[i];
+    }
+    return null;
+  }
 
   /**
    * How thick a stroke should be on an image of this size.
@@ -218,6 +422,7 @@
       }));
   }
 
-  return { TOOLS, HIGHLIGHTS, highlightFill, legendFor, strokeFor, arrowGeometry,
-           headArea, draw, isDeliberate };
+  return { TOOLS, HIGHLIGHTS, COLOURS, highlightFill, colourValue, legendFor,
+           strokeFor, fontFor, arrowGeometry, headArea, draw, isDeliberate,
+           svgFor, svgAll, sizeOf, boundsOf, markAt, pixelsOf, escapeXml };
 }));

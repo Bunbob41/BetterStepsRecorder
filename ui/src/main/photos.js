@@ -149,6 +149,7 @@ function importInto(session, files, { afterId = null, keepOriginal = false,
     const r = session.addPhoto(converted.data, {
       ext: converted.ext,
       source: path.basename(file),
+      size: converted.size,
       afterId: after,
     });
     if (!r) { failed.push(`${path.basename(file)} could not be saved.`); continue; }

@@ -135,6 +135,61 @@
     return { x, y };
   }
 
+  /**
+   * The marks, in the cropped picture's percentages.
+   *
+   * Marks are stored as percentages of the image, so cropping without moving
+   * them would leave every box and arrow pointing at whatever slid into that
+   * fraction of the new picture - the same failure `markerAtAfter` exists to
+   * prevent, multiplied by the number of marks on the step.
+   *
+   * A mark is KEPT when any part of it survives, and clipped by the picture's
+   * own edge rather than by arithmetic here: half a box around a field that is
+   * still visible is worth having, and deciding for the author that a mark
+   * they drew is now worthless is not this function's business. Only one that
+   * has left the picture entirely is dropped.
+   */
+  function marksAfter(marks, crop, image) {
+    const c = clamp(crop, image);
+    if (!c.w || !c.h) return [];
+
+    const iw = Math.max(1, Math.round(image.width));
+    const ih = Math.max(1, Math.round(image.height));
+    const mapX = (v) => (((v / 100) * iw - c.x) / c.w) * 100;
+    const mapY = (v) => (((v / 100) * ih - c.y) / c.h) * 100;
+
+    const kept = [];
+    for (const mark of marks || []) {
+      if (!mark) continue;
+
+      if (mark.tool === 'arrow') {
+        const from = { x: mapX(mark.from.x), y: mapY(mark.from.y) };
+        const to = { x: mapX(mark.to.x), y: mapY(mark.to.y) };
+        // Gone only when BOTH ends are outside on the same side: an arrow
+        // crossing the new picture still points at something in it.
+        const out = (a, b, lo, hi) => (a < lo && b < lo) || (a > hi && b > hi);
+        if (out(from.x, to.x, 0, 100) || out(from.y, to.y, 0, 100)) continue;
+        kept.push({ ...mark, from, to });
+        continue;
+      }
+
+      if (mark.tool === 'text') {
+        const at = { x: mapX(mark.at.x), y: mapY(mark.at.y) };
+        if (at.x < 0 || at.y < 0 || at.x > 100 || at.y > 100) continue;
+        kept.push({ ...mark, at });
+        continue;
+      }
+
+      const x = mapX(mark.rect.x);
+      const y = mapY(mark.rect.y);
+      const w = (mark.rect.w / 100) * iw / c.w * 100;
+      const h = (mark.rect.h / 100) * ih / c.h * 100;
+      if (x + w < 0 || y + h < 0 || x > 100 || y > 100) continue;
+      kept.push({ ...mark, rect: { x, y, w, h } });
+    }
+    return kept;
+  }
+
   /** Whether this crop would cut the click out of the picture. */
   const losesMarker = (point, frame, crop, image) =>
     Boolean(point) && Boolean(frame && frame.w)
@@ -153,5 +208,6 @@
   }
 
   return { MINIMUM, clamp, isDeliberate, frameAfter, markerAfter, markerAtAfter,
+    marksAfter,
            losesMarker, losesAnyMarker };
 }));
