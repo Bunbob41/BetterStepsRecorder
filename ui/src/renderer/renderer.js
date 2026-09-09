@@ -1359,10 +1359,15 @@ const redoOnce = () => stepHistory('redo');
 
 let markerDrag = null;
 
-/** Sends a new position, or `null` to put it back where it was recorded. */
-async function commitMarker(id, at) {
+/**
+ * Sends a new position, or `null` to put it back where it was recorded.
+ *
+ * `angle` settles the direction an arrow was already pointing, in the same
+ * change, so the two cannot come apart and one Ctrl+Z takes back one drag.
+ */
+async function commitMarker(id, at, angle) {
   const step = steps.find((s) => s.id === id);
-  const r = await window.bsr.moveMarker(id, at);
+  const r = await window.bsr.moveMarker(id, at, angle);
 
   if (!r || !r.ok) {
     showNotice((r && r.error) || 'Could not move the marker.');
@@ -1458,8 +1463,24 @@ el.indicator.addEventListener('mousedown', (e) => {
   // swallowing it here would leave one open behind the drag.
   e.preventDefault();
   const rect = el.shot.getBoundingClientRect();
+
+  // The direction the arrow is pointing RIGHT NOW, held for the whole drag.
+  //
+  // An arrow nobody has turned works its direction out from where it sits, and
+  // that answer changes as it crosses a line 28% in from the top or the left -
+  // so dragging one used to swing it to a different diagonal partway across
+  // the picture, for no reason the author could see. Moving a marker is not
+  // asking for it to be re-aimed. Held here and settled on release, so what is
+  // let go of is what stays.
+  const step = steps.find((s) => s.id === selectedId);
+  const pos = step && markerPos(step);
+  const hold = (pos && markerOpts.style === 'arrow'
+                && !Number.isFinite(step.markerAngle))
+    ? BsrMarker.angleOf({ x: pos.x, y: pos.y }, markerOpts)
+    : null;
+
   markerDrag = { id: selectedId, rect, from: { x: e.clientX, y: e.clientY },
-                 at: null, moved: false };
+                 at: null, moved: false, angle: hold };
 });
 
 window.addEventListener('mousemove', (e) => {
@@ -1479,7 +1500,11 @@ window.addEventListener('mousemove', (e) => {
   // back to the automatic diagonal for as long as you held the mouse down -
   // which looked exactly like being unable to turn it at all.
   const step = steps.find((s) => s.id === markerDrag.id);
-  if (step) placeIndicator({ ...step, markerAt: { x, y } });
+  if (step) {
+    placeIndicator(Number.isFinite(markerDrag.angle)
+      ? { ...step, markerAt: { x, y }, markerAngle: markerDrag.angle }
+      : { ...step, markerAt: { x, y } });
+  }
 });
 
 window.addEventListener('mouseup', async () => {
@@ -1493,7 +1518,8 @@ window.addEventListener('mouseup', async () => {
     if (step) placeIndicator(step);
     return;
   }
-  await commitMarker(drag.id, drag.at);
+  await commitMarker(drag.id, drag.at,
+                     Number.isFinite(drag.angle) ? drag.angle : undefined);
 });
 
 // ---- the right-click menu -----------------------------------------------------

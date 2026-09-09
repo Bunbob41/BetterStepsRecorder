@@ -42,7 +42,15 @@ contextBridge.exposeInMainWorld('bsr', {
   renameSession: (name) => ipcRenderer.invoke('session:rename', { name }),
   undo: () => ipcRenderer.invoke('edit:undo'),
   redo: () => ipcRenderer.invoke('edit:redo'),
-  moveMarker: (id, at) => ipcRenderer.invoke('step:marker', { id, at }),
+  // The angle travels with the position: moving an arrow can settle the
+  // direction it was pointing, and that has to be one change, not two.
+  //
+  // The key is LEFT OUT rather than sent as undefined. The other side tells
+  // "not mentioned" from "put it back to automatic" by `angle !== undefined`,
+  // and an undefined that arrived as null would clear the angle of every arrow
+  // anybody dragged - the exact bug this was written to fix, one layer down.
+  moveMarker: (id, at, angle) => ipcRenderer.invoke('step:marker',
+    angle === undefined ? { id, at } : { id, at, angle }),
   hideMarker: (id, hidden) => ipcRenderer.invoke('step:marker', { id, hidden }),
   turnMarker: (id, angle) => ipcRenderer.invoke('step:marker', { id, angle }),
   undoDepth: () => ipcRenderer.invoke('edit:undoDepth'),

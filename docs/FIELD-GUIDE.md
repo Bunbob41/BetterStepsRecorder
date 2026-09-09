@@ -617,10 +617,15 @@ If the marker is an arrow, it comes with a small round handle at its tail.
 stays put, because that is the thing you are pointing at, and the tail is what
 moves.
 
-Left alone it chooses for itself: it comes from the upper left, and near the top
-or left edge of a picture it swings round so its tail has room. Once you turn it
-by hand it stays where you put it, in the app and in every export. Right-click
-the screenshot and choose **Point the arrow the way it chooses** to hand that
+Left alone it chooses for itself: it comes from the upper left, and for a click
+near the top or left edge of a picture it swings round so its tail has room.
+
+That choosing stops the moment you touch the arrow. Turning it by the handle
+fixes its direction, and so does **moving it** — whichever way it happened to
+be pointing when you picked it up is the way it still points when you put it
+down. Otherwise an arrow would re-aim itself partway across a picture as you
+dragged it, which is startling and never what was wanted. Right-click the
+screenshot and choose **Point the arrow the way it chooses** to hand the
 decision back.
 
 #### Turning it off
@@ -648,7 +653,8 @@ tall, the middle of the box is not where the words went.
 
 So: **drag the marker**. Pick it up on the screenshot and put it where it should
 have been. It glows faintly once you have moved it, so you can tell at a glance
-which steps you have adjusted.
+which steps you have adjusted. An arrow keeps the direction it was pointing —
+moving a marker is not asking for it to be re-aimed.
 
 Right-click the screenshot and choose **Put the marker back where it was
 recorded** to undo that for good; Ctrl+Z works too.

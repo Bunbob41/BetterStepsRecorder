@@ -164,12 +164,19 @@ const ANSWERS = {
   // Enough of the real handler that the PAGE's behaviour is what is under
   // test: the real one clamps, pushes an undo entry and writes the field.
   // history.js is exercised on its own; this is about the drag.
-  moveMarker: (id, at) => {
+  moveMarker: (id, at, angle) => {
     const step = SESSION.steps.find((x) => x.id === id);
     if (!step) return { ok: false, error: 'Step not found.' };
     if (at) step.markerAt = { x: at.x, y: at.y };
     else delete step.markerAt;
-    LAST_MARKER = { id, at: at ? { ...at } : null };
+    // The real handler writes both fields in one change; a stub that dropped
+    // the angle would report a drag as losing the direction it had settled.
+    if (angle !== undefined) {
+      if (Number.isFinite(angle)) step.markerAngle = ((Math.round(angle) % 360) + 360) % 360;
+      else delete step.markerAngle;
+    }
+    LAST_MARKER = { id, at: at ? { ...at } : null,
+                    angle: angle === undefined ? undefined : angle };
     DEPTH = { undo: DEPTH.undo + 1, redo: 0 };
     depthListener(DEPTH);
     return { ok: true, step };
@@ -810,6 +817,101 @@ app.whenReady().then(async () => {
   if (!pointsUp(keepsAngle.during)) console.log('   ', JSON.stringify(keepsAngle));
   check('and after the drag', pointsUp(keepsAngle.after));
   check('with its handle still there mid-drag', keepsAngle.handleDuring);
+
+  // An arrow nobody has turned still works out its own direction, and that
+  // answer changes 28% in from the top and the left - so dragging one across
+  // that line used to swing it to a different diagonal halfway through the
+  // move. Reported as "if I grab the triangle it does your old 45", next to
+  // the observation that turning it by the handle first made it stop.
+  //
+  // Measured as which side of the tip the TAIL is on, because 45 and 135
+  // degrees have the same bounding box: a swing is invisible to anything that
+  // only looks at the shape.
+  console.log('\nmoving an arrow does not re-aim it:');
+  const held = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const ind = document.getElementById('indicator');
+    const shot = document.getElementById('shot');
+    const sel = document.getElementById('set-marker');
+    sel.value = 'arrow';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(300);
+    document.querySelector('#step-list li[data-id="s2"]').click();
+    await sleep(300);
+
+    const r = shot.getBoundingClientRect();
+    // Where the tail sits relative to the tip, in whole pixels.
+    const tail = (px, py) => {
+      const h = ind.querySelector('.rotate-handle');
+      if (!h) return null;
+      const b = h.getBoundingClientRect();
+      return { dx: Math.round(b.left + b.width / 2 - (r.left + r.width * px)),
+               dy: Math.round(b.top + b.height / 2 - (r.top + r.height * py)) };
+    };
+    // It starts at a quarter in from each edge, on the far side of the line.
+    const before = tail(0.25, 0.25);
+
+    const mark = ind.querySelector('.bsr-marker');
+    const mb = mark.getBoundingClientRect();
+    mark.dispatchEvent(new MouseEvent('mousedown',
+      { bubbles: true, button: 0,
+        clientX: Math.round(mb.left + mb.width / 2),
+        clientY: Math.round(mb.top + mb.height / 2) }));
+    await sleep(20);
+    const to = { x: Math.round(r.left + r.width * 0.6),
+                 y: Math.round(r.top + r.height * 0.6) };
+    window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: to.x, clientY: to.y }));
+    await sleep(80);
+    const during = tail(0.6, 0.6);
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: to.x, clientY: to.y }));
+    await sleep(300);
+    const after = tail(0.6, 0.6);
+    const sent = await window.bsr.__lastMarker();
+
+    // Back where this found it: dragged home, then handed back to automatic
+    // from the menu, so nothing after this measures a step this probe turned.
+    const m2 = ind.querySelector('.bsr-marker');
+    const b2 = m2.getBoundingClientRect();
+    m2.dispatchEvent(new MouseEvent('mousedown',
+      { bubbles: true, button: 0,
+        clientX: Math.round(b2.left + b2.width / 2),
+        clientY: Math.round(b2.top + b2.height / 2) }));
+    await sleep(20);
+    const home = { x: Math.round(r.left + r.width * 0.25),
+                   y: Math.round(r.top + r.height * 0.25) };
+    window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: home.x, clientY: home.y }));
+    await sleep(60);
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: home.x, clientY: home.y }));
+    await sleep(250);
+
+    document.getElementById('shot-wrap').dispatchEvent(new MouseEvent('contextmenu',
+      { bubbles: true, clientX: r.left + 200, clientY: r.top + 150 }));
+    await sleep(80);
+    const auto = [...document.querySelectorAll('#context button')]
+      .find((b) => /the way it chooses/.test(b.textContent));
+    if (auto) auto.click();
+    await sleep(250);
+
+    sel.value = 'circle';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(250);
+    return { before, during, after, sent };
+  })()`);
+
+  const side = (t) => (t ? Math.sign(t.dx) + ',' + Math.sign(t.dy) : 'no handle');
+  check('the tail is off to one side before the drag',
+        Boolean(held.before) && held.before.dx !== 0 && held.before.dy !== 0,
+        JSON.stringify(held.before));
+  check('and on the same side of the tip while it is dragged across the line',
+        side(held.during) === side(held.before),
+        `${side(held.before)} -> ${side(held.during)}`);
+  check('and still there once it is let go',
+        side(held.after) === side(held.before),
+        `${side(held.before)} -> ${side(held.after)}`);
+  // Settled with the move, in one change, or a later redraw works it out again.
+  check('the direction is written down with the new position',
+        Number.isFinite(held.sent && held.sent.angle),
+        JSON.stringify(held.sent));
 
   check('a circle has no handle to turn', turn.circleHandle === false);
   check('an arrow has one', turn.hadHandle === true);

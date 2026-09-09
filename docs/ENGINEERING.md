@@ -159,6 +159,55 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-55 - Moving an arrow settles its direction, rather than re-deriving it
+`(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
+
+The other half of the same report, one day later: "if I grab the triangle it
+does your old 45 ... but if I use the white grab point on the tail end then
+your 45 never comes back."
+
+Both halves were true, and the second one was D-54 working. What was left is
+that `markerAngle` absent means *automatic*, and automatic is
+`direction(pos)` - a step function on the position, flipping 28% in from the
+top and 28% in from the left. Every redraw asks it again. So dragging an arrow
+nobody had turned re-aimed it partway across the picture, at an invisible line,
+while the author was holding it. Nothing had changed about the arrow; the
+question was simply being asked again from a new place.
+
+Two rules now, and the split is the point:
+
+- An arrow **nobody has touched** works out its own direction, exactly as
+  before. Every existing recording and every export is unchanged, and a click
+  near a corner still gets a tail that fits without anyone intervening.
+- **Touching it settles it.** Turning by the handle already did. Now moving
+  does too: the angle the arrow is showing when it is picked up is held for the
+  whole drag and written down with the new position.
+
+Written down in the *same* change as the position - `moveMarker(id, at, angle)`
+onto the one `step:marker` handler - so one Ctrl+Z takes back one drag. Two
+calls would have been two undo entries and a window where a step had its new
+position and its old direction.
+
+The 28% threshold is left alone despite being far more room than the tail
+needs: the arrow is 76px long, so on a 1500px-wide screenshot it wants about
+5%. Tightening it would change where the automatic direction flips on
+recordings people already have, for no gain now that a drag no longer trips
+over it.
+
+**One trap worth naming.** The first version passed `{ id, at, angle }` with
+`angle` undefined for an ordinary move. The handler distinguishes "not
+mentioned" from "put it back to automatic" by `angle !== undefined`, so an
+undefined that arrived over IPC as null would have **cleared the angle of every
+arrow anybody dragged** - the reported bug again, one layer down and this time
+written to disk. The preload omits the key instead of relying on what structured
+clone does with undefined. Not a thing to be clever about at a process boundary.
+
+The check measures which side of the tip the tail is on, not the bounding box:
+45 and 135 degrees have the *same* box, so a swing is invisible to anything
+looking at the shape. It drags across the line and asserts the side is
+unchanged before, during and after, and that the commit carried an angle.
+Mutated by not holding the angle: three of the four fail.
+
 ### D-54 - The marker is drawn from one place, or it drifts
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
 
