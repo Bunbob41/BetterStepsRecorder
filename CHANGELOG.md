@@ -5,6 +5,55 @@ Notable changes, newest first. The reasoning behind each decision lives in
 
 ## Unreleased
 
+### Photographs
+
+- **Photographs from a camera can be steps.** Not everything in a procedure
+  happens on a screen — a cable in the right socket, a switch in the right
+  position, a serial number on the underside of a unit. Add them with **+ Add**,
+  by dragging them onto the window, or by dropping them into the recording's own
+  folder, where they are picked up the next time you open it. That last one is
+  for after a job, when thirty pictures come off a camera at once.
+- Each photo is copied in at 2000 pixels on its long edge as JPEG — a sensible
+  size for a page, small enough that a recording full of them can still be
+  emailed. **The file you dropped in is moved into an `originals` folder inside
+  the recording, not deleted**: the recording keeps a smaller copy, and this
+  tool is not going to be the reason your full-sized photograph stops existing.
+- iPhone photos (HEIC) cannot be read — Windows itself cannot open them without
+  an extra codec. You are told which file, by name, rather than finding one
+  missing later.
+- A photo has no click, so **right-click it and choose *Put a marker here*** if
+  you want to point at something. Then drag it or turn it like any other marker.
+
+### Marking up
+
+- **Marks can be changed after you draw them.** A box, ring, arrow, highlight or
+  label used to be painted into the screenshot the instant it was made, so
+  "delete this arrow" had no answer except undo — in order, taking every later
+  mark with it. They are held as data now: click one to take hold of it, drag it
+  where it should have gone, change its colour, and delete just that one.
+- **A Label tool.** Click where the words should start, type them, press Enter.
+  The box appears on the picture at that spot, in roughly the size and colour it
+  will end up. Three sizes; double-click a label to retype it, and clearing the
+  words removes it.
+- **Colours**: red, blue, green, amber or black, for a mark you have selected or
+  for the next one you draw (right-click the Box, Circle, Arrow or Label tool).
+  The highlighter keeps its own colours, which mean something in the key at the
+  front of a guide.
+- Blur is unchanged and always will be: it destroys the pixels rather than
+  covering them, because a guide whose screenshots still contain the customer
+  name under a grey box is not redacted.
+- Marks are laid over the picture in the app, in HTML and in PDF, and drawn into
+  it for Word and LaTeX, which embed an image and cannot lay anything on top.
+  Crop a marked screenshot and the marks move with it.
+- Fixed: **with a tool armed, right-clicking drew a mark** as well as opening the
+  menu — and the menu was usually being reached for in order to get rid of one.
+- Fixed: **the controls for a selected mark could not be used.** The strip floats
+  over the picture, and pressing anything on it was also pressing the picture
+  underneath, which deselected the mark and took the button away before the
+  click landed. The size dropdown could never be opened at all.
+
+### The click marker
+
 - **The arrow marker can be turned.** Drag the small handle at its tail and the
   arrow swings around the point it marks — it used to be stuck on one of four
   diagonals. Right-click the screenshot to hand it back to choosing its own
@@ -28,6 +77,47 @@ Notable changes, newest first. The reasoning behind each decision lives in
   outright if the crop cuts it away.
 - The warning before a crop now asks about the marker you can see rather than
   the recorded click, which are not the same thing once you have moved one.
+- Fixed: **a turned arrow snapped back to a diagonal while you dragged it**, and
+  righted itself only when you let go.
+- Fixed: **moving an arrow re-aimed it.** An arrow nobody has turned works out
+  its own direction, and that answer changed as it crossed an invisible line
+  28% in from the top or the left. Moving a marker is not asking for it to be
+  re-aimed; the direction it has when you pick it up is the one it keeps.
+
+### Exporting
+
+- **LaTeX export**, for teams whose manuals live in Overleaf. It produces a
+  *fragment* — a `\subsection`, a numbered list and the screenshots between the
+  steps — to paste into a document that already has a preamble and a house
+  style. The screenshots go in a folder beside it, and the file's own header
+  says what it assumes (`graphicx`) and how to pin the figures if they drift.
+- Everything that came off your screen is escaped on the way out: a backslash in
+  a file path is a command to LaTeX, and left alone it breaks the build or
+  quietly does something nobody asked for.
+
+### The window
+
+- **The steps column folds away** — Ctrl+B, or the button in its header. The
+  picture gets the space, and a narrow rail keeps the step count and the way
+  back in view. Arrow Up and Down still move between steps while it is folded.
+- **The drawing tools are icons**, and eleven buttons have left the window
+  entirely. **Delete step** and **Re-record step** are on a step's right-click
+  menu, where Delete already was. **+ Note**, **+ Section** and **+ Photo** are
+  one **+ Add**. **Recordings**, **Open…** and **Check** are one **Recordings**
+  menu — Check is unchanged, it just no longer occupies the window all day for
+  something done once in a blue moon.
+
+### Fixes
+
+- Fixed: **the step's description box stopped showing anything** in builds 99 to
+  104, because the new Label tool and the description box were both captured
+  under the same name internally.
+- A recording that cannot be opened now says which of the two reasons it is:
+  made by a newer version, or damaged.
+- Installers are named for the build they came from —
+  `StepsRecorder-Setup-0.1.2-build109.exe` — so two builds of the same version
+  can be told apart. Previously every build overwrote the same file, which is
+  how a tested build and three newer ones became indistinguishable.
 
 ## 0.1.2
 
