@@ -30,6 +30,9 @@ const el = {
   photo: $('btn-photo'),
   marks: $('marks'),
   text: $('btn-text'), labelInput: $('label-input'),
+  markBar: $('mark-bar'), markKind: $('mark-kind'), markColours: $('mark-colours'),
+  markSizeWrap: $('mark-size-wrap'), markSize: $('mark-size'),
+  markDelete: $('mark-delete'), markDone: $('mark-done'),
   exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
   expTitle: $('exp-title'), expFormat: $('exp-format'),
   expGo: $('exp-go'), expCancel: $('exp-cancel'), expNote: $('exp-note'),
@@ -208,6 +211,10 @@ function renderList() {
 
 async function select(id) {
   selectedId = id;
+  // A mark belongs to the step it is on; carrying a selection across to the
+  // next step would leave the bar describing something not on screen.
+  selectedMarkId = null;
+  if (el.markBar) el.markBar.hidden = true;
   renderList();
 
   const step = steps.find((s) => s.id === id);
@@ -315,7 +322,8 @@ function placeMarks(step) {
     return;
   }
 
-  const svg = BsrAnnotate.svgAll(marks, el.shot.naturalWidth, el.shot.naturalHeight);
+  const svg = BsrAnnotate.svgAll(marks, el.shot.naturalWidth, el.shot.naturalHeight,
+                                 { selected: selectedMarkId });
   // Parsed rather than assigned: innerHTML with text that came off somebody's
   // screen is how a window title gets to write elements. This produces nodes
   // and nothing else - scripts do not run, and an attribute that looked like a
@@ -794,7 +802,16 @@ document.addEventListener('keydown', async (e) => {
 
   if (typing) return;
 
+  // A selected mark takes Delete first. Without this the key would delete the
+  // STEP while the window is showing a bar about one arrow on it, which is a
+  // long way from what was meant and expensive to be wrong about.
+  if (e.key === 'Delete' && selectedMarkId && selectedMark()) {
+    e.preventDefault();
+    deleteMark(selectedMarkId);
+    return;
+  }
   if (e.key === 'Delete') { e.preventDefault(); deleteSelection(); return; }
+  if (e.key === 'Escape' && selectedMarkId) { selectMark(null); return; }
 
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
@@ -2157,6 +2174,175 @@ function previewDrag(from, to) {
   el.dragPreview.append(line, head);
 }
 let dragStart = null;
+
+// ---- a mark you have hold of ---------------------------------------------------
+// Controls for one mark appear when that mark is selected and vanish when it is
+// not, rather than living in the window permanently describing something that
+// may not exist. It is also the only way to move a label after placing it: the
+// alternative was deleting it and typing it again.
+
+const MARK_NAMES = { box: 'Box', ellipse: 'Circle', arrow: 'Arrow',
+                     highlight: 'Highlight', text: 'Label' };
+
+let selectedMarkId = null;
+let markMove = null;
+
+function selectedMark() {
+  const step = steps.find((s) => s.id === selectedId);
+  if (!step || !selectedMarkId) return null;
+  return (step.marks || []).find((m) => m.id === selectedMarkId) || null;
+}
+
+function paintMarkBar() {
+  const mark = selectedMark();
+  if (!mark) {
+    el.markBar.hidden = true;
+    el.markColours.replaceChildren();
+    return;
+  }
+
+  el.markKind.textContent = MARK_NAMES[mark.tool] || 'Mark';
+
+  // A highlight keeps the highlighter's own colours: they mean something in
+  // the key at the front of the guide, and offering the shape palette here
+  // would quietly break that.
+  const palette = mark.tool === 'highlight'
+    ? BsrAnnotate.HIGHLIGHTS.map((h) => ({ id: h.id, name: h.name, value: h.fill }))
+    : BsrAnnotate.COLOURS;
+
+  el.markColours.replaceChildren();
+  for (const colour of palette) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.title = colour.name;
+    b.style.background = colour.value;
+    if (colour.id === mark.colour) b.className = 'chosen';
+    b.addEventListener('click', () => changeMark(mark.id, { colour: colour.id }));
+    el.markColours.append(b);
+  }
+
+  el.markSizeWrap.hidden = mark.tool !== 'text';
+  if (mark.tool === 'text') el.markSize.value = mark.size || 'medium';
+
+  el.markBar.hidden = false;
+}
+
+function selectMark(id) {
+  selectedMarkId = id;
+  const step = steps.find((s) => s.id === selectedId);
+  placeMarks(step);
+  paintMarkBar();
+}
+
+/** Changes one field of one mark, as one undoable step. */
+async function changeMark(id, patch) {
+  const step = steps.find((s) => s.id === selectedId);
+  if (!step) return;
+  await commitMarks(step, (step.marks || [])
+    .map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  paintMarkBar();
+}
+
+async function deleteMark(id) {
+  const step = steps.find((s) => s.id === selectedId);
+  if (!step) return;
+  await commitMarks(step, (step.marks || []).filter((m) => m.id !== id));
+  selectMark(null);
+}
+
+el.markSize.addEventListener('change', () => {
+  const mark = selectedMark();
+  if (mark) changeMark(mark.id, { size: el.markSize.value });
+});
+el.markDelete.addEventListener('click', () => {
+  const mark = selectedMark();
+  if (mark) deleteMark(mark.id);
+});
+el.markDone.addEventListener('click', () => selectMark(null));
+
+/** Where a pointer is on the picture, in percentages, or null if it is off it. */
+function pictureAt(clientX, clientY) {
+  const r = el.shot.getBoundingClientRect();
+  if (!r.width || !r.height) return null;
+  if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) {
+    return null;
+  }
+  return { x: ((clientX - r.left) / r.width) * 100,
+           y: ((clientY - r.top) / r.height) * 100 };
+}
+
+/** The mark under a pointer, when there is one and nothing else wants the click. */
+function markUnder(clientX, clientY) {
+  const step = steps.find((s) => s.id === selectedId);
+  if (!step || !step.marks || !step.marks.length) return null;
+  const at = pictureAt(clientX, clientY);
+  return at ? BsrAnnotate.markAt(step.marks, at.x, at.y) : null;
+}
+
+// Picking one up. Not on the marks layer itself: it takes no pointer events, so
+// that a drag which starts over a mark can still draw a new one when a tool is
+// armed, and the picture underneath stays draggable for the click marker.
+el.wrap.addEventListener('mousedown', (e) => {
+  if (e.button !== 0 || armedTool || !selectedId) return;
+  // The click marker and its handle are on a layer above this and speak first.
+  if (e.target.closest && e.target.closest('.bsr-marker, .rotate-handle')) return;
+
+  const mark = markUnder(e.clientX, e.clientY);
+  if (!mark) { if (selectedMarkId) selectMark(null); return; }
+
+  e.preventDefault();
+  selectMark(mark.id);
+  const at = pictureAt(e.clientX, e.clientY);
+  markMove = { id: mark.id, from: at, origin: mark, moved: false };
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!markMove) return;
+  const at = pictureAt(e.clientX, e.clientY);
+  if (!at) return;
+
+  const dx = at.x - markMove.from.x;
+  const dy = at.y - markMove.from.y;
+  if (Math.abs(dx) > 0.4 || Math.abs(dy) > 0.4) markMove.moved = true;
+  if (!markMove.moved) return;
+
+  // Drawn from the step as it would be, not written down until the mouse is
+  // let go: a drag is one change, not sixty.
+  const step = steps.find((s) => s.id === selectedId);
+  if (!step) return;
+  const preview = (step.marks || [])
+    .map((m) => (m.id === markMove.id ? BsrAnnotate.movedBy(markMove.origin, dx, dy) : m));
+  placeMarks({ ...step, marks: preview });
+});
+
+window.addEventListener('mouseup', async (e) => {
+  const move = markMove;
+  markMove = null;
+  if (!move || !move.moved) return;
+
+  const at = pictureAt(e.clientX, e.clientY);
+  const step = steps.find((s) => s.id === selectedId);
+  if (!at || !step) { placeMarks(step); return; }
+
+  const dx = at.x - move.from.x;
+  const dy = at.y - move.from.y;
+  await commitMarks(step, (step.marks || [])
+    .map((m) => (m.id === move.id ? BsrAnnotate.movedBy(move.origin, dx, dy) : m)));
+  paintMarkBar();
+});
+
+// The pointer says when there is something to pick up.
+el.wrap.addEventListener('mousemove', (e) => {
+  if (armedTool || markMove) return;
+  el.wrap.classList.toggle('pickable', Boolean(markUnder(e.clientX, e.clientY)));
+});
+
+// Double-clicking a label is the obvious way to retype it.
+el.wrap.addEventListener('dblclick', (e) => {
+  if (armedTool) return;
+  const mark = markUnder(e.clientX, e.clientY);
+  if (mark && mark.tool === 'text') openLabel(0, 0, mark);
+});
 
 /**
  * Writing a label on the picture.

@@ -78,10 +78,27 @@
    * and enormous on a dialog. Clamped, so a very small screenshot still gets
    * letters that fit and a very large one does not get a headline.
    */
-  function fontFor(width, height) {
+  function fontFor(width, height, scale = 1) {
     const diagonal = Math.sqrt(width * width + height * height);
-    return Math.max(13, Math.min(64, Math.round(diagonal / 46)));
+    const base = Math.max(13, Math.min(64, Math.round(diagonal / 46)));
+    return Math.max(9, Math.round(base * (Number(scale) > 0 ? Number(scale) : 1)));
   }
+
+  /**
+   * The sizes a label can be.
+   *
+   * Three, not a number to type. A caption on a screenshot is either a note, a
+   * label or a heading, and a person choosing between those three is making a
+   * decision; a person choosing between 17 and 19 points is fiddling.
+   */
+  const SIZES = [
+    { id: 'small', name: 'Small', scale: 0.7 },
+    { id: 'medium', name: 'Medium', scale: 1 },
+    { id: 'large', name: 'Large', scale: 1.6 },
+  ];
+
+  const sizeScale = (id) =>
+    (SIZES.find((x) => x.id === id) || SIZES[1]).scale;
 
   const XML = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   const escapeXml = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => XML[c]);
@@ -135,7 +152,7 @@
     }
 
     if (mark.tool === 'text') {
-      const size = fontFor(width, height);
+      const size = fontFor(width, height, sizeScale(mark.size));
       // Painted stroke-then-fill, which is how the shapes get their pale
       // outline: lettering has to be readable on a white dialog and on a dark
       // terminal, and this is the one thing that works on both.
@@ -190,8 +207,15 @@
     return { w: 1000, h: 1000 };
   }
 
-  /** Every mark on a step, as one overlay sized to the picture. */
-  function svgAll(marks, width, height) {
+  /**
+   * Every mark on a step, as one overlay sized to the picture.
+   *
+   * `selected` draws a dashed box around one of them. It is an option rather
+   * than a property of the mark because it is a fact about the WINDOW, not
+   * about the recording: an export calls this without it, and so cannot print
+   * somebody's selection into a document by accident.
+   */
+  function svgAll(marks, width, height, { selected = null } = {}) {
     const list = (marks || []).filter(Boolean);
     if (!list.length) return '';
     // Stretched, not fitted. The overlay is laid over a picture whose
@@ -201,7 +225,32 @@
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" `
          + `preserveAspectRatio="none" width="${width}" height="${height}">`
          + list.map((m) => svgFor(m, width, height)).join('')
+         + (selected ? outlineFor(list.find((m) => m.id === selected), width, height) : '')
          + '</svg>';
+  }
+
+  /**
+   * A dashed box around the selected mark, drawn in the picture's own pixels.
+   *
+   * Two strokes, dark under pale, for the same reason every mark has a pale
+   * outline: this has to be visible on a white dialog and on a dark terminal,
+   * and one colour cannot be.
+   */
+  function outlineFor(mark, width, height) {
+    if (!mark) return '';
+    const b = boundsOf(mark, 1.5);
+    const x = (b.x / 100) * width;
+    const y = (b.y / 100) * height;
+    const w = (b.w / 100) * width;
+    const h = (b.h / 100) * height;
+    const dash = Math.max(4, Math.round(Math.min(width, height) / 90));
+    const line = (c, sw) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" `
+                          + `fill="none" stroke="${c}" stroke-width="${sw}" `
+                          + `stroke-dasharray="${dash} ${dash}"/>`;
+    return `<g class="mark-selection">`
+         + line('rgba(255,255,255,.9)', dash * 0.9)
+         + line('#1f6feb', dash * 0.45)
+         + '</g>';
   }
 
   /**
@@ -233,6 +282,26 @@
              y: Math.min(mark.rect.y, mark.rect.y + mark.rect.h) - pad,
              w: Math.abs(mark.rect.w) + pad * 2,
              h: Math.abs(mark.rect.h) + pad * 2 };
+  }
+
+  /**
+   * The same mark, shifted by a distance in percentage points.
+   *
+   * Every tool's geometry moves here, in one place, because "move it" is one
+   * idea and three implementations of it would drift apart the first time a
+   * fourth shape was added.
+   */
+  function movedBy(mark, dx, dy) {
+    if (mark.tool === 'arrow') {
+      return { ...mark,
+               from: { x: mark.from.x + dx, y: mark.from.y + dy },
+               to: { x: mark.to.x + dx, y: mark.to.y + dy } };
+    }
+    if (mark.tool === 'text') {
+      return { ...mark, at: { x: mark.at.x + dx, y: mark.at.y + dy } };
+    }
+    return { ...mark,
+             rect: { ...mark.rect, x: mark.rect.x + dx, y: mark.rect.y + dy } };
   }
 
   /**
@@ -427,5 +496,6 @@
 
   return { TOOLS, HIGHLIGHTS, COLOURS, highlightFill, colourValue, legendFor,
            strokeFor, fontFor, arrowGeometry, headArea, draw, isDeliberate,
-           svgFor, svgAll, sizeOf, boundsOf, markAt, pixelsOf, escapeXml };
+           SIZES, sizeScale, svgFor, svgAll, outlineFor, sizeOf, boundsOf,
+           markAt, movedBy, pixelsOf, escapeXml };
 }));

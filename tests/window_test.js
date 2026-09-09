@@ -34,7 +34,16 @@ const path = require('node:path');
 const RENDERER = path.join(__dirname, '..', 'ui', 'src', 'renderer');
 
 let pass = 0, fail = 0;
-const check = (n, c) => { c ? (pass++, console.log('  PASS ' + n)) : (fail++, console.log('  FAIL ' + n)); };
+// The third argument is what the failure looked like. It was accepted and
+// thrown away for most of this file's life, so a run that failed said only
+// that it had - and every diagnostic anybody had bothered to pass went
+// straight to nowhere.
+const check = (n, c, extra) => {
+  if (c) { pass++; console.log('  PASS ' + n); return; }
+  fail++;
+  console.log('  FAIL ' + n + (extra ? `
+        ${extra}` : ''));
+};
 
 /** Everything the page asks the main process for, answered plausibly. */
 const PRELOAD = `
@@ -592,6 +601,121 @@ app.whenReady().then(async () => {
         String(label.reopenedWith));
   check('and emptying it takes the label away', label.leftAfterEmptying === 0,
         `${label.leftAfterEmptying} left`);
+
+  // Reported from a real screenshot: a label lands where you clicked, and where
+  // you clicked is not always where it belongs. Before this the only fix was to
+  // delete it and type it again.
+  console.log('\ntaking hold of a mark:');
+  const grabbed = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const wrap = document.getElementById('shot-wrap');
+    const shot = document.getElementById('shot');
+    const layer = document.getElementById('marks');
+    const bar = document.getElementById('mark-bar');
+    const box = document.getElementById('label-input');
+    const r = shot.getBoundingClientRect();
+    const at = (fx, fy) => ({ clientX: Math.round(r.left + r.width * fx),
+                              clientY: Math.round(r.top + r.height * fy) });
+
+    document.querySelector('#step-list li[data-id="s1"]').click();
+    await sleep(250);
+
+    // A label at a quarter across, half way down.
+    document.getElementById('btn-text').click();
+    await sleep(20);
+    wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.25, 0.5) }));
+    await sleep(60);
+    box.value = 'woah';
+    box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await sleep(300);
+    document.getElementById('btn-text').click();     // disarm
+    await sleep(20);
+
+    const barBefore = !bar.hidden;
+    const where = () => {
+      const t = layer.querySelector('text');
+      return t ? Math.round(Number(t.getAttribute('x'))) : null;
+    };
+    const startX = where();
+
+    // Click it: the strip appears and says what it is.
+    wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.26, 0.49) }));
+    await sleep(60);
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(0.26, 0.49) }));
+    await sleep(200);
+    const selected = { shown: !bar.hidden,
+                       kind: document.getElementById('mark-kind').textContent,
+                       sizeShown: !document.getElementById('mark-size-wrap').hidden,
+                       outline: Boolean(layer.querySelector('.mark-selection')),
+                       swatches: document.querySelectorAll('#mark-colours button').length };
+
+    // Drag it to the right.
+    wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.26, 0.49) }));
+    await sleep(30);
+    window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, ...at(0.6, 0.49) }));
+    await sleep(60);
+    const during = where();
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(0.6, 0.49) }));
+    await sleep(300);
+    const afterMove = where();
+
+    // Make it large.
+    const size = document.getElementById('mark-size');
+    const fontBefore = Number(layer.querySelector('text').getAttribute('font-size'));
+    size.value = 'large';
+    size.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(300);
+    const fontAfter = Number(layer.querySelector('text').getAttribute('font-size'));
+
+    // And Escape lets go without changing anything.
+    const activeAtEscape = document.activeElement
+      ? document.activeElement.tagName : 'none';
+    // On document, where the window's keyboard handler actually listens.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(150);
+    const letGo = bar.hidden;
+
+    // Clean up after ourselves: this step belongs to the checks that follow.
+    wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.6, 0.49) }));
+    await sleep(60);
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(0.6, 0.49) }));
+    await sleep(150);
+    const barBeforeDelete = !bar.hidden;
+    const marksBeforeDelete = layer.querySelectorAll('[data-mark]').length;
+    document.getElementById('mark-delete').click();
+    await sleep(300);
+    const left = layer.querySelectorAll('[data-mark]').length;
+
+    return { barBefore, startX, selected, during, afterMove,
+             fontBefore, fontAfter, letGo, left, activeAtEscape,
+             barBeforeDelete, marksBeforeDelete };
+  })()`);
+
+  check('nothing is selected to begin with', grabbed.barBefore === false);
+  check('clicking a mark selects it', grabbed.selected.shown);
+  check('and the strip says what it is', grabbed.selected.kind === 'Label',
+        grabbed.selected.kind);
+  check('with a size, because it is a label', grabbed.selected.sizeShown);
+  check('and its colours to choose from', grabbed.selected.swatches === 5,
+        `${grabbed.selected.swatches} swatches`);
+  check('the selected one is outlined on the picture', grabbed.selected.outline);
+
+  check('dragging moves it while the mouse is down',
+        grabbed.during !== null && grabbed.during > grabbed.startX + 50,
+        `${grabbed.startX} -> ${grabbed.during}`);
+  check('and it stays where it was let go',
+        grabbed.afterMove !== null && Math.abs(grabbed.afterMove - grabbed.during) < 30,
+        `${grabbed.during} -> ${grabbed.afterMove}`);
+  check('choosing a larger size redraws it larger',
+        grabbed.fontAfter > grabbed.fontBefore, `${grabbed.fontBefore} -> ${grabbed.fontAfter}`);
+  check('Escape lets it go', grabbed.letGo,
+        `focus was on ${grabbed.activeAtEscape}`);
+  // Relative, not absolute: earlier checks in this file draw marks of their own
+  // on these steps, and a probe that assumed it had the picture to itself would
+  // fail for reasons that have nothing to do with deleting.
+  check('and Delete on the strip removes it',
+        grabbed.left === grabbed.marksBeforeDelete - 1,
+        `${grabbed.marksBeforeDelete} mark(s) before, ${grabbed.left} after`);
 
   console.log('\nthe right button does not draw:');
   const rightClick = await win.webContents.executeJavaScript(`(async () => {

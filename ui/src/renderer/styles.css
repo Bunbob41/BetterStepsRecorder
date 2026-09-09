@@ -848,3 +848,30 @@ body.dropping::after {
   font-weight: 600;
   outline: none;
 }
+
+/* The strip that appears while a mark is selected. */
+.mark-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  background: #171b23;
+  border: 1px solid #2b323d;
+  border-radius: 8px;
+}
+.mark-kind { font-weight: 600; color: #e8ecf4; }
+.mark-colours { display: flex; gap: 6px; }
+.mark-colours button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+.mark-colours button.chosen { border-color: #e8ecf4; }
+.mark-size { display: flex; align-items: center; gap: 6px; color: #aab3c0; }
+.mark-hint { margin-left: auto; color: #7b8595; font-size: 12px; }
+/* A mark under the pointer, when nothing is armed, can be picked up. */
+.shot-wrap.pickable { cursor: pointer; }

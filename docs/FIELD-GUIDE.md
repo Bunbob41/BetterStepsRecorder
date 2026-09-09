@@ -999,10 +999,17 @@ The first five say *look here*, which the recorder cannot know. They are held as
 **data on the step**, not painted into the screenshot, and that is what lets you
 change your mind:
 
-- **Right-click any mark to delete it** — that one, whichever order you drew
-  them in. Not undo, and not the four marks you drew after it.
-- **Right-click it to change its colour** — red, blue, green, amber or black.
-- **Right-click a label to retype it.** Clearing the words removes it.
+**Click a mark to take hold of it.** A strip appears above the picture with
+just that mark's controls — its colour, its size if it is a label, and Delete
+— and **you can drag it wherever it should have gone**. Press Escape, or click
+somewhere empty, to let it go. Double-click a label to retype it.
+
+Everything is also on the right-click menu if you prefer it:
+
+- **Delete it** — that one, whichever order you drew them in. Not undo, and not
+  the four marks you drew after it.
+- **Change its colour** — red, blue, green, amber or black.
+- **Retype a label.** Clearing the words removes it.
 
 To set the colour of the *next* mark, right-click the Box, Circle, Arrow or
 Label tool and choose. That choice is remembered.

@@ -223,6 +223,61 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-61 - A mark can be taken hold of, and its controls arrive with it
+`(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
+
+Two things asked for at once: a way to adjust a label after placing it, and
+something done about a crowded window. They have the same answer.
+
+Clicking a mark selects it. A strip appears above the picture carrying only what
+applies to THAT mark - its colour, a size if it is a label, and delete - and it
+goes away when nothing is selected. Dragging moves it. So the window gains no
+permanent chrome, and the controls that exist are about something on screen
+rather than describing a thing that may not be there.
+
+The alternative - a size dropdown and a colour picker sitting in the toolbar all
+day - would have made the crowding worse in order to fix the label, which is the
+trade this avoids.
+
+Details worth keeping:
+
+- **Which mark is under the pointer is worked out from where the marks are**,
+  not by hit-testing the SVG. The overlay takes no pointer events at all, so a
+  drag that starts over a mark still draws when a tool is armed, and the picture
+  underneath is still draggable for the click marker. The click marker and its
+  rotate handle sit on a layer above and are checked for first.
+- **A drag is one change.** The preview is drawn from the step as it would be;
+  nothing is written down until the mouse is let go, or a single move across the
+  picture would be sixty undo entries.
+- **Delete removes the selected mark rather than the step** while one is
+  selected. Without that the key would delete a step while the window is showing
+  a bar about one arrow on it.
+- **Selection is a fact about the window, not the recording.** `svgAll` takes it
+  as an option, so an export cannot print somebody's selection into a document.
+- **Changing step lets the mark go**, or the strip would describe something that
+  is no longer on screen.
+
+Three sizes for a label, not a number to type: a caption is a note, a label or a
+heading, and choosing between those is a decision, while choosing between 17 and
+19 points is fiddling.
+
+**Two faults in the test suite came out of writing the check for this**, and
+both had been silently costing information for a long time:
+
+- `check()` in `window_test.js` accepted a third argument, the diagnostic, and
+  threw it away. Every failure in that file printed only its name, and every
+  hint anybody had passed went nowhere. A failing check that has been told what
+  went wrong and does not say is worse than one that was never told.
+- The probe pressed Escape at `window`, where nothing listens: the keyboard
+  handler is on `document`, and an event dispatched AT window has a propagation
+  path of window alone. It looked exactly like a broken Escape key. Worth
+  knowing generally - dispatching to the wrong node is indistinguishable from
+  the feature not working.
+
+Also: probes in that file draw marks that outlive them, so a later one that
+assumed it had the picture to itself measured somebody else's leftovers. The
+count is relative now.
+
 ### D-60 - A label is typed where it will appear
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
 

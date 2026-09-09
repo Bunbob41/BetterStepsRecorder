@@ -141,6 +141,24 @@
             <button id="btn-delete" class="danger">Delete step</button>
           </div>
         </div>
+        <!-- Only while a mark is selected. Controls that apply to one thing
+             appear when that thing is in hand, rather than sitting in the
+             window all day describing something that is not there. -->
+        <div id="mark-bar" class="mark-bar" hidden>
+          <span id="mark-kind" class="mark-kind"></span>
+          <span id="mark-colours" class="mark-colours"></span>
+          <label id="mark-size-wrap" class="mark-size" hidden>
+            <span>Size</span>
+            <select id="mark-size">
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+            </select>
+          </label>
+          <span class="mark-hint">Drag it to move it</span>
+          <button id="mark-delete" class="danger">Delete</button>
+          <button id="mark-done">Done</button>
+        </div>
         <div id="shot-wrap" class="shot-wrap">
           <img id="shot" alt="" />
           <!-- The marks somebody has drawn on this step. Under the click
