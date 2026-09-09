@@ -66,9 +66,11 @@
         <span>Steps</span>
         <button id="btn-check" class="tiny" title="Check whether the controls these steps refer to still exist">Check</button>
         <span class="insert">
-          <button id="btn-note" class="tiny" title="Add a written step - an instruction that was not a click">+ Note</button>
-          <button id="btn-section" class="tiny" title="Add a heading, to group the steps below it into a phase">+ Section</button>
-          <button id="btn-photo" class="tiny" title="Add photographs taken with a camera - or drag them onto the window, or drop them in the recording&apos;s folder">+ Photo</button>
+          <!-- One button, three things it can add. All three are also on the
+               right-click menu of a step, which is where two of them already
+               were while these buttons duplicated them. -->
+          <button id="btn-add" class="tiny"
+                  title="Add a note, a section heading, or photographs">+ Add</button>
         </span>
         <span id="count" class="count">0</span>
       </div>
@@ -121,45 +123,60 @@
              every time a tool is added. -->
         <div class="tools">
           <div class="group">
-            <button id="btn-box" class="tool" title="Draw a box around something">Box</button>
-            <button id="btn-ellipse" class="tool" title="Draw a circle or oval">Circle</button>
-            <button id="btn-arrow" class="tool" title="Point at something">Arrow</button>
+            <button id="btn-box" class="tool" title="Box" aria-label="Box">
+              <svg viewBox="0 0 22 22" aria-hidden="true"><rect x="3.5" y="4.5" width="15" height="13" rx="1.5"/></svg>
+            </button>
+            <button id="btn-ellipse" class="tool" title="Circle" aria-label="Circle">
+              <svg viewBox="0 0 22 22" aria-hidden="true"><ellipse cx="11" cy="11" rx="7.5" ry="6.5"/></svg>
+            </button>
+            <button id="btn-arrow" class="tool" title="Arrow" aria-label="Arrow">
+              <svg viewBox="0 0 22 22" aria-hidden="true"><path d="M4 18 L15 7"/><path d="M9.5 6.5 L16 6 L15.5 12.5" stroke-linejoin="round"/></svg>
+            </button>
             <button id="btn-highlight" class="tool"
-                    title="Highlight an area — right-click to choose a colour">Highlight</button>
+                    title="Highlight an area &mdash; right-click to choose a colour"
+                    aria-label="Highlight">
+              <svg viewBox="0 0 22 22" aria-hidden="true"><path d="M4 15.5 L12.5 4.5 L17.5 8 L9 19 L4 19 Z"/></svg>
+            </button>
             <button id="btn-text" class="tool"
-                    title="Write a label on the picture &mdash; right-click to choose a colour">Label</button>
-            <button id="btn-blur" class="tool">Blur area</button>
+                    title="Write a label on the picture &mdash; right-click to choose a colour"
+                    aria-label="Label">
+              <svg viewBox="0 0 22 22" aria-hidden="true"><path d="M4.5 6.5 L4.5 4.5 L17.5 4.5 L17.5 6.5"/><path d="M11 4.5 L11 17.5"/><path d="M8 17.5 L14 17.5"/></svg>
+            </button>
+            <button id="btn-blur" class="tool" title="Blur area" aria-label="Blur area">
+              <svg viewBox="0 0 22 22" aria-hidden="true"><rect x="3.5" y="4.5" width="15" height="13" rx="1.5" stroke-dasharray="3 2.5"/><path d="M7 11 L15 11"/><path d="M7 14 L15 14"/></svg>
+            </button>
           </div>
           <span class="divider"></span>
           <div class="group">
             <button id="btn-crop" class="tool"
-                    title="Trim the screenshot to the part that matters">Crop</button>
+                    title="Trim the screenshot to the part that matters" aria-label="Crop">
+              <svg viewBox="0 0 22 22" aria-hidden="true"><path d="M6.5 2.5 L6.5 15.5 L19.5 15.5"/><path d="M2.5 6.5 L15.5 6.5 L15.5 19.5"/></svg>
+            </button>
           </div>
-          <span class="divider"></span>
-          <div class="group">
-            <button id="btn-rerecord">Re-record step</button>
-            <button id="btn-delete" class="danger">Delete step</button>
-          </div>
-        </div>
-        <!-- Only while a mark is selected. Controls that apply to one thing
-             appear when that thing is in hand, rather than sitting in the
-             window all day describing something that is not there. -->
-        <div id="mark-bar" class="mark-bar" hidden>
-          <span id="mark-kind" class="mark-kind"></span>
-          <span id="mark-colours" class="mark-colours"></span>
-          <label id="mark-size-wrap" class="mark-size" hidden>
-            <span>Size</span>
-            <select id="mark-size">
-              <option value="small">Small</option>
-              <option value="medium">Medium</option>
-              <option value="large">Large</option>
-            </select>
-          </label>
-          <span class="mark-hint">Drag it to move it</span>
-          <button id="mark-delete" class="danger">Delete</button>
-          <button id="mark-done">Done</button>
+          <!-- Re-record and Delete used to sit here, permanently, for things
+               done rarely and one of them destructive. Both are on the
+               right-click menu of a step, where Delete already was, and Del
+               already deleted. -->
         </div>
         <div id="shot-wrap" class="shot-wrap">
+          <!-- Only while a mark is selected. Controls that apply to one thing
+               appear when that thing is in hand, rather than sitting in the
+               window all day describing something that is not there. -->
+          <div id="mark-bar" class="mark-bar" hidden>
+            <span id="mark-kind" class="mark-kind"></span>
+            <span id="mark-colours" class="mark-colours"></span>
+            <label id="mark-size-wrap" class="mark-size" hidden>
+              <span>Size</span>
+              <select id="mark-size">
+                <option value="small">Small</option>
+                <option value="medium">Medium</option>
+                <option value="large">Large</option>
+              </select>
+            </label>
+            <span class="mark-hint">Drag it to move it</span>
+            <button id="mark-delete" class="danger">Delete</button>
+            <button id="mark-done">Done</button>
+          </div>
           <img id="shot" alt="" />
           <!-- The marks somebody has drawn on this step. Under the click
                indicator, so a marker dropped on top of a box is still the

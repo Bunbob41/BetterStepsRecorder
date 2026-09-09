@@ -4,8 +4,8 @@ const el = {
   record: $('btn-record'), pause: $('btn-pause'), stop: $('btn-stop'), open: $('btn-open'),
   dot: $('dot'), status: $('status-text'), list: $('step-list'), count: $('count'),
   empty: $('empty'), detailEmpty: $('detail-empty'), detailBody: $('detail-body'),
-  text: $('detail-text'), meta: $('detail-meta'), del: $('btn-delete'),
-  rerecord: $('btn-rerecord'), arming: $('arming'), armingN: $('arming-n'),
+  text: $('detail-text'), meta: $('detail-meta'),
+  arming: $('arming'), armingN: $('arming-n'),
   armingCancel: $('arming-cancel'),
   shot: $('shot'), indicator: $('indicator'),
   saveState: $('save-state'), reveal: $('btn-reveal'),
@@ -27,9 +27,8 @@ const el = {
   box: $('btn-box'), ellipse: $('btn-ellipse'), arrow: $('btn-arrow'),
   highlight: $('btn-highlight'), dragPreview: $('drag-preview'),
   hueMenu: $('huemenu'),
-  photo: $('btn-photo'),
   marks: $('marks'),
-  text: $('btn-text'), labelInput: $('label-input'),
+  textTool: $('btn-text'), labelInput: $('label-input'),
   markBar: $('mark-bar'), markKind: $('mark-kind'), markColours: $('mark-colours'),
   markSizeWrap: $('mark-size-wrap'), markSize: $('mark-size'),
   markDelete: $('mark-delete'), markDone: $('mark-done'),
@@ -41,7 +40,7 @@ const el = {
   suGo: $('su-go'), suCancel: $('su-cancel'), suOpenTemplates: $('su-templates-open'),
   scopeBtn: $('btn-scope'), scopeDlg: $('scopedlg'), scopeList: $('scope-list'),
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
-  note: $('btn-note'), check: $('btn-check'), section: $('btn-section'),
+  add: $('btn-add'), check: $('btn-check'),
   library: $('btn-library'),
   libraryQuery: $('library-query'), libraryFound: $('library-found'),
   context: $('context'),
@@ -100,10 +99,9 @@ function setState(next) {
 function renderList() {
   el.count.textContent = String(steps.length);
   // Adding a note to nothing, or checking nothing, are not actions.
-  el.note.disabled = steps.length === 0;
-  el.section.disabled = steps.length === 0;
+  // + Add stays live on an empty recording: the first thing in one can be a
+  // photograph or a written step, and there is nothing to add them after.
   el.check.disabled = steps.length === 0;
-  el.del.textContent = marked.size > 1 ? `Delete ${marked.size} steps` : 'Delete step';
   const recorded = BsrSections.countSteps(steps);
   el.cCount.textContent = `${recorded} step${recorded === 1 ? '' : 's'}`;
   el.empty.hidden = steps.length > 0;
@@ -231,7 +229,7 @@ async function select(id) {
     el[t].hidden = isNote;
   }
   if (isNote && armedTool) armTool(armedTool);   // disarm: nothing to draw on
-  el.rerecord.hidden = isNote;
+
   el.text.placeholder = isSection ? 'Name this phase of the procedure'
                       : isNote ? 'Describe what the reader should do' : '';
   el.indicator.style.display = 'none';
@@ -761,7 +759,7 @@ async function deleteSelection() {
   renderLibrary();
 }
 
-el.del.addEventListener('click', deleteSelection);
+
 
 // ---- keyboard ------------------------------------------------------------------
 // Editing forty steps with the mouse alone is the difference between a tool
@@ -886,7 +884,8 @@ window.bsr.onLog((m) => console.log('[capture]', m.level, m.message));
 // refreshes a single step in place, keeping every other step and the user's
 // own wording.
 
-el.rerecord.addEventListener('click', async () => {
+/** Re-records the selected step in place. Reached from a step's menu. */
+async function rerecordSelected() {
   if (!selectedId) return;
   const step = steps.find((s) => s.id === selectedId);
   el.armingN.textContent = String(steps.indexOf(step) + 1);
@@ -896,7 +895,7 @@ el.rerecord.addEventListener('click', async () => {
   el.arming.hidden = true;
 
   if (!r.ok) { alert(r.error); return; }
-});
+}
 
 el.armingCancel.addEventListener('click', () => { el.arming.hidden = true; });
 
@@ -1309,15 +1308,23 @@ function clearDropHints() {
 
 // ---- written steps ------------------------------------------------------------
 
-el.note.addEventListener('click', async () => {
-  const r = await window.bsr.addNote('', selectedId);
+/**
+ * A written step, below the one selected.
+ *
+ * A function rather than a button handler because the button has gone: this is
+ * reached from the + Add menu and from a step's right-click menu, and a menu
+ * item that works by clicking an invisible button is a thing that breaks the
+ * day somebody deletes the button.
+ */
+async function addNoteBelow(afterId = selectedId) {
+  const r = await window.bsr.addNote('', afterId);
   if (!r) { alert('Open or start a recording first.'); return; }
 
   steps.splice(r.index, 0, r.step);
   renderList();
   select(r.step.id);
   el.text.focus();     // it is empty on purpose: the user types the instruction
-});
+}
 
 // ---- photographs ---------------------------------------------------------------
 // Not everything in a procedure happens on a screen. These come from a camera,
@@ -1346,7 +1353,7 @@ async function addPhotos(files) {
 // Not disabled on an empty recording, unlike + Note: a recording that is all
 // photographs is a legitimate thing to make, and the first one has to be able
 // to go into nothing. The main process says so if none is open.
-el.photo.addEventListener('click', () => addPhotos(null));
+
 
 // Dragging photographs onto the window.
 //
@@ -1419,7 +1426,23 @@ async function addSection(text, afterId) {
   return r.step;
 }
 
-el.section.addEventListener('click', () => addSection('', selectedId));
+/** What + Add offers, and what a step's own menu offers below itself. */
+function addMenuItems(afterId = selectedId) {
+  return [
+    { label: 'Note \u2014 an instruction that was not a click',
+      run: () => addNoteBelow(afterId) },
+    { label: 'Section heading \u2014 to group the steps below it',
+      run: () => addSection('', afterId) },
+    { label: 'Photographs from a camera\u2026',
+      run: () => addPhotos(null) },
+  ];
+}
+
+el.add.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const r = el.add.getBoundingClientRect();
+  showContext(r.left, r.bottom + 4, addMenuItems());
+});
 
 /**
  * The offer itself. Accepting inserts the heading above the step whose
@@ -1745,8 +1768,13 @@ el.list.addEventListener('contextmenu', (e) => {
   showContext(e.clientX, e.clientY, [
     ...historyItems(),
     null,
-    { label: 'Add a note below', run: () => el.note.click() },
-    { label: 'Add a section heading', run: () => addSection('', id) },
+    ...addMenuItems(id).map((item) => ({ ...item, label: `Add: ${item.label}` })),
+    null,
+    { label: 'Re-record this step',
+      // Re-recording captures a window again, so it needs one: that rules out
+      // headings, notes and photographs without naming any of them.
+      enabled: BsrSections.isStep(step) && Boolean(step.window),
+      run: () => { select(id); rerecordSelected(); } },
     null,
     { label: step.excluded ? 'Include in the guide' : 'Leave out of the guide',
       run: () => setExcluded([...marked], !step.excluded) },
@@ -2031,10 +2059,9 @@ let historyDepth = { undo: 0, redo: 0 };
 
 window.bsr.onUndoDepth((depth) => {
   historyDepth = { undo: depth.undo || 0, redo: depth.redo || 0 };
-  el.del.textContent = marked.size > 1 ? `Delete ${marked.size} steps` : 'Delete step';
-  el.del.title = historyDepth.undo
-    ? `${historyDepth.undo} change${historyDepth.undo === 1 ? '' : 's'} can be undone (Ctrl+Z)`
-    : '';
+  // Nothing to repaint here any more: what Ctrl+Z would undo is said by the
+  // Undo entry at the top of both right-click menus, which is where somebody
+  // about to undo is already looking.
 });
 
 window.bsr.onMode(({ compact }) => {
@@ -2083,9 +2110,12 @@ window.bsr.onHotkey(({ action, session, error }) => {
 // is armed at a time and arming one disarms the rest.
 let armedTool = null;
 
+// Every tool, so every tool's button lights up while it is armed. Label and
+// Crop were missing: they armed correctly and looked exactly like they had not,
+// which as icons rather than words would be the only clue there is.
 const TOOL_BUTTONS = () => ({
   blur: el.blur, box: el.box, ellipse: el.ellipse,
-  arrow: el.arrow, highlight: el.highlight,
+  arrow: el.arrow, highlight: el.highlight, text: el.textTool, crop: el.crop,
 });
 
 /** The highlighter colour in force, remembered between sessions. */
@@ -2451,7 +2481,7 @@ el.labelInput.addEventListener('blur', () => {
  * setting in a dialog that disagree.
  */
 for (const name of ['box', 'ellipse', 'arrow', 'text']) {
-  el[name].addEventListener('contextmenu', (e) => {
+  TOOL_BUTTONS()[name].addEventListener('contextmenu', (e) => {
     e.preventDefault();
     el.hueMenu.replaceChildren();
 
@@ -2523,8 +2553,12 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') el.hueMenu.hidden = true;
 });
 
-for (const name of ['blur', 'crop', 'box', 'ellipse', 'arrow', 'highlight', 'text']) {
-  el[name].addEventListener('click', () => armTool(name));
+// Through TOOL_BUTTONS, not el[name]. A tool's name and the key its button
+// happens to have in `el` are two different things, and the day they stopped
+// matching - the Label tool is `el.textTool`, because `el.text` is the step's
+// description box - `el[name]` quietly wired the Label tool to the textarea.
+for (const [name, button] of Object.entries(TOOL_BUTTONS())) {
+  button.addEventListener('click', () => armTool(name));
 }
 
 el.wrap.addEventListener('mousedown', (e) => {

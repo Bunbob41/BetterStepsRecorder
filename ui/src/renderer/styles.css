@@ -849,16 +849,34 @@ body.dropping::after {
   outline: none;
 }
 
-/* The strip that appears while a mark is selected. */
+/* The strip that appears while a mark is selected.
+
+   `display: flex` beats the browser's own `[hidden] { display: none }`, so a
+   rule that says otherwise has to be written out: without it the strip is on
+   screen permanently, describing a mark nobody has selected. The `hidden`
+   PROPERTY reads true the whole time, so anything checking that - a test, or
+   this code - is told the strip is hidden while it is plainly not. */
+.mark-bar[hidden], .mark-size[hidden] { display: none; }
+
 .mark-bar {
+  /* Over the picture, not above it.
+     A strip that appears in the layout pushes the screenshot down at the exact
+     moment somebody has clicked a mark on it - so the thing they just took hold
+     of moves out from under the pointer, and a drag started immediately after
+     lands somewhere else entirely. Floating it costs a strip of the picture and
+     costs nothing in position. */
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 9;
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 0 0 8px;
   padding: 6px 10px;
-  background: #171b23;
+  background: rgba(18, 22, 30, .93);
   border: 1px solid #2b323d;
   border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
 }
 .mark-kind { font-weight: 600; color: #e8ecf4; }
 .mark-colours { display: flex; gap: 6px; }
@@ -875,3 +893,17 @@ body.dropping::after {
 .mark-hint { margin-left: auto; color: #7b8595; font-size: 12px; }
 /* A mark under the pointer, when nothing is armed, can be picked up. */
 .shot-wrap.pickable { cursor: pointer; }
+
+/* The drawing tools, as icons. Text buttons were the widest run of chrome in
+   the window and the least in need of words: a box icon is a box. The label
+   survives as the tooltip and as the accessible name. */
+.tool svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.tool { padding: 6px 8px; line-height: 0; }

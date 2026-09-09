@@ -605,6 +605,34 @@ app.whenReady().then(async () => {
   // Reported from a real screenshot: a label lands where you clicked, and where
   // you clicked is not always where it belongs. Before this the only fix was to
   // delete it and type it again.
+  // Everything the markup says is hidden must actually be invisible.
+  //
+  // `hidden` is an attribute the browser styles with `display: none` at the
+  // lowest possible priority, so ANY rule that sets display on the same element
+  // beats it. A `.mark-bar { display: flex }` was enough to put a strip of
+  // controls on screen permanently, describing a mark nobody had selected -
+  // while `el.hidden` read true the whole time, so nothing that asked the DOM
+  // was told otherwise. It was found by looking at a screenshot.
+  //
+  // This is the same trap as the one in the header of this file, where setting
+  // `.hidden` on an <svg> defined a JavaScript property and left the attribute
+  // alone. Both come from treating "hidden" as one idea when it is two.
+  console.log('\nwhat the markup hides is hidden:');
+  const hiding = await win.webContents.executeJavaScript(`(async () => {
+    const showing = [];
+    for (const node of document.querySelectorAll('[hidden]')) {
+      const style = getComputedStyle(node);
+      if (style.display !== 'none') {
+        showing.push((node.id || node.className || node.tagName)
+          + ' (display: ' + style.display + ')');
+      }
+    }
+    return { count: document.querySelectorAll('[hidden]').length, showing };
+  })()`);
+
+  check(`every element marked hidden is invisible (${hiding.count} checked)`,
+        hiding.showing.length === 0, hiding.showing.join(', '));
+
   console.log('\ntaking hold of a mark:');
   const grabbed = await win.webContents.executeJavaScript(`(async () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -632,6 +660,7 @@ app.whenReady().then(async () => {
     await sleep(20);
 
     const barBefore = !bar.hidden;
+    const pictureBefore = shot.getBoundingClientRect().top;
     const where = () => {
       const t = layer.querySelector('text');
       return t ? Math.round(Number(t.getAttribute('x'))) : null;
@@ -643,11 +672,13 @@ app.whenReady().then(async () => {
     await sleep(60);
     window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(0.26, 0.49) }));
     await sleep(200);
+    const pictureAfter = shot.getBoundingClientRect().top;
     const selected = { shown: !bar.hidden,
                        kind: document.getElementById('mark-kind').textContent,
                        sizeShown: !document.getElementById('mark-size-wrap').hidden,
                        outline: Boolean(layer.querySelector('.mark-selection')),
-                       swatches: document.querySelectorAll('#mark-colours button').length };
+                       swatches: document.querySelectorAll('#mark-colours button').length,
+                       moved: Math.round(pictureAfter - pictureBefore) };
 
     // Drag it to the right.
     wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.26, 0.49) }));
@@ -699,6 +730,12 @@ app.whenReady().then(async () => {
   check('and its colours to choose from', grabbed.selected.swatches === 5,
         `${grabbed.selected.swatches} swatches`);
   check('the selected one is outlined on the picture', grabbed.selected.outline);
+  // The strip used to appear in the layout, above the picture, which pushed the
+  // screenshot down at the exact moment somebody had clicked a mark on it: the
+  // thing just taken hold of moved out from under the pointer, and a drag begun
+  // straight afterwards landed somewhere else.
+  check('and the picture does not move when it is selected',
+        grabbed.selected.moved === 0, `${grabbed.selected.moved}px`);
 
   check('dragging moves it while the mouse is down',
         grabbed.during !== null && grabbed.during > grabbed.startX + 50,
@@ -1523,8 +1560,17 @@ app.whenReady().then(async () => {
   // steps, which is the worst way for a delete to behave.
   check('right-clicking selects the row first', rowMenu.selected === 's3');
   check('it can add a note or a heading',
-        rowMenu.items.some((t) => /note/.test(t))
-        && rowMenu.items.some((t) => /heading/.test(t)));
+        rowMenu.items.some((t) => /note/i.test(t))
+        && rowMenu.items.some((t) => /heading/i.test(t)),
+        rowMenu.items.join(' | '));
+  // The three the toolbar used to carry, now that + Note, + Section and
+  // + Photo have gone from the window.
+  check('and photographs, which used to need a button of their own',
+        rowMenu.items.some((t) => /photograph/i.test(t)),
+        rowMenu.items.join(' | '));
+  check('and it can re-record the step',
+        rowMenu.items.some((t) => /re-record/i.test(t)),
+        rowMenu.items.join(' | '));
   check('leave the step out of the guide',
         rowMenu.items.some((t) => /Leave out/.test(t)));
   check('and delete it', rowMenu.items.some((t) => /Delete step/.test(t)));

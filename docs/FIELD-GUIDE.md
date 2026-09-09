@@ -981,7 +981,8 @@ that:
 
 ### Marking up a screenshot
 
-Select a step and you get six tools above the picture:
+Select a step and you get six tools above the picture, as icons — hover any of
+them for its name:
 
 - **Box** — a rectangle around the thing that matters
 - **Circle** — an oval inscribed in what you drag, so a square drag gives a
@@ -994,6 +995,10 @@ Select a step and you get six tools above the picture:
   box appears on the picture, at the spot it is about, in roughly the size and
   colour the finished label will be
 - **Blur** — the privacy one, described below
+
+**Crop** sits to their right, and that is the whole toolbar. Re-recording a step
+and deleting one are on the step's own right-click menu, along with **+ Add**'s
+three: a note, a section heading, or photographs.
 
 The first five say *look here*, which the recorder cannot know. They are held as
 **data on the step**, not painted into the screenshot, and that is what lets you

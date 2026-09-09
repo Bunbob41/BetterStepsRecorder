@@ -223,6 +223,59 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-62 - The window loses eleven buttons and gains nothing
+`(this change)` - [ui/src/renderer/index.html](../ui/src/renderer/index.html)
+
+"The UI might be getting crowded", with a screenshot showing why: two rows of
+text buttons above a picture that is the thing anybody is actually looking at.
+
+Seven drawing tools became icons. They were the widest run of chrome in the
+window and the least in need of words - a box icon is a box - and the label
+survives as the tooltip and as the accessible name, so nothing is lost to a
+screen reader or to a person hovering.
+
+Five buttons left entirely, and the argument for each is that it was already
+somewhere else:
+
+- **Delete step** and **Re-record step** were permanent, prime-position buttons
+  for rare actions, one of them destructive. Delete was already on a step's
+  right-click menu and already bound to Del; Re-record joins it there.
+- **+ Note**, **+ Section** and **+ Photo** became one **+ Add**. Two of the
+  three were already on the step menu, so the toolbar was paying rent twice.
+
+`+ Add` and the step menu are built from `addMenuItems()`, one list used twice,
+because a menu item that works by clicking an invisible button breaks the day
+somebody deletes the button - which is exactly what this change did.
+
+Three faults came out of it, and none was found by a test:
+
+- **`el.text` was two elements.** The Label tool was captured as `text`, and so
+  was the step's description box. A JavaScript object literal keeps the LAST
+  key, so `el.text` silently stopped being the textarea: the description
+  stopped rendering and typing into it did nothing. It shipped in build 99 and
+  was visible in the screenshot that came with the report - an empty box above
+  the picture - which is where it was eventually noticed.
+- **`hidden` did not hide.** `.mark-bar { display: flex }` beats the browser's
+  own `[hidden] { display: none }`, so the strip of mark controls sat on screen
+  permanently while `el.markBar.hidden` read true. Anything asking the DOM was
+  told it was hidden. Found by looking at a screenshot of the toolbar, and now
+  checked for every hidden element in the markup at once, by computed style.
+- **Selecting a mark moved the picture.** The strip appeared in the layout above
+  the screenshot, so clicking a mark pushed the picture down and out from under
+  the pointer, and a drag begun straight after landed somewhere else. It floats
+  over the picture now. This one DID show up in the suite, as three unrelated
+  failures with stale coordinates - the test was feeling the same thing a hand
+  would.
+
+The last two share a shape with D-52 and with this file's oldest lesson about
+`.hidden` on an `<svg>`: a control can be present, correct, styled, and still
+not behave the way the DOM says it does. The answer each time has been to ask
+the rendered page rather than the object model.
+
+`TOOL_BUTTONS()` also gained Label and Crop, which had never been in it: both
+armed correctly and looked exactly as though they had not. As words that was a
+missing highlight; as icons it would have been the only feedback there is.
+
 ### D-61 - A mark can be taken hold of, and its controls arrive with it
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
 
