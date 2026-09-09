@@ -159,6 +159,40 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-52 · The marker could never actually be grabbed
+`(this change)` · [ui/src/renderer/marker.js](../ui/src/renderer/marker.js)
+
+Reported plainly: "no matter how much I click on it I always drag the photo,
+not the marker." Dragging the marker has never worked for anybody using a
+mouse, since the day it was added.
+
+`declarations()` includes `pointer-events: none`, and `render()` applied every
+declaration as an **inline style**, which beats any stylesheet rule. The
+`.indicator.movable .bsr-marker { pointer-events: auto }` written to make it
+grabbable never had a chance. The browser found the `<img>` at that pixel every
+time.
+
+The declaration is correct for its original purpose. `html()` uses the same
+object for the exported guide, which has no stylesheet of its own and must not
+let the marker swallow a click or block selecting the text under it. So
+`render()` - the window's version - now omits that one declaration and lets the
+window's stylesheet decide, while the export keeps it inline.
+
+**Why every test passed.** They dispatched `mousedown` directly onto the marker
+element, which bypasses hit-testing entirely: it proves the handler works and
+says nothing about whether a mouse can reach it. The check now asks
+`document.elementFromPoint` what is actually at the marker's centre, and reads
+back the computed `pointer-events` rather than trusting the rule to have won.
+Before the fix it answered `IMG`; after, `SPAN.bsr-marker`.
+
+The other half of the report was the browser's own image drag, which starts on
+any mousedown over an `<img>` and competed with both marking and moving. Turned
+off on the screenshot.
+
+This is the same lesson as the collapsed arrowhead and the invisible drag
+preview, in its most literal form yet: a control can be present, correct,
+styled, and unreachable.
+
 ### D-51 · One answer to "is there a marker, and where"
 `(this change)` · [ui/src/renderer/marker.js](../ui/src/renderer/marker.js)
 

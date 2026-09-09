@@ -192,7 +192,16 @@
     const { plan: p, declarations: d } = declarations(pos, opts, colour);
     const el = document.createElement('span');
     el.className = `bsr-marker bsr-${p.style}${opts.bold ? ' bsr-bold' : ''}`;
-    for (const [k, v] of Object.entries(d)) el.style[k] = v;
+    for (const [k, v] of Object.entries(d)) {
+      // Every declaration except this one. `pointer-events: none` belongs to
+      // the EXPORTED markup, which has no stylesheet to say it and must not
+      // let the marker swallow a click or block selecting the text under it.
+      // Inline here it beats any rule the window has - which is why the marker
+      // could be dragged in a test that dispatched straight to the element and
+      // never by a mouse, which hit the screenshot underneath every time.
+      if (k === 'pointerEvents') continue;
+      el.style[k] = v;
+    }
     // Attributes, not CSS, so the policy does not apply.
     if (p.style === 'arrow') el.innerHTML = arrowSvg(p, colour);
     return el;

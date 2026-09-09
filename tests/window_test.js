@@ -632,6 +632,40 @@ app.whenReady().then(async () => {
   check('and the mark has a size somebody can see',
         Boolean(marker.before) && marker.before.w > 8 && marker.before.h > 8);
   check('it can be picked up', marker.movable);
+
+  // Dispatching mousedown ON the element proves the handler works and proves
+  // nothing about whether a mouse can reach it. This asks the browser what is
+  // actually at that pixel, which is what a real drag depends on.
+  const hit = await win.webContents.executeJavaScript(`(async () => {
+    const ind = document.getElementById('indicator');
+    const mark = ind.querySelector('.bsr-marker');
+    const b = mark.getBoundingClientRect();
+    const cx = Math.round(b.left + b.width / 2);
+    const cy = Math.round(b.top + b.height / 2);
+    const at = document.elementFromPoint(cx, cy);
+    return {
+      markerPointerEvents: getComputedStyle(mark).pointerEvents,
+      layerPointerEvents: getComputedStyle(ind).pointerEvents,
+      movable: ind.classList.contains('movable'),
+      hitTag: at ? at.tagName : null,
+      hitClass: at ? String(at.className || '') : null,
+      isTheMarker: Boolean(at && at.closest && at.closest('.bsr-marker')),
+      size: { w: Math.round(b.width), h: Math.round(b.height) },
+      // The native image drag competes with both marking and moving.
+      shotDraggable: getComputedStyle(document.getElementById('shot')).webkitUserDrag,
+    };
+  })()`);
+
+  console.log('    hit test:', JSON.stringify(hit));
+  check('and the screenshot cannot be dragged out of the page',
+        hit.shotDraggable === 'none');
+  check('the overlay itself stays transparent to the pointer',
+        hit.layerPointerEvents === 'none');
+  check('but the marker takes the pointer',
+        hit.markerPointerEvents === 'auto', hit.markerPointerEvents);
+  check('and the browser finds the marker at the marker',
+        hit.isTheMarker,
+        `elementFromPoint gave <${hit.hitTag} class="${hit.hitClass}">`);
   check('it follows the pointer while dragged',
         Math.abs(marker.during.x - 150) <= 2 && Math.abs(marker.during.y - 100) <= 2);
   check('the new place reaches the main process', Boolean(marker.sent));

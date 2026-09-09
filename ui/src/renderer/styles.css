@@ -153,6 +153,12 @@ main { flex: 1; display: grid; grid-template-columns: 320px 1fr; min-height: 0; 
 .shot-wrap { position: relative; display: inline-block; align-self: flex-start;
              flex: none; overflow: hidden; border-radius: 6px; }
 .shot-wrap img {
+  /* A browser lets you drag an image out of the page, ghost and all. Here that
+     is never wanted: dragging on a screenshot means drawing a mark or moving
+     the marker, and the native drag hijacked both - which is what "I always
+     drag the photo, not the marker" turned out to be half of. */
+  -webkit-user-drag: none;
+  user-select: none;
   max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;

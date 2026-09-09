@@ -5,6 +5,12 @@ Notable changes, newest first. The reasoning behind each decision lives in
 
 ## Unreleased
 
+- Fixed: **the click marker could not be dragged.** It has never worked with a
+  mouse — the marker was drawn with `pointer-events: none` as an inline style,
+  so every click went through it to the screenshot underneath. Dragging the
+  screenshot out of the page is also switched off, which was the other half of
+  what that felt like.
+
 - **The click marker can be turned off.** Right-click a screenshot to hide it
   on that step, or turn it off everywhere in Settings → Marking up — for when
   you would rather point things out yourself with the Arrow and Circle tools.
