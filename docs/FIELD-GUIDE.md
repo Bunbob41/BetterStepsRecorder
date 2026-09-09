@@ -312,6 +312,7 @@ flowchart LR
     fmt --> html["<b>HTML</b><br/>one file, images inside"]
     fmt --> pdf["<b>PDF</b><br/>same layout, printed"]
     fmt --> md["<b>Markdown</b><br/>for a wiki or repo"]
+    fmt --> tex["<b>LaTeX</b><br/>a fragment for Overleaf"]
     fmt --> tpl["<b>Your own template</b><br/>Word, Markdown or HTML"]
 ```
 
@@ -767,6 +768,47 @@ It is only ever a suggestion. The app does not change the format on your behalf:
 doing that part way through a recording would quietly alter the record, and if
 what you are making is an evidence record, that is the last thing it should do.
 Dismiss it and it goes away.
+
+### LaTeX, for a manual in Overleaf
+
+If your team writes its manuals in LaTeX, this exports the procedure as a
+**fragment**: a `\subsection`, a numbered list, and the screenshots in between.
+Not a whole document, and that is deliberate — your manual already has a
+preamble, a class and a house style, and a complete document would have to be
+taken apart before any of it could be used.
+
+So you paste it in. Two things travel with it:
+
+- **The screenshots**, in a folder written beside the `.tex` file. LaTeX has no
+  such thing as an embedded picture, so that folder has to be uploaded too.
+- **`\usepackage{graphicx}`**, which the fragment assumes your preamble already
+  loads. It cannot add packages itself: by the time a fragment is read, the
+  preamble is long past. Any manual with figures in it will already have this.
+
+The top of the exported file says both of those in comments, so they travel with
+it even if this page does not.
+
+**Numbering.** Each recording becomes one `\subsection`; section headings inside
+it become `\subsubsection`. A note or a heading between two steps breaks the
+numbered list in LaTeX, so the list is closed and reopened with the count
+carried over — the steps stay numbered the way the app shows them rather than
+restarting at 1 partway down. Figures are captioned *procedure name, step N*, so
+a List of Figures and a cross-reference are both worth something.
+
+**The click marker is drawn into the screenshots**, exactly as it is for Word
+and for the same reason: `\includegraphics` embeds a picture and LaTeX has no
+way to lay anything over it.
+
+**Figures float** (`[htbp]`), which is LaTeX's default behaviour. If you want
+each one pinned exactly where it appears, the file's header tells you how: add
+`\usepackage{float}` to your preamble and change `[htbp]` to `[H]`.
+
+**Everything that came off your screen is escaped** — window titles, what you
+typed, file paths. A backslash in a file path is a command to LaTeX, and left
+alone it would either break the build or quietly do something nobody asked for.
+Straight quotes are turned into proper opening and closing pairs, because TeX
+prints `"` as a closing quote wherever it finds one and most steps quote the
+name of a button.
 
 ### Exporting to Word
 

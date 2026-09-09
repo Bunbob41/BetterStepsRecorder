@@ -47,5 +47,23 @@ const orphaned = channels.filter((c) => !handled.has(c));
 check(`all ${channels.length} invoke channels have a handler`
       + (orphaned.length ? `: ${orphaned.join(', ')}` : ''), orphaned.length === 0);
 
+// Every format the Export dialog offers must be one the main process can
+// actually produce. The two lists are in different files and different
+// languages, and nothing else connects them: a format added to the dropdown and
+// not to runExport gives a save dialog with no file filters and then writes
+// nothing, reporting success.
+const offered = [...html.matchAll(/<option value="([^"]+)"[^>]*>/g)]
+  .map((m) => m[1])
+  // The Format select is the only one with these values; the others are
+  // settings, matched out by looking only at what runExport knows about.
+  .filter((v) => /^(html|pdf|md|tex|template|docx|latex)$/.test(v));
+const filters = main.match(/const filters = \{([\s\S]*?)\}\[format\];/);
+const produced = new Set(
+  filters ? [...filters[1].matchAll(/^\s*(\w+):/gm)].map((m) => m[1]) : []);
+const unproducible = [...new Set(offered)].filter((f) => !produced.has(f));
+check(`all ${new Set(offered).size} offered export formats can be produced`
+      + (unproducible.length ? `: ${unproducible.join(', ')}` : ''),
+      offered.length > 0 && unproducible.length === 0);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

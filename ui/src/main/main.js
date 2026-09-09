@@ -10,6 +10,7 @@ const log = require('./log');
 const { buildHtml, buildMarkdown, copyImages, exportable,
         markerPosition } = require('./export');
 const composite = require('./composite');
+const { buildLatex, writeImages } = require('./latex');
 const screenshots = require('./screenshots');
 const { toJpeg } = require('./transcode');
 const annotate = require('../renderer/annotate');
@@ -1044,6 +1045,7 @@ async function runExport({ format, title }) {
   const filters = {
     html: [{ name: 'Web page', extensions: ['html'] }],
     md: [{ name: 'Markdown', extensions: ['md'] }],
+    tex: [{ name: 'LaTeX fragment', extensions: ['tex'] }],
     pdf: [{ name: 'PDF', extensions: ['pdf'] }],
     template: templateForSession.toLowerCase().endsWith('.docx')
       ? [{ name: 'Word document', extensions: ['docx'] }]
@@ -1083,6 +1085,57 @@ async function runExport({ format, title }) {
         title: safeTitle, imageDir, brand, voice: voiceFor(session),
       }), 'utf8');
       log.info(`markdown export copied ${copied} images`);
+
+    } else if (format === 'tex') {
+      // The marker has to be IN the pixels, for the same reason it does in
+      // Word: \includegraphics embeds a picture and LaTeX has nothing to lay
+      // over it. So this takes the composite path, not the CSS one.
+      const base = path.basename(out, '.tex');
+      const imageDir = `${base}-images`;
+      const prep = screenshots.prepare(shotFiles(session), { transcode: toJpeg });
+      const marks = await composite.markAll(markableShots(session), {
+        images: prep.images,
+        markerOpts: markerOptions(),
+        onError: (file, err) =>
+          log.warn(`could not mark ${path.basename(file)}: ${err.message}`),
+      });
+
+      // Written beside the .tex rather than embedded: there is no such thing as
+      // an embedded image in LaTeX, and Overleaf takes a folder.
+      const names = writeImages({
+        files: shotFiles(session),
+        images: marks.images,
+        dir: path.join(path.dirname(out), imageDir),
+      });
+
+      fs.writeFileSync(out, buildLatex(session, {
+        title: safeTitle,
+        voice: voiceFor(session),
+        legend: legendFor(session),
+        imageDir,
+        // Forward slashes whatever this platform uses: a Windows separator
+        // inside \includegraphics is an escape character to TeX, and these are
+        // pasted into a document that is compiled on Overleaf.
+        imageRef: (step) => {
+          if (!step.screenshot) return null;
+          const abs = path.join(session.dir, step.screenshot);
+          return names.has(abs) ? `${imageDir}/${names.get(abs)}` : null;
+        },
+      }), 'utf8');
+
+      log.info(`exported latex to ${out} with ${names.size} screenshots`);
+      return {
+        ok: true,
+        file: out,
+        warning: [
+          `The screenshots are in ${imageDir} beside it - upload that folder too.`,
+          marks.shared
+            ? `${marks.shared} step(s) share a screenshot; it carries the first `
+              + `step's marker.`
+            : null,
+          screenshots.describe(prep),
+        ].filter(Boolean).join(' '),
+      };
 
     } else if (format === 'pdf') {
       const warning = await exportPdf(safeTitle, out, brand);

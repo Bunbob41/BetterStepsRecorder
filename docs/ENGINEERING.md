@@ -159,6 +159,69 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-56 - LaTeX export is a fragment, and everything follows from that
+`(this change)` - [ui/src/main/latex.js](../ui/src/main/latex.js)
+
+Asked for by a colleague and then by a manager: the team writes its manuals in
+Overleaf and wanted recordings to land in them without being retyped.
+
+**A fragment, not a document**, and that one decision settles nearly all of the
+design. Their manual is a book-sized `article` with its own preamble, packages
+and house style. A complete document would have to be taken apart before any of
+it could be used, and the parts thrown away are exactly the parts they already
+have. So: no `\documentclass`, no `\begin{document}`, no `\usepackage`, no
+styling of any kind. It starts at `\subsection` and ends at the last figure.
+
+The consequence worth stating plainly is that **a fragment cannot add
+packages** - it is read long after the preamble. `graphicx` is assumed, and the
+generated file says so in a comment header, which is the only place a fragment
+has to say anything at all. That header also says where the screenshots are, and
+how to pin the figures with `float` if the team prefers `[H]`.
+
+**Escaping is the risk this format has and the others do not.** Every other
+exporter writes into a container that treats unknown text as text; a wrong HTML
+entity is a display bug. TeX has no such container: a backslash in a window
+title is a command. So all ten reserved characters are escaped, plus `< > |` -
+legal, but printed as inverted punctuation and a dash in the OT1 encoding a
+Computer Modern manual still uses, which is a silent typo in somebody's document
+and therefore worse than a build error. Escaping is ONE pass: the replacement
+for a backslash contains braces, and a second pass would escape those and print
+the replacement instead of performing it.
+
+Straight quotes are opened and closed. TeX prints `"` as a closing quote
+wherever it appears, and nearly every step the engine writes quotes a control
+name, so without this most of the document would read as a mistake.
+
+Two structural details that are not obvious:
+
+- **The list is opened and closed repeatedly.** A heading or a note between two
+  steps cannot sit inside an `enumerate` without becoming an item of it. So the
+  list closes, the heading or note is written, and a new list opens with
+  `\setcounter{enumi}{n}` - the step numbers are the ones the app shows and the
+  HTML export prints, and a procedure that restarts at 1 halfway down is a
+  different document.
+- **The caption is `<title>, step N`, not the instruction.** Repeating the
+  item's own sentence directly under it was tried first, on real output, and
+  reads as a fault in the document. The title and the number are what a List of
+  Figures entry and a "see Figure 12" need in order to be worth anything.
+
+The marker is burned into the pixels via the same composite path Word uses
+(D-31): `\includegraphics` embeds a picture and LaTeX cannot lay anything over
+it. The naming of those files lives in `writeImages`, shared between the
+exporter and its test, because a screenshot re-encoded on the way out is a
+`.jpg` carrying a `.png` name - a fragment referring to the original extension
+would compile with **every figure missing** and no error anywhere. The check
+writes the images, reads the `.tex` back, and asserts that every file it names
+exists on disk.
+
+**What none of this establishes is that the output compiles.** There is no TeX
+engine on this machine. The checks are lexical - escaping character by
+character, environments balanced, a title written to look like an attack coming
+out inert - and lexical is not a compiler. This is D-48's lesson exactly: the
+authoritative renderer is the one the reader uses, and a local check that
+disagrees with it is not evidence. The arc closes when a real fragment has been
+pasted into the real Overleaf project, and not before.
+
 ### D-55 - Moving an arrow settles its direction, rather than re-deriving it
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
 
