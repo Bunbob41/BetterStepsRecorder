@@ -159,6 +159,44 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 
 Newest first. Each entry records what was decided, why, and what it replaced.
 
+### D-53 · The arrow marker turns, which meant making it polar
+`(this change)` · [ui/src/renderer/marker.js](../ui/src/renderer/marker.js)
+
+The arrow could point along four diagonals and nothing else, because its tip sat
+at one corner of a square box and its tail at the opposite one. `direction()`
+chose the corner, flipping near an edge so the tail stayed on the picture. An
+author who wanted the arrow to come from directly below could not have it.
+
+The geometry is polar now: an angle, a drawn length, and a bounding box the
+shape of the arrow rather than a square. The four automatic directions are 45,
+135, 225 and 315 degrees, so **every existing recording is unchanged** - 45
+reproduces the old corner case exactly, which was checked before anything else.
+`markerAngle` on the step overrides it, absent means automatic, and null puts it
+back to automatic - which is not the same as zero, one being "work it out" and
+the other "point right".
+
+Turned by dragging a handle at the **tail**, because the tip has to stay on the
+thing being pointed at: what moves is the other end. Only arrows get one; a ring
+has no direction to change.
+
+Three things this turned up that arithmetic alone would not have:
+
+- `svg()`, the path that burns the marker into Word, still rebuilt the tip from
+  `dx > 0 ? size : 0` - the old corner model - while spreading an unscaled plan
+  around it. Shaft, head and box came from three different coordinate systems
+  the moment the geometry stopped being a square.
+- The tests asserted the old *representation* (`dx === 1`) rather than the
+  behaviour. They now say where the tail is relative to the tip, which is the
+  thing that was ever meant.
+- A per-item options object referenced a name the loop never bound, so
+  `markAll` threw on every item and **every marker vanished from Word** with
+  `marked === 0`. The composite suite caught it immediately.
+
+Checked in pixels at four angles: a short way back along the shaft is marker
+red, the same distance past the tip is untouched picture. That pair is what
+"points the right way" means, and it is not something to eyeball - a render of
+twelve angles looked a few pixels out to me and was exactly right.
+
 ### D-52 · The marker could never actually be grabbed
 `(this change)` · [ui/src/renderer/marker.js](../ui/src/renderer/marker.js)
 

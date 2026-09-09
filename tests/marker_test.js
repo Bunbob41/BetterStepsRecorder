@@ -26,26 +26,30 @@ console.log('\nthe arrow points at the click, not near it:');
   const p = m.plan(middle, { style: 'arrow' });
   // The element is offset so that its tip lands exactly on the point.
   check('its tip is the anchored corner', p.tipX === p.offsetX && p.tipY === p.offsetY);
-  check('and its tail is the opposite corner',
-        (p.size - p.tipX) !== p.tipX || p.size === 0);
-  check('by default it comes from up-left', p.dx === 1 && p.dy === 1);
+  check('and its tail is somewhere else entirely',
+        p.tailX !== p.tipX && p.tailY !== p.tipY);
+  // Stated as where the tail actually is rather than as the sign of a vector:
+  // the arrow used to be able to point along four diagonals and nothing else,
+  // and an assertion about dx === 1 was really about that limitation.
+  check('by default it comes from up-left',
+        p.tailX < p.tipX && p.tailY < p.tipY);
 }
 
 console.log('\nand stays inside the picture:');
 {
   const topLeft = m.plan({ x: 4, y: 3 }, { style: 'arrow' });
-  check('a click in the top-left corner flips both ways',
-        topLeft.dx === -1 && topLeft.dy === -1);
-  check('so its tip is the top-left corner of the element',
-        topLeft.tipX === 0 && topLeft.tipY === 0);
+  check('a click in the top-left corner is pointed at from below right',
+        topLeft.tailX > topLeft.tipX && topLeft.tailY > topLeft.tipY);
+  check('so its tip is at the near end of the element',
+        topLeft.tipX < topLeft.w / 2 && topLeft.tipY < topLeft.h / 2);
 
   const topRight = m.plan({ x: 96, y: 3 }, { style: 'arrow' });
-  check('a click at the top edge flips vertically only',
-        topRight.dx === 1 && topRight.dy === -1);
+  check('a click at the top edge is pointed at from below left',
+        topRight.tailX < topRight.tipX && topRight.tailY > topRight.tipY);
 
   const bottomLeft = m.plan({ x: 2, y: 90 }, { style: 'arrow' });
-  check('a click at the left edge flips horizontally only',
-        bottomLeft.dx === -1 && bottomLeft.dy === 1);
+  check('a click at the left edge is pointed at from above right',
+        bottomLeft.tailX > bottomLeft.tipX && bottomLeft.tailY < bottomLeft.tipY);
 
   check('a bold arrow is longer', m.plan(middle, { style: 'arrow', bold: true }).size
         > m.plan(middle, { style: 'arrow' }).size);
@@ -166,6 +170,53 @@ console.log('\nis there a marker at all, and where:');
   // ---- a click outside its own frame -------------------------------------
   check('a click outside the captured frame is not marked',
         m.positionFor({ point: { x: 5000, y: 5000 }, frame }) === null);
+}
+
+console.log('\nan arrow can be pointed anywhere, not just along a diagonal:');
+{
+  const at = { x: 50, y: 50 };
+  const tip = (a) => m.plan(at, { style: 'arrow', angle: a });
+
+  // Screen coordinates: y runs down, so 90 degrees comes from above.
+  const right = tip(0);
+  check('at 0 degrees the tail is directly left of the tip',
+        right.tailX < right.tipX
+        && Math.abs(right.tailY - right.tipY) < 0.001);
+  const down = tip(90);
+  check('at 90 it is directly above',
+        down.tailY < down.tipY && Math.abs(down.tailX - down.tipX) < 0.001);
+  const left = tip(180);
+  check('at 180 it is directly right',
+        left.tailX > left.tipX && Math.abs(left.tailY - left.tipY) < 0.001);
+  const up = tip(270);
+  check('at 270 it is directly below',
+        up.tailY > up.tipY && Math.abs(up.tailX - up.tipX) < 0.001);
+
+  // A horizontal arrow in a square box would be clipped to a line by its own
+  // bounding box, so the box is the shape of the arrow plus room for the head.
+  check('a horizontal arrow gets a wide, short box', right.w > right.h * 2);
+  check('a vertical one gets a tall, narrow box', down.h > down.w * 2);
+  check('and neither is flat', right.h > 0 && down.w > 0);
+
+  // The one property that must survive any angle.
+  for (const a of [0, 37, 90, 145, 180, 233, 270, 315, -45]) {
+    const p = tip(a);
+    check(`at ${a} degrees the tip is still what the element is anchored by`,
+          p.tipX === p.offsetX && p.tipY === p.offsetY);
+  }
+
+  check('the automatic angle is one of the four diagonals',
+        [45, 135, -135, -45].includes(m.autoAngle({ x: 50, y: 50 }))
+        && [45, 135, -135, -45].includes(m.autoAngle({ x: 4, y: 4 })));
+  check('and a chosen angle overrides it',
+        m.angleOf({ x: 50, y: 50 }, { angle: 12 }) === 12);
+  check('while a nonsense one falls back rather than drawing nothing',
+        m.angleOf({ x: 50, y: 50 }, { angle: 'sideways' }) === 45);
+
+  // Rotating must not change how long the arrow looks.
+  const lengths = [0, 45, 90, 200].map((a) => tip(a).length);
+  check('every angle draws the same length',
+        lengths.every((l) => Math.abs(l - lengths[0]) < 0.001));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

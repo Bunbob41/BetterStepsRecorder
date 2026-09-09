@@ -141,7 +141,7 @@ async function markAll(items, { images = null, markerOpts = {}, colour = '#e5484
   }
 
   {
-    for (const { file, pos } of work) {
+    for (const { file, pos, opts: itemOpts } of work) {
       if (seen.has(file)) { shared++; continue; }
       try {
         const prepared = out.get(file);
@@ -159,7 +159,11 @@ async function markAll(items, { images = null, markerOpts = {}, colour = '#e5484
           + ` i.onload = res; i.onerror = rej; i.src = ${JSON.stringify(source)}; });`
           + ` return { w: i.naturalWidth, h: i.naturalHeight }; })()`);
 
-        const m = marker.svg(pos, markerOpts, colour, size.w, size.h);
+        // Per item where it has any: the angle an arrow is turned to belongs
+        // to the step, not to the export, so one options object for the whole
+        // run would point every arrow the same way.
+        const opts = itemOpts ? { ...markerOpts, ...itemOpts } : markerOpts;
+        const m = marker.svg(pos, opts, colour, size.w, size.h);
         const url = await win.webContents.executeJavaScript(
           DRAW(source, m.svg, m.left, m.top, m.width, m.height, mime, quality));
 

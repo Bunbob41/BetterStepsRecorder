@@ -5,6 +5,11 @@ Notable changes, newest first. The reasoning behind each decision lives in
 
 ## Unreleased
 
+- **The arrow marker can be turned.** Drag the small handle at its tail and the
+  arrow swings around the point it marks — it used to be stuck on one of four
+  diagonals. Right-click the screenshot to hand it back to choosing its own
+  direction.
+
 - Fixed: **the click marker could not be dragged.** It has never worked with a
   mouse — the marker was drawn with `pointer-events: none` as an inline style,
   so every click went through it to the screenshot underneath. Dragging the

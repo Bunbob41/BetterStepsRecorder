@@ -186,7 +186,12 @@ function buildHtml(session, { title, embedImages = true, brand = null,
       : step.screenshot;
 
     const at = markerPosition(step, markerOpts);
-    const markerHtml = at ? marker.html(at, markerOpts) : '';
+    // The step's own angle, if it has been turned, over the shared options.
+    const markerHtml = at
+      ? marker.html(at, Number.isFinite(step.markerAngle)
+                          ? { ...markerOpts, angle: step.markerAngle }
+                          : markerOpts)
+      : '';
 
     // The process only: the description already names the window at exactly the
     // points this caption appears, so repeating the title here said the same

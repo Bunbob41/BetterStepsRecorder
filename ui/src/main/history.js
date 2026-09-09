@@ -128,14 +128,16 @@ function applyEntry(session, entry) {
       const now = {
         at: step.markerAt ? { ...step.markerAt } : null,
         hidden: step.markerHidden === true,
+        angle: Number.isFinite(step.markerAngle) ? step.markerAngle : null,
       };
       session.updateStep(entry.id, {
         markerAt: entry.at || undefined,
         markerHidden: entry.hidden ? true : undefined,
+        markerAngle: Number.isFinite(entry.angle) ? entry.angle : undefined,
       });
       return { ok: true,
-               inverse: { type: 'marker', id: entry.id,
-                          at: now.at, hidden: now.hidden } };
+               inverse: { type: 'marker', id: entry.id, at: now.at,
+                          hidden: now.hidden, angle: now.angle } };
     }
 
     default:

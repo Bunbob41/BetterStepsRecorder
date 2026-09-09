@@ -610,6 +610,19 @@ export, because both are drawn by the same piece of code.
 > picture itself rather than layering anything on top of it, so the marker
 > cannot simply be drawn over it the way it is in a web page or PDF.
 
+#### Turning the arrow
+
+If the marker is an arrow, it comes with a small round handle at its tail.
+**Drag the handle** and the arrow swings around the spot it points at — the tip
+stays put, because that is the thing you are pointing at, and the tail is what
+moves.
+
+Left alone it chooses for itself: it comes from the upper left, and near the top
+or left edge of a picture it swings round so its tail has room. Once you turn it
+by hand it stays where you put it, in the app and in every export. Right-click
+the screenshot and choose **Point the arrow the way it chooses** to hand that
+decision back.
+
 #### Turning it off
 
 Sometimes an arrow you draw yourself says it better than a ring around a click.

@@ -42,6 +42,26 @@
   }
 
   /**
+   * The same choice as an angle, in degrees, measured from tail to tip with y
+   * running down the screen as it does everywhere else here.
+   *
+   * The arrow used to be able to point along four diagonals and nothing else,
+   * because its tip sat at one corner of a square box and its tail at the
+   * opposite one. An angle is the general form of that: the four automatic
+   * directions are 45, 135, 225 and 315 degrees, and an author who wants the
+   * arrow to come from directly below can now say so.
+   */
+  function autoAngle(pos) {
+    const { dx, dy } = direction(pos);
+    return Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
+  }
+
+  /** The angle an arrow should be drawn at: chosen, or worked out. */
+  function angleOf(pos, opts = {}) {
+    return Number.isFinite(opts.angle) ? Number(opts.angle) : autoAngle(pos);
+  }
+
+  /**
    * Pure geometry, so the awkward cases are testable without a document:
    * where the element sits, how big it is, and where its tip falls inside it.
    */
@@ -51,30 +71,57 @@
 
     if (style !== 'arrow') {
       const size = SIZES.circle[weight];
-      return { style: 'circle', size, stroke: STROKE[weight],
+      return { style: 'circle', size, w: size, h: size, stroke: STROKE[weight],
                offsetX: size / 2, offsetY: size / 2 };
     }
 
     const size = SIZES.arrow[weight];
-    const { dx, dy } = direction(pos);
-    // The tip sits at whichever corner the arrow points into.
+    const stroke = STROKE[weight];
+    const angle = angleOf(pos, opts);
+
+    const rad = (angle * Math.PI) / 180;
+    const vx = Math.cos(rad);
+    const vy = Math.sin(rad);
+
+    // The drawn length. The old geometry put the tip and tail at opposite
+    // corners of a size x size box, so what a reader saw was the diagonal;
+    // keeping that keeps every existing recording looking the way it did.
+    const length = size * Math.SQRT2;
+
+    // Room around the shaft for the head and the pale halo behind it, or a
+    // horizontal arrow would be clipped to a line by its own bounding box.
+    const pad = stroke + 6;
+
+    const w = Math.round(Math.abs(length * vx)) + pad * 2;
+    const h = Math.round(Math.abs(length * vy)) + pad * 2;
+
+    // The tip goes at whichever end of the box the arrow points into, and the
+    // element is offset by exactly that, so the tip lands on the click.
+    const tipX = vx >= 0 ? w - pad : pad;
+    const tipY = vy >= 0 ? h - pad : pad;
+
     return {
-      style: 'arrow', size, stroke: STROKE[weight], dx, dy,
-      tipX: dx > 0 ? size : 0,
-      tipY: dy > 0 ? size : 0,
-      offsetX: dx > 0 ? size : 0,
-      offsetY: dy > 0 ? size : 0,
+      style: 'arrow', size, stroke, angle, length, w, h,
+      dx: vx, dy: vy,
+      tipX, tipY,
+      tailX: tipX - length * vx,
+      tailY: tipY - length * vy,
+      offsetX: tipX,
+      offsetY: tipY,
     };
   }
 
   /** The arrow itself. Drawn twice: a pale halo, then the colour on top, so it
    *  stays visible over both a dark screenshot and a white dialog. */
   function arrowSvg(p, colour) {
-    const tailX = p.size - p.tipX;
-    const tailY = p.size - p.tipY;
+    const tailX = p.tailX;
+    const tailY = p.tailY;
     // The head's barbs, pulled back along the shaft and spread either side.
-    const back = p.size * 0.34;
-    const spread = p.size * 0.17;
+    // As fractions of the DRAWN LENGTH: they used to be fractions of the box
+    // side while the shaft ran its diagonal, so these are the same proportions
+    // divided through by root two.
+    const back = p.length * 0.2404;
+    const spread = p.length * 0.1202;
     const bx = p.tipX - p.dx * back;
     const by = p.tipY - p.dy * back;
 
@@ -86,7 +133,7 @@
     const head = `M ${p.tipX} ${p.tipY} L ${bx - p.dy * spread} ${by + p.dx * spread} `
                + `L ${bx + p.dy * spread} ${by - p.dx * spread} Z`;
 
-    return `<svg width="${p.size}" height="${p.size}" viewBox="0 0 ${p.size} ${p.size}" `
+    return `<svg width="${p.w}" height="${p.h}" viewBox="0 0 ${p.w} ${p.h}" `
          + `fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`
          + `<path d="${shaft}" stroke="rgba(255,255,255,.85)" stroke-width="${p.stroke + 4}" stroke-linecap="round"/>`
          + `<path d="${head}" fill="rgba(255,255,255,.85)" stroke="rgba(255,255,255,.85)" stroke-width="4" stroke-linejoin="round"/>`
@@ -114,8 +161,8 @@
       top: `${pos.y.toFixed(2)}%`,
       marginLeft: `-${p.offsetX}px`,
       marginTop: `-${p.offsetY}px`,
-      width: `${p.size}px`,
-      height: `${p.size}px`,
+      width: `${p.w}px`,
+      height: `${p.h}px`,
       pointerEvents: 'none',
     };
 
@@ -275,11 +322,33 @@
 
     // The arrow is already an SVG; scale it by drawing the same geometry into a
     // larger viewBox rather than by resizing the markup.
-    const scaled = { ...p, size, stroke,
-                     tipX: p.dx > 0 ? size : 0, tipY: p.dy > 0 ? size : 0 };
-    return { svg: arrowSvg(scaled, colour), width: size, height: size, left, top };
+    //
+    // Every measurement scaled together. This used to rebuild the tip from
+    // `dx > 0 ? size : 0` - the old corner model - while spreading the rest of
+    // an unscaled plan around it, so the shaft, the head and the box came from
+    // three different coordinate systems the moment the geometry stopped being
+    // a square.
+    const scaled = {
+      style: 'arrow',
+      stroke,
+      length: p.length * k,
+      dx: p.dx, dy: p.dy,
+      w: Math.round(p.w * k),
+      h: Math.round(p.h * k),
+      tipX: p.tipX * k,
+      tipY: p.tipY * k,
+      tailX: p.tailX * k,
+      tailY: p.tailY * k,
+    };
+    return { svg: arrowSvg(scaled, colour),
+             width: scaled.w, height: scaled.h,
+             // The drawn length, so a caller measuring along the shaft has
+             // something to measure with that is not the bounding box.
+             length: scaled.length,
+             left, top };
   }
 
   return { DEFAULTS, SIZES, REFERENCE_WIDTH, direction, plan, declarations,
-           toCss, html, render, arrowSvg, scaleFor, svg, positionFor };
+           toCss, html, render, arrowSvg, scaleFor, svg, positionFor,
+           autoAngle, angleOf };
 }));

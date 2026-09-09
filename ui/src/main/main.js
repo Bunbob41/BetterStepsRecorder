@@ -817,7 +817,7 @@ ipcMain.handle('step:crop', (_e, { id, dataUrl, rect, image }) => {
  * Stored as a percentage of the frame, exactly like the computed position, so
  * every export and the crop arithmetic follow without knowing this exists.
  */
-ipcMain.handle('step:marker', (_e, { id, at, hidden }) => {
+ipcMain.handle('step:marker', (_e, { id, at, hidden, angle }) => {
   if (!session) return { ok: false, error: 'No recording is open.' };
 
   const step = session.steps.find((s) => s.id === id);
@@ -831,13 +831,21 @@ ipcMain.handle('step:marker', (_e, { id, at, hidden }) => {
   // as it was rather than half of it.
   pushUndo({ type: 'marker', id,
              at: step.markerAt ? { ...step.markerAt } : null,
-             hidden: step.markerHidden === true });
+             hidden: step.markerHidden === true,
+             angle: Number.isFinite(step.markerAngle) ? step.markerAngle : null });
 
   const patch = {};
   // `undefined` rather than null, so putting it back removes the field
   // entirely and the step reads as one that was never moved.
   if (at !== undefined) patch.markerAt = wanted || undefined;
   if (hidden !== undefined) patch.markerHidden = hidden ? true : undefined;
+  // Null puts it back to the automatic direction, which is not the same as
+  // zero degrees - one is "work it out", the other is "point right".
+  if (angle !== undefined) {
+    patch.markerAngle = Number.isFinite(angle)
+      ? ((Math.round(angle) % 360) + 360) % 360
+      : undefined;
+  }
 
   const updated = session.updateStep(id, patch);
   return { ok: true, step: updated };
@@ -928,7 +936,11 @@ function markableShots(s) {
     const file = path.join(s.dir, step.screenshot);
     if (!fs.existsSync(file)) continue;
     const pos = markerPosition(step, markerOptions());
-    if (pos) out.push({ file, pos });
+    if (pos) {
+      out.push(Number.isFinite(step.markerAngle)
+        ? { file, pos, opts: { angle: step.markerAngle } }
+        : { file, pos });
+    }
   }
   return out;
 }

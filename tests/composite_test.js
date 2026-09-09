@@ -108,12 +108,49 @@ app.whenReady().then(async () => {
   const a = await composite.markAll([{ file: shot, pos: { x: 50, y: 50 } }],
                                     { markerOpts: { style: 'arrow' } });
   const am = marker.svg({ x: 50, y: 50 }, { style: 'arrow' }, '#e5484d', 800, 600);
-  // The tip sits at the click; a few pixels back along the shaft is solid head.
-  const back = Math.round(am.width * 0.12);
+  // The tip sits at the click; a short way back along the shaft is solid head.
+  //
+  // Measured along the DRAWN LENGTH, not the bounding box. The box is now the
+  // shape of the arrow rather than a square, so a fraction of its width is a
+  // different distance at every angle - and this probe silently walked off the
+  // head the moment the geometry stopped being a diagonal.
+  const back = Math.round(am.length * 0.15 * Math.SQRT1_2);
   const [tip, tail] = await pixels(a.images.get(shot).data,
                                    [[400 - back, 300 - back], [5, 5]]);
   check(`the head is drawn at the click (${tip})`, isMarker(tip));
   check('and the corner is still the picture', isGrey(tail));
+
+  console.log('\nand it points wherever it is turned:');
+  {
+    // The tip stays on the click at every angle; the shaft runs away from it in
+    // the direction the arrow was turned to. So a short way BACK along that
+    // direction is solid marker, and the same distance FORWARD - past the tip -
+    // is untouched picture. That pair is what "points the right way" means, and
+    // it is checked in pixels because the geometry is easy to get subtly wrong
+    // and impossible to eyeball at this size.
+    for (const angle of [0, 90, 180, 270]) {
+      const rad = (angle * Math.PI) / 180;
+      const vx = Math.cos(rad);
+      const vy = Math.sin(rad);
+
+      const marked = await composite.markAll(
+        [{ file: shot, pos: { x: 50, y: 50 }, opts: { angle } }],
+        { markerOpts: { style: 'arrow' } });
+
+      const g = marker.svg({ x: 50, y: 50 }, { style: 'arrow', angle },
+                           '#e5484d', 800, 600);
+      const d = g.length * 0.15;
+
+      const behind = [Math.round(400 - vx * d), Math.round(300 - vy * d)];
+      const beyond = [Math.round(400 + vx * d * 2.2), Math.round(300 + vy * d * 2.2)];
+
+      const [onShaft, past] = await pixels(marked.images.get(shot).data,
+                                           [behind, beyond]);
+      check(`at ${angle} degrees the shaft is behind the click (${onShaft})`,
+            isMarker(onShaft));
+      check(`  and nothing is drawn past it (${past})`, isGrey(past));
+    }
+  }
 
   console.log('\nwhat happens when it cannot be done:');
   const bad = path.join(dir, 'not-an-image.png');

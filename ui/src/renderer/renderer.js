@@ -311,8 +311,27 @@ function placeIndicator(step) {
 
   // render(), not html(): a style attribute would be refused by the content
   // policy this window runs under, and the marker would sit at 0,0 unstyled.
+  // The step's own angle over the shared options, so a turned arrow is drawn
+  // turned - here and in every export, which read the same field.
+  const opts = Number.isFinite(step.markerAngle)
+    ? { ...markerOpts, angle: step.markerAngle }
+    : markerOpts;
   el.indicator.replaceChildren(
-    BsrMarker.render({ x: pos.x, y: pos.y }, markerOpts, '#e5484d'));
+    BsrMarker.render({ x: pos.x, y: pos.y }, opts, '#e5484d'));
+
+  // An arrow gets a handle at its tail. The tip stays on what is being pointed
+  // at, so turning it means swinging the other end - which is what a handle
+  // there says without a word of explanation.
+  if (opts.style === 'arrow') {
+    const p = BsrMarker.plan({ x: pos.x, y: pos.y }, opts);
+    const handle = document.createElement('div');
+    handle.className = 'rotate-handle';
+    handle.title = 'Drag to turn the arrow';
+    // Percent for the tip, pixels for the offset out to the tail.
+    handle.style.left = `calc(${pos.x}% + ${Math.round(p.tailX - p.tipX)}px)`;
+    handle.style.top = `calc(${pos.y}% + ${Math.round(p.tailY - p.tipY)}px)`;
+    el.indicator.append(handle);
+  }
   el.indicator.classList.toggle('moved', pos.moved);
   // Grabbable only when no drawing tool is armed, so one drag cannot mean two
   // things depending on where it started.
@@ -1374,6 +1393,63 @@ async function hideMarker(id, hidden) {
   }
 }
 
+/**
+ * Turning an arrow.
+ *
+ * The angle is measured from the tail to the tip, so dragging the handle to a
+ * point puts the tail there: the direction is from the pointer back to the
+ * marker, not the other way round.
+ */
+let markerTurn = null;
+
+el.indicator.addEventListener('mousedown', (e) => {
+  if (e.button !== 0 || armedTool || !selectedId) return;
+  if (!e.target.closest('.rotate-handle')) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+  const step = steps.find((s) => s.id === selectedId);
+  const at = step && BsrMarker.positionFor(step, markerOpts);
+  if (!at) return;
+
+  const r = el.shot.getBoundingClientRect();
+  markerTurn = {
+    id: selectedId,
+    // The tip, in the window's own coordinates.
+    tipX: r.left + (at.x / 100) * r.width,
+    tipY: r.top + (at.y / 100) * r.height,
+    angle: null,
+  };
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!markerTurn) return;
+  const deg = Math.atan2(markerTurn.tipY - e.clientY, markerTurn.tipX - e.clientX)
+              * 180 / Math.PI;
+  markerTurn.angle = ((Math.round(deg) % 360) + 360) % 360;
+
+  const step = steps.find((s) => s.id === markerTurn.id);
+  if (step) placeIndicator({ ...step, markerAngle: markerTurn.angle });
+});
+
+window.addEventListener('mouseup', async () => {
+  const turn = markerTurn;
+  markerTurn = null;
+  if (!turn || turn.angle === null) return;
+
+  const step = steps.find((s) => s.id === turn.id);
+  const r = await window.bsr.turnMarker(turn.id, turn.angle);
+  if (!r || !r.ok) {
+    showNotice((r && r.error) || 'Could not turn the marker.');
+    if (step) placeIndicator(step);
+    return;
+  }
+  if (step) {
+    Object.assign(step, r.step);
+    placeIndicator(step);
+  }
+});
+
 el.indicator.addEventListener('mousedown', (e) => {
   if (e.button !== 0 || armedTool || !selectedId) return;
   if (!e.target.closest('.bsr-marker')) return;
@@ -1543,6 +1619,15 @@ el.wrap.addEventListener('contextmenu', (e) => {
                     : 'Hide the marker on this step',
       enabled: Boolean(step),
       run: () => hideMarker(step.id, !hidden) },
+    { label: 'Point the arrow the way it chooses',
+      enabled: Boolean(step) && Number.isFinite(step.markerAngle),
+      run: () => window.bsr.turnMarker(step.id, null).then((r) => {
+        if (r && r.ok) {
+          Object.assign(step, r.step);
+          delete step.markerAngle;
+          placeIndicator(step);
+        }
+      }) },
     { label: 'Put the marker back where it was recorded',
       enabled: moved,
       run: () => commitMarker(step.id, null) },

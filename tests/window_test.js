@@ -174,6 +174,13 @@ const ANSWERS = {
     depthListener(DEPTH);
     return { ok: true, step };
   },
+  turnMarker: (id, angle) => {
+    const step = SESSION.steps.find((x) => x.id === id);
+    if (!step) return { ok: false, error: 'Step not found.' };
+    if (Number.isFinite(angle)) step.markerAngle = ((Math.round(angle) % 360) + 360) % 360;
+    else delete step.markerAngle;
+    return { ok: true, step };
+  },
   hideMarker: (id, hidden) => {
     const step = SESSION.steps.find((x) => x.id === id);
     if (!step) return { ok: false, error: 'Step not found.' };
@@ -659,6 +666,71 @@ app.whenReady().then(async () => {
   console.log('    hit test:', JSON.stringify(hit));
   check('and the screenshot cannot be dragged out of the page',
         hit.shotDraggable === 'none');
+
+  // An arrow can be turned. The handle sits at the tail, because the tip has
+  // to stay on the thing being pointed at.
+  const turn = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const ind = document.getElementById('indicator');
+    const shot = document.getElementById('shot');
+    const setStyle = async (v) => {
+      const sel = document.getElementById('set-marker');
+      sel.value = v;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      await sleep(300);
+    };
+
+    // A circle has no direction, so no handle.
+    const circleHandle = Boolean(ind.querySelector('.rotate-handle'));
+
+    await setStyle('arrow');
+    const handle = ind.querySelector('.rotate-handle');
+    const mark = ind.querySelector('.bsr-marker');
+    if (!handle || !mark) { await setStyle('circle'); return { circleHandle, hadHandle: false }; }
+
+    // The tip, read from where the marker is actually anchored - the element
+    // is placed at a percentage and pulled back by its own margins so the tip
+    // lands there. Assuming a position is how this probe first went wrong.
+    const r = shot.getBoundingClientRect();
+    const tipX = r.left + (parseFloat(mark.style.left) / 100) * r.width;
+    const tipY = r.top + (parseFloat(mark.style.top) / 100) * r.height;
+    const before = mark.getBoundingClientRect();
+
+    const hb = handle.getBoundingClientRect();
+    handle.dispatchEvent(new MouseEvent('mousedown',
+      { bubbles: true, button: 0,
+        clientX: Math.round(hb.left + hb.width / 2),
+        clientY: Math.round(hb.top + hb.height / 2) }));
+    await sleep(20);
+    // Tail directly below the tip: the arrow then points straight up.
+    window.dispatchEvent(new MouseEvent('mousemove',
+      { bubbles: true, clientX: Math.round(tipX), clientY: Math.round(tipY + 140) }));
+    await sleep(60);
+    window.dispatchEvent(new MouseEvent('mouseup',
+      { bubbles: true, clientX: Math.round(tipX), clientY: Math.round(tipY + 140) }));
+    await sleep(300);
+
+    const after = ind.querySelector('.bsr-marker').getBoundingClientRect();
+    const out = {
+      circleHandle,
+      hadHandle: true,
+      beforeBox: { w: Math.round(before.width), h: Math.round(before.height) },
+      afterBox: { w: Math.round(after.width), h: Math.round(after.height) },
+      nowTall: after.height > after.width * 1.5,
+    };
+
+    // Put the style back: everything after this expects a circle.
+    await setStyle('circle');
+    return out;
+  })()`);
+
+  check('a circle has no handle to turn', turn.circleHandle === false);
+  check('an arrow has one', turn.hadHandle === true);
+  // Pointing straight up means a tall, narrow box where a diagonal was square.
+  check('and swinging the handle below the tip points it up',
+        turn.nowTall === true,
+        `${JSON.stringify(turn.beforeBox)} -> ${JSON.stringify(turn.afterBox)}`);
+  if (!turn.nowTall) console.log('    boxes:', JSON.stringify(turn));
   check('the overlay itself stays transparent to the pointer',
         hit.layerPointerEvents === 'none');
   check('but the marker takes the pointer',

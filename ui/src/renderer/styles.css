@@ -783,3 +783,23 @@ button.tool.active {
 }
 #settings .check input { accent-color: var(--accent); width: 15px; height: 15px; }
 #settings .check + .hint { margin: 0 0 20px 25px; }
+
+/* The handle that turns an arrow. It sits at the tail, because that is the end
+   you swing: the tip stays on the thing being pointed at. Only for arrows -
+   a ring has no direction to change. */
+.rotate-handle {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #e5484d;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.25);
+  transform: translate(-50%, -50%);
+  display: none;
+  cursor: grab;
+}
+/* Grabbable on the same terms as the marker: only when no drawing tool is
+   armed, so one drag cannot mean two things. */
+.indicator.movable .rotate-handle { display: block; pointer-events: auto; }
+.indicator.movable .rotate-handle:active { cursor: grabbing; }
