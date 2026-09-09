@@ -1777,6 +1777,21 @@ el.wrap.addEventListener('contextmenu', (e) => {
         y: ((e.clientY - shot.top) / shot.height) * 100 }
     : null;
 
+  // Which mark was right-clicked, if any. Found by where it is rather than by
+  // hit-testing the SVG: the overlay takes no pointer events at all, so that a
+  // drag starting over a mark still draws and the picture underneath is still
+  // there to be dragged.
+  const hitMark = at && step && step.marks
+    ? BsrAnnotate.markAt(step.marks, at.x, at.y)
+    : null;
+  const NAMES = { box: 'box', ellipse: 'ring', arrow: 'arrow',
+                  highlight: 'highlight', text: 'label' };
+  const hitName = hitMark ? (NAMES[hitMark.tool] || 'mark') : '';
+
+  const withoutHit = () => (step.marks || []).filter((m) => m.id !== hitMark.id);
+  const recoloured = (id) => (step.marks || [])
+    .map((m) => (m.id === hitMark.id ? { ...m, colour: id } : m));
+
   showContext(e.clientX, e.clientY, [
     ...historyItems(),
     null,
@@ -1784,6 +1799,17 @@ el.wrap.addEventListener('contextmenu', (e) => {
                     : 'Hide the marker on this step',
       enabled: Boolean(step),
       run: () => hideMarker(step.id, !hidden) },
+    ...(hitMark ? [
+      { label: `Delete this ${hitName}`,
+        run: () => commitMarks(step, withoutHit()) },
+      // Not offered for a highlight: its colours are the highlighter's own,
+      // and they mean something in the key at the front of the guide.
+      ...(hitMark.tool === 'highlight' ? [] : BsrAnnotate.COLOURS
+        .filter((c) => c.id !== hitMark.colour)
+        .map((c) => ({ label: `Make this ${hitName} ${c.name.toLowerCase()}`,
+                       run: () => commitMarks(step, recoloured(c.id)) }))),
+      null,
+    ] : []),
     { label: moved || !at ? 'Move the marker here' : 'Put a marker here',
       enabled: Boolean(step) && Boolean(at),
       run: () => {
@@ -2133,6 +2159,47 @@ let dragStart = null;
  * than one colour needs them chosen deliberately, and a menu on the tool is
  * where a person looks for that rather than in Settings.
  */
+/**
+ * Right-clicking a shape tool offers the colours a mark can be drawn in.
+ *
+ * The same gesture as the highlighter's, on the tools it applies to, because
+ * one place to look for "what colour" is better than a menu on the tool and a
+ * setting in a dialog that disagree.
+ */
+for (const name of ['box', 'ellipse', 'arrow']) {
+  el[name].addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    el.hueMenu.replaceChildren();
+
+    for (const colour of BsrAnnotate.COLOURS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      if (colour.id === markColour) b.className = 'chosen';
+
+      const swatch = document.createElement('span');
+      swatch.className = 'swatch';
+      swatch.style.background = colour.value;
+
+      const label = document.createElement('span');
+      label.textContent = colour.name;
+
+      b.append(swatch, label);
+      b.addEventListener('click', async () => {
+        markColour = colour.id;
+        el.hueMenu.hidden = true;
+        await window.bsr.setSettings({ markColour: colour.id });
+        // Choosing a colour is choosing to draw with it.
+        if (armedTool !== name) armTool(name);
+      });
+      el.hueMenu.append(b);
+    }
+
+    el.hueMenu.style.left = `${e.clientX}px`;
+    el.hueMenu.style.top = `${e.clientY}px`;
+    el.hueMenu.hidden = false;
+  });
+}
+
 el.highlight.addEventListener('contextmenu', (e) => {
   e.preventDefault();
   el.hueMenu.replaceChildren();
@@ -2477,6 +2544,7 @@ function paintSettings(v) {
   el.template.value = v.templatePath || '';
   paintTemplates(v.templatePath || '');
   highlightId = v.highlightColour || 'yellow';
+  markColour = v.markColour || 'red';
   paintLegendMeanings(v);
   el.marker.value = v.markerStyle || 'circle';
   el.markerBold.checked = Boolean(v.markerBold);

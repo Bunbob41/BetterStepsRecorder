@@ -445,6 +445,81 @@ app.whenReady().then(async () => {
   // which button had been pressed - so a right-click both opened the menu and
   // drew a mark, and the mark was the last thing the author wanted at the
   // moment they were reaching for a menu to get rid of one.
+  // What the whole data-instead-of-pixels change was for. A mark used to be
+  // paint on the screenshot, so the answer to "delete this arrow" was undo, in
+  // order, taking every later mark with it.
+  console.log('\ndrawing a mark, then getting rid of it:');
+  const marks = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const wrap = document.getElementById('shot-wrap');
+    const shot = document.getElementById('shot');
+    const layer = document.getElementById('marks');
+    const r = shot.getBoundingClientRect();
+
+    document.querySelector('#step-list li[data-id="s2"]').click();
+    await sleep(250);
+
+    // Draw a box across the middle of the picture.
+    document.getElementById('btn-box').click();
+    await sleep(20);
+    const at = (fx, fy) => ({ clientX: Math.round(r.left + r.width * fx),
+                              clientY: Math.round(r.top + r.height * fy) });
+    wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.3, 0.3) }));
+    await sleep(15);
+    window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, ...at(0.7, 0.7) }));
+    await sleep(15);
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(0.7, 0.7) }));
+    await sleep(300);
+
+    const drawn = layer.querySelectorAll('[data-mark]').length;
+    const step = () => window.__steps && window.__steps.find((x) => x.id === 's2');
+    document.getElementById('btn-box').click();   // disarm
+    await sleep(20);
+
+    // Right-click INSIDE the box, and read what the menu offers.
+    wrap.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, ...at(0.5, 0.5) }));
+    await sleep(80);
+    const labels = [...document.querySelectorAll('#context button')]
+      .map((b) => b.textContent);
+    const recolour = [...document.querySelectorAll('#context button')]
+      .find((b) => /Make this box blue/.test(b.textContent));
+    if (recolour) recolour.click();
+    await sleep(300);
+    const afterColour = layer.innerHTML;
+
+    // Right-click it again and delete it.
+    wrap.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, ...at(0.5, 0.5) }));
+    await sleep(80);
+    const del = [...document.querySelectorAll('#context button')]
+      .find((b) => /Delete this box/.test(b.textContent));
+    if (del) del.click();
+    await sleep(300);
+    const left = layer.querySelectorAll('[data-mark]').length;
+
+    // And right-clicking away from any mark must not offer to delete one.
+    wrap.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, ...at(0.05, 0.9) }));
+    await sleep(80);
+    const awayLabels = [...document.querySelectorAll('#context button')]
+      .map((b) => b.textContent);
+    document.getElementById('context').hidden = true;
+
+    return { drawn, labels, afterColour, left, awayLabels };
+  })()`);
+
+  check('a drag draws a mark on the overlay', marks.drawn === 1,
+        `${marks.drawn} on the layer`);
+  check('right-clicking it offers to delete it',
+        marks.labels.some((l) => /Delete this box/.test(l)), marks.labels.join(' | '));
+  check('and to change its colour',
+        marks.labels.some((l) => /Make this box blue/.test(l)));
+  check('changing the colour redraws it in that colour',
+        /#2f6fed/.test(marks.afterColour));
+  check('deleting it takes it off the picture', marks.left === 0,
+        `${marks.left} left`);
+  check('and right-clicking bare picture offers no deletion',
+        !marks.awayLabels.some((l) => /Delete this/.test(l)),
+        marks.awayLabels.join(' | '));
+
   console.log('\nthe right button does not draw:');
   const rightClick = await win.webContents.executeJavaScript(`(async () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

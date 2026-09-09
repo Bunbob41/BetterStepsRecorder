@@ -36,6 +36,9 @@ const DEFAULTS = {
   // colour used consistently through a guide means something, and a legend can
   // only refer to it by name.
   highlightColour: 'yellow',
+  // What colour a new box, ring or arrow is drawn in. Red is what every mark
+  // was before there was a choice.
+  markColour: 'red',
   // A key printed in exports, saying what each highlighter colour means. Off by
   // default: most guides use one colour and a one-entry legend is clutter.
   showHighlightLegend: false,
