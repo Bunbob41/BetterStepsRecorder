@@ -223,6 +223,35 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-63 - One button for recordings, and Check stops being furniture
+`(this change)` - [ui/src/renderer/index.html](../ui/src/renderer/index.html)
+
+Three buttons for one subject became one. **Recordings**, **Open...** and
+**Check** are all things you do to a recording, and they sat in two different
+rows of the window competing with the picture.
+
+**Check earned its keep as a feature and not as a button.** It asks the running
+applications whether the controls a recording names are still there, marks the
+steps that are not, and points at Re-record - which is the answer to guides
+rotting, and worth having. But it is used once in a blue moon, and it needs the
+application it describes to be running at that moment, so most of the time its
+button was present in order to be useless. It is the first item you find when
+you go looking under Recordings, which is where somebody wondering whether an
+old recording is still true would look.
+
+Nothing was deleted. The engine, the tally, the stale-row marking and the
+status line are all as they were; what went is a permanent fixture.
+
+`showPane` now records which half of the right-hand pane is showing, in a
+variable, instead of writing it into two elements and reading it back from
+neither. The menu needs to know whether "your recordings" would do anything,
+and asking an element whether it is hidden to find out is how the `hidden`
+confusion in D-62 started.
+
+The tests followed the interface: three probes clicked `#btn-library` directly,
+and now open the menu and click the item, which is both the only route left and
+the one a person takes.
+
 ### D-62 - The window loses eleven buttons and gains nothing
 `(this change)` - [ui/src/renderer/index.html](../ui/src/renderer/index.html)
 

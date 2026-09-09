@@ -1089,6 +1089,25 @@ Three deliberate choices:
   files into a bundle that programs cannot be run from directly, so the engine
   sits alongside as an extra resource.
 
+### The Recordings menu
+
+One button at the top, and everything to do with recordings is under it:
+
+- **Your recordings, and the search** — the library screen, and the way back to
+  it after you have opened something from a search result. Greyed out when you
+  are already there.
+- **Open one from anywhere…** — a folder picker, for a recording somebody sent
+  you or one you keep outside the usual place.
+- **Check this recording still matches** — asks the applications running right
+  now whether the buttons and fields these steps name are still there. Steps
+  that no longer match are marked in the list, and the fix is to select one and
+  use **Re-record this step** from its right-click menu.
+
+Check needs the application the recording describes to be *running*, or it can
+only tell you that it could not look. It used to be a button in the step list; it
+is under this menu now because it is a thing you do occasionally to a whole
+recording, not while you are working on a step.
+
 ### Knowing which build you have
 
 Open **Settings** and look at the bottom left:

@@ -1,7 +1,8 @@
 const $ = (id) => document.getElementById(id);
 
 const el = {
-  record: $('btn-record'), pause: $('btn-pause'), stop: $('btn-stop'), open: $('btn-open'),
+  record: $('btn-record'), pause: $('btn-pause'), stop: $('btn-stop'),
+  recordings: $('btn-recordings'),
   dot: $('dot'), status: $('status-text'), list: $('step-list'), count: $('count'),
   empty: $('empty'), detailEmpty: $('detail-empty'), detailBody: $('detail-body'),
   text: $('detail-text'), meta: $('detail-meta'),
@@ -40,8 +41,7 @@ const el = {
   suGo: $('su-go'), suCancel: $('su-cancel'), suOpenTemplates: $('su-templates-open'),
   scopeBtn: $('btn-scope'), scopeDlg: $('scopedlg'), scopeList: $('scope-list'),
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
-  add: $('btn-add'), check: $('btn-check'),
-  library: $('btn-library'),
+  add: $('btn-add'),
   libraryQuery: $('library-query'), libraryFound: $('library-found'),
   context: $('context'),
   libraryHeading: $('library-heading'), libraryUsage: $('library-usage'),
@@ -92,7 +92,8 @@ function setState(next) {
   el.pause.disabled = next === 'idle';
   el.stop.disabled = next === 'idle';
   el.pause.textContent = next === 'paused' ? 'Resume' : 'Pause';
-  el.open.disabled = next !== 'idle';
+  // Opening one while recording is not on; the menu says so item by item.
+  el.recordings.disabled = next !== 'idle';
   el.scopeBtn.disabled = next !== 'idle';
 }
 
@@ -101,7 +102,7 @@ function renderList() {
   // Adding a note to nothing, or checking nothing, are not actions.
   // + Add stays live on an empty recording: the first thing in one can be a
   // photograph or a written step, and there is nothing to add them after.
-  el.check.disabled = steps.length === 0;
+
   const recorded = BsrSections.countSteps(steps);
   el.cCount.textContent = `${recorded} step${recorded === 1 ? '' : 's'}`;
   el.empty.hidden = steps.length > 0;
@@ -731,7 +732,7 @@ el.stop.addEventListener('click', async () => {
   renderLibrary();
 });
 
-el.open.addEventListener('click', async () => {
+async function openFromDisk() {
   const r = await window.bsr.openSession();
   if (!r.ok) return;
   el.saveState.textContent = `${r.steps.length} steps · ${r.dir}`;
@@ -741,7 +742,7 @@ el.open.addEventListener('click', async () => {
   selectedId = null;
   showPane('library');
   renderList();
-});
+}
 
 async function deleteSelection() {
   const ids = marked.size ? [...marked] : (selectedId ? [selectedId] : []);
@@ -913,12 +914,18 @@ window.bsr.onReplaced(({ index, step }) => {
 // carries the automation id of what was clicked, so the running application can
 // be asked whether those controls are still there.
 
-el.check.addEventListener('click', async () => {
+/**
+ * Checks the open recording against the applications running right now.
+ *
+ * Reached from the Recordings menu. It had a permanent button for something
+ * done once in a blue moon, which also needed the application it describes to
+ * be running at that moment - so most of the time the button was there to be
+ * unusable.
+ */
+async function checkRecording() {
   if (!steps.length) { alert('Open a recording first.'); return; }
 
-  const original = el.check.textContent;
-  el.check.textContent = 'Checking…';
-  el.check.disabled = true;
+  el.saveState.textContent = 'Checking\u2026';
   try {
     const r = await window.bsr.verifySession();
     if (!r.ok) { alert(r.error); return; }
@@ -944,10 +951,9 @@ el.check.addEventListener('click', async () => {
         + ' — select one and use "Re-record step"';
     }
   } finally {
-    el.check.textContent = original;
-    el.check.disabled = false;
+    // The status line carries the answer, so there is nothing to put back.
   }
-});
+}
 
 // ---- library ------------------------------------------------------------------
 // The empty state used to say "select a step" over nothing at all. Opening onto
@@ -967,11 +973,17 @@ let openDir = null;
  * The single owner of both flags, so the two cannot end up both hidden, and
  * of the button, which greys out when it would do nothing.
  */
+// Which half of the right-hand pane is showing. It used to be written into two
+// elements and read back from neither, so anything that needed to know had to
+// ask an element whether it was hidden.
+let showingLibrary = true;
+const atHome = () => showingLibrary;
+
 function showPane(which) {
   const home = which === 'library';
+  showingLibrary = home;
   el.detailEmpty.hidden = !home;
   el.detailBody.hidden = home;
-  el.library.disabled = home;
 }
 
 /**
@@ -990,7 +1002,22 @@ async function showLibrary() {
   await renderLibrary();
 }
 
-el.library.addEventListener('click', showLibrary);
+el.recordings.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const r = el.recordings.getBoundingClientRect();
+  showContext(r.left, r.bottom + 4, [
+    { label: 'Your recordings, and the search',
+      enabled: !atHome(),
+      run: () => showLibrary() },
+    { label: 'Open one from anywhere\u2026', run: () => openFromDisk() },
+    null,
+    // Rare, and it needs the application it describes to be running - which is
+    // exactly why it stopped being a button that sat in the window all day.
+    { label: 'Check this recording still matches',
+      enabled: steps.length > 0,
+      run: () => checkRecording() },
+  ]);
+});
 
 /**
  * Opens a recording, and lands on a particular step when one is named.

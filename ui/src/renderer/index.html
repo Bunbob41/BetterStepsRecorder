@@ -31,13 +31,13 @@
       </div>
       <span class="divider" aria-hidden="true"></span>
       <div class="group" role="group" aria-label="Document">
-        <!-- The way back. The right-hand pane has always had two states and no
-             way out of one of them: opening a recording - especially from a
-             search result - replaced the library and left nothing on screen
-             that would bring it back. -->
-        <button id="btn-library" title="Back to your recordings and the search"
-                disabled>Recordings</button>
-        <button id="btn-open">Open…</button>
+        <!-- Everything about recordings, under one button: the way back to the
+             library, opening one from anywhere on the disk, and checking that
+             an old one still matches the application it describes. They were
+             three buttons for one subject, and the third was a permanent
+             fixture for something done once in a blue moon. -->
+        <button id="btn-recordings" title="Your recordings, opening one, and checking it"
+                aria-haspopup="menu">Recordings ▾</button>
         <button id="btn-export">Export…</button>
         <button id="btn-settings">Settings</button>
       </div>
@@ -64,7 +64,6 @@
     <aside class="steps">
       <div class="steps-head">
         <span>Steps</span>
-        <button id="btn-check" class="tiny" title="Check whether the controls these steps refer to still exist">Check</button>
         <span class="insert">
           <!-- One button, three things it can add. All three are also on the
                right-click menu of a step, which is where two of them already

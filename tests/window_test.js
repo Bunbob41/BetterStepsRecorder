@@ -1778,9 +1778,16 @@ app.whenReady().then(async () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const q = document.getElementById('library-query');
 
-    // Back to the library screen the way a person gets there.
-    document.getElementById('btn-library').click();
-    await sleep(200);
+    // Back to the library the way a person gets there: the Recordings menu.
+    const goHome = async () => {
+      document.getElementById('btn-recordings').click();
+      await sleep(100);
+      const item = [...document.querySelectorAll('#context button')]
+        .find((b) => /Your recordings/.test(b.textContent));
+      if (item) item.click();
+      await sleep(250);
+    };
+    await goHome();
     q.value = 'Save';
     q.dispatchEvent(new Event('input', { bubbles: true }));
     await sleep(400);
@@ -1824,17 +1831,40 @@ app.whenReady().then(async () => {
 
   const back = await win.webContents.executeJavaScript(`(async () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const home = document.getElementById('btn-library');
-    const wasOffered = !home.disabled;
+    // Back to the library the way a person gets there: the Recordings menu.
+    const goHome = async () => {
+      document.getElementById('btn-recordings').click();
+      await sleep(100);
+      const item = [...document.querySelectorAll('#context button')]
+        .find((b) => /Your recordings/.test(b.textContent));
+      if (item) item.click();
+      await sleep(250);
+    };
 
-    home.click();
-    await sleep(400);
+    // Offered while a recording is open, which is when it is needed.
+    document.getElementById('btn-recordings').click();
+    await sleep(100);
+    const item = [...document.querySelectorAll('#context button')]
+      .find((b) => /Your recordings/.test(b.textContent));
+    const wasOffered = Boolean(item) && !item.disabled;
+    document.getElementById('context').hidden = true;
+    await sleep(50);
+
+    await goHome();
 
     const showing = !document.getElementById('detail-empty').hidden
                  && document.getElementById('detail-body').hidden;
+    // Once you are there, the way back is offered greyed rather than doing
+    // nothing when clicked.
+    document.getElementById('btn-recordings').click();
+    await sleep(100);
+    const there = [...document.querySelectorAll('#context button')]
+      .find((b) => /Your recordings/.test(b.textContent));
+    const greyed = Boolean(there) && there.disabled;
+    document.getElementById('context').hidden = true;
+
     return {
-      wasOffered, showing,
-      greyed: home.disabled,
+      wasOffered, showing, greyed,
       query: document.getElementById('library-query').value,
       found: document.getElementById('library-found').textContent,
       hits: document.querySelectorAll('.lib-hit').length,
@@ -1866,8 +1896,13 @@ app.whenReady().then(async () => {
     // The step list is the way back IN, which is why the selection is kept.
     document.querySelector('#step-list li[data-id="n1"]').click();
     await sleep(250);
-    return { showing: !document.getElementById('detail-body').hidden,
-             offered: !document.getElementById('btn-library').disabled };
+    document.getElementById('btn-recordings').click();
+    await sleep(100);
+    const way = [...document.querySelectorAll('#context button')]
+      .find((b) => /Your recordings/.test(b.textContent));
+    const offered = Boolean(way) && !way.disabled;
+    document.getElementById('context').hidden = true;
+    return { showing: !document.getElementById('detail-body').hidden, offered };
   })()`);
 
   check('and clicking the step you were on returns you to it', backIn.showing);
