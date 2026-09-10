@@ -48,6 +48,56 @@ function versionOf(data) {
 const canRead = (data) => versionOf(data) <= CURRENT;
 
 /**
+ * The top-level keys of `session.json` that THIS version owns.
+ *
+ * Everything else in the file came from somewhere else - which in practice
+ * means a later version of this application - and is not ours to drop. The
+ * list lives here rather than in `session.js` because it is part of the format,
+ * and because the test that pins it should be reading the same list the writer
+ * uses rather than a copy of it that can drift.
+ */
+const OWNED = ['v', 'name', 'purpose', 'templatePath', 'savedAt', 'steps'];
+
+/**
+ * The parts of a loaded file this version does not understand.
+ *
+ * Kept so they can be written back untouched. A recording made by version 3,
+ * carrying a field version 1 has never heard of, opened here and renamed,
+ * would otherwise come out of that rename with the field gone - and nothing
+ * anywhere would say so. The refusal above stops that in the case it can
+ * detect; this stops it in the case it cannot, which is every field added
+ * without the version number being raised.
+ */
+function foreign(data) {
+  const out = {};
+  const owned = new Set(OWNED);
+  for (const [key, value] of Object.entries(data || {})) {
+    if (!owned.has(key)) out[key] = value;
+  }
+  return out;
+}
+
+/**
+ * A loaded recording in the shape this version expects.
+ *
+ * The seam a real migration goes in, and deliberately not an empty one: a file
+ * written before the `v` field existed comes back carrying `v: 1`, so what is
+ * read is never less definite than what is written.
+ *
+ * When the format does change, this is the only place that should know both
+ * shapes, and the rule is that it runs at LOAD - so a recording is migrated
+ * once, on the way in, and everything downstream sees one shape. A migration
+ * applied at the point of use instead would have to be applied at every point
+ * of use, and the one that gets forgotten is a silent corruption.
+ *
+ * It must never run on a file this version cannot read: `canRead` first, then
+ * this. Migrating a recording from the future means guessing at it.
+ */
+function migrate(data) {
+  return { ...(data || {}), v: versionOf(data) };
+}
+
+/**
  * What to tell somebody whose recording is from a later version.
  *
  * Names the versions, because "cannot open this recording" with no reason is
@@ -91,5 +141,6 @@ const REFUSAL_LABEL = 'Made by a newer version \u2014 cannot be opened here';
 const DAMAGED_LABEL = 'Damaged \u2014 left alone; the screenshots are still there';
 
 module.exports = {
-  CURRENT, versionOf, canRead, refusal, damaged, REFUSAL_LABEL, DAMAGED_LABEL,
+  CURRENT, versionOf, canRead, migrate, foreign, OWNED,
+  refusal, damaged, REFUSAL_LABEL, DAMAGED_LABEL,
 };

@@ -226,6 +226,53 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-69 - What this version does not understand, it writes back
+`(this change)` - [ui/src/main/format.js](../ui/src/main/format.js),
+[ui/src/main/session.js](../ui/src/main/session.js)
+
+D-38 gave the format a version number, a refusal for a recording from the
+future, and a message saying which of the two reasons a recording would not
+open. What it did not give it was an answer for the case the refusal cannot
+detect - and that case turned out to be the normal one.
+
+**`CURRENT` has been 1 since the beginning.** In that time a step gained marks,
+a moved marker, an angle, a hidden flag, a recorded size, photographs and an
+exclusion. The number was never raised, so the refusal has never once fired
+between two released versions. The mechanism was correct and had never been
+armed, because nothing made anybody decide.
+
+Being lucky is why that has cost nothing so far: `flush` writes `this.steps`,
+and steps are held whole, so a field on a step this version never heard of is
+carried through a save untouched. The TOP level was not - it was an object
+literal listing six keys, and everything else in the file was dropped on the
+next write. A recording made by a later version, opened here and renamed, came
+out of that rename with the later version's fields gone and nothing anywhere
+saying so.
+
+Three changes, none of them large:
+
+- **`format.OWNED`** names the six top-level keys this version owns, next to
+  the version number rather than in the writer, because it is part of the
+  format. **`format.foreign(data)`** is everything else in a loaded file;
+  `Session` keeps it and `flush` spreads it back FIRST, so a carried key can
+  never displace one this version owns. Foreign fields are preserved, not
+  obeyed.
+- **`format.migrate(data)`** is the seam, and deliberately not an empty one: it
+  normalises a file with no `v` to `v: 1`, so what is read is never less
+  definite than what is written. The rule it establishes matters more than what
+  it does today - a migration runs ONCE, at load, after `canRead` and before
+  anything reads the data. Migrating at the point of use would mean migrating
+  at every point of use, and the one that gets forgotten is a silent
+  corruption; migrating a file from the future would mean guessing at it.
+- **A test that pins the written shape.** Adding a top-level field now fails
+  `format_test.js`, and the failure prints what was written, what is owned, and
+  the question to answer: does this need `CURRENT` raised, and a migration to
+  go with it? That is the migration story - a forcing function rather than an
+  abstraction waiting for a day that never comes.
+
+Proved by mutation: dropping the spread loses the field, and adding a stray key
+to the payload fails the shape check with the message a future author needs.
+
 ### D-68 - A mark is held by its ends, and a menu holds groups
 `(this change)` - [ui/src/renderer/annotate.js](../ui/src/renderer/annotate.js),
 [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
@@ -2607,8 +2654,12 @@ waits out because it waits for the engine's `ready`.
   is a fixed list, and an unmatched verb passes through in the past tense.
 - Rot detection identifies *that* a control is gone, not *what replaced it*.
   Suggesting the likely replacement is the obvious next step and is not started.
-- No migration story for `session.json` if its shape changes. Fine while the
-  only recordings are the author's; not fine after distribution.
+- **`format.CURRENT` has never been raised**, and D-69 makes that a decision
+  rather than an oversight - but it does not answer it. The open question is
+  what a shape change has to be before the number goes up: a new optional field
+  costs nothing to ignore, while a field whose MEANING changes cannot be
+  ignored by an older build at all, and only the second kind needs the refusal.
+  There is no rule written down yet, only a test that asks.
 - **A click that changes the interface is named after what replaced it.**
   Measured: clicking "Additional settings..." in the Region dialog produced
   *"Clicked the 'Measurement system:' dropdown"* - a control that exists only in

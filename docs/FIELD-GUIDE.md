@@ -354,6 +354,13 @@ shown; it is that opening it and changing one thing would rewrite the whole
 file in this version's shape and quietly throw away whatever this version has
 never heard of. Updating the app is the fix, and the message says so.
 
+That check relies on the newer version having *said* it was newer. If it did
+not — a version that added something without marking the file — the recording
+opens here as normal, and **anything in it this version does not understand is
+written back exactly as it was found** rather than dropped. So a recording that
+travels between two machines running different versions comes back whole, even
+when neither of them can see everything in it.
+
 ### There is no Save button
 
 Because there is nothing to save. Every step is written to disk as it is

@@ -23,6 +23,9 @@ class Session {
     // an evidence record states what was done.
     this.purpose = 'sop';
     this.templatePath = '';
+    // Whatever was in the file that this version does not understand. Empty for
+    // a recording this version started; not necessarily empty for one it opened.
+    this.extra = {};
     fs.mkdirSync(path.join(dir, 'steps'), { recursive: true });
   }
 
@@ -434,6 +437,11 @@ class Session {
   flush() {
     if (this.unreadable) return;
     const payload = {
+      // First, so that nothing carried over from a file this version did not
+      // write can displace a field this version owns - and last in intent: a
+      // key here is one nobody in this build has heard of, put back exactly as
+      // it was found.
+      ...this.extra,
       v: format.CURRENT,
       name: this.name, purpose: this.purpose, templatePath: this.templatePath,
       savedAt: new Date().toISOString(), steps: this.steps,
@@ -457,17 +465,22 @@ class Session {
     const meta = path.join(dir, 'session.json');
     if (fs.existsSync(meta)) {
       try {
-        const data = JSON.parse(fs.readFileSync(meta, 'utf8'));
+        const raw = JSON.parse(fs.readFileSync(meta, 'utf8'));
 
         // From a later version of the application. Not opened - and the
         // reason is not that its steps cannot be shown. It is that opening
         // it, editing one step and flushing would write the whole file back
         // in THIS version's shape and silently discard whatever this version
         // has never heard of.
-        if (!format.canRead(data)) {
-          s.unreadable = format.refusal(data);
+        if (!format.canRead(raw)) {
+          s.unreadable = format.refusal(raw);
           return s;
         }
+
+        // Only now: migrating a recording this version cannot read would be
+        // guessing at a shape nobody here has seen.
+        const data = format.migrate(raw);
+        s.extra = format.foreign(data);
 
         // A recording is a folder people hand to each other, so this file
         // arrived from outside and every path in it is a claim rather than a

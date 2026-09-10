@@ -3,6 +3,15 @@
 Notable changes, newest first. The reasoning behind each decision lives in
 [docs/ENGINEERING.md](docs/ENGINEERING.md); this is the short version.
 
+## Unreleased
+
+- **A recording keeps the parts your version does not understand.** Recordings
+  get passed between machines, and those machines will not always be running
+  the same version of this app. The details file is now written back with
+  anything in it this version has never heard of left exactly as it was found,
+  instead of dropped on the next edit. Nothing you can see changes; it is a
+  promise about your recordings rather than a feature.
+
 ## 0.2.1
 
 ### Marking up

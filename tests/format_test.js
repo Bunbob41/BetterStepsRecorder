@@ -13,7 +13,12 @@ const format = require('../ui/src/main/format');
 const { Session } = require('../ui/src/main/session');
 
 let pass = 0, fail = 0;
-const check = (n, ok) => { ok ? (pass++, console.log('  PASS ' + n)) : (fail++, console.log('  FAIL ' + n)); };
+const check = (n, ok, extra) => {
+  if (ok) { pass++; console.log('  PASS ' + n); return; }
+  fail++;
+  console.log('  FAIL ' + n + (extra ? `
+        ${extra}` : ''));
+};
 
 console.log('what version a file claims:');
 {
@@ -98,11 +103,92 @@ console.log('\nwhat gets written:');
   const written = JSON.parse(fs.readFileSync(path.join(dir, 'session.json'), 'utf8'));
 
   check('the version this application writes', written.v === format.CURRENT);
+
+  // The forcing function.
+  //
+  // `v` has been 1 since the beginning while steps quietly gained marks, a
+  // moved marker, an angle, a size, photographs and an excluded flag - so the
+  // refusal that exists to protect a recording from an older build has never
+  // once fired between two released versions. Not because the format never
+  // changed; because nobody was made to decide.
+  //
+  // Adding a field to the file now fails this check, and the failure asks the
+  // question: does this shape change need `format.CURRENT` raised, and a
+  // migration written to go with it?
+  const keys = Object.keys(written).sort();
+  check('and the file has exactly the keys this version owns',
+        JSON.stringify(keys) === JSON.stringify([...format.OWNED].sort()),
+        `wrote [${keys.join(', ')}], owns [${[...format.OWNED].sort().join(', ')}]`
+        + ` - if you added a field, decide whether format.CURRENT must go up`
+        + ` and whether migrate() needs to handle the older shape`);
   // One place decides it, so raising the number cannot be half-done.
   check('and it comes from the one place that decides it',
         format.CURRENT === require('../ui/src/main/format').CURRENT);
 
   fs.rmSync(dir, { recursive: true, force: true });
+}
+
+console.log('\nwhat a later version left in the file:');
+{
+  // The case the refusal cannot catch. A recording written by a version that
+  // added a top-level field WITHOUT raising the number - which is exactly what
+  // this application did to itself six times over - is readable here, and
+  // renaming it used to write the file back without that field, silently.
+  const dir = path.join(os.tmpdir(), 'bsr-format-f-' + Date.now());
+  fs.mkdirSync(path.join(dir, 'steps'), { recursive: true });
+  const meta = path.join(dir, 'session.json');
+
+  fs.writeFileSync(meta, JSON.stringify({
+    v: 1,
+    name: 'From later',
+    steps: [{ id: 'a', action: 'leftClick', text: 'Click', tomorrow: 'kept too' }],
+    // Two things nobody here has heard of: one a scalar, one a structure.
+    product: 'HYSWEEP',
+    revisions: [{ id: 'r1', note: 'first issue' }],
+  }, null, 2), 'utf8');
+
+  const s = Session.load(dir);
+  check('a file with unknown fields still opens', !s.unreadable);
+  s.rename('Renamed here');                       // any edit flushes
+
+  const after = JSON.parse(fs.readFileSync(meta, 'utf8'));
+  check('the rename was written', after.name === 'Renamed here');
+  check('and the unknown field survived it', after.product === 'HYSWEEP',
+        JSON.stringify(after.product));
+  check('structures survive too, unchanged',
+        JSON.stringify(after.revisions) === JSON.stringify([{ id: 'r1', note: 'first issue' }]),
+        JSON.stringify(after.revisions));
+  // Steps are kept whole, which is why the step-level case has always worked -
+  // worth pinning, because it is load-bearing and invisible.
+  check('an unknown field on a step survives as well',
+        after.steps[0].tomorrow === 'kept too');
+  check('and the version written is this version, not the one in the file',
+        after.v === format.CURRENT);
+
+  // Foreign fields are carried, not obeyed: one named like a field this version
+  // owns must not be able to overwrite it.
+  fs.writeFileSync(meta, JSON.stringify({ v: 1, name: 'Real name', steps: [],
+                                          purpose: 'sop', wild: 1 }), 'utf8');
+  const s2 = Session.load(dir);
+  s2.rename('Still ours');
+  const after2 = JSON.parse(fs.readFileSync(meta, 'utf8'));
+  check('a foreign key cannot displace one this version owns',
+        after2.name === 'Still ours' && after2.wild === 1);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+console.log('\nthe seam a migration goes in:');
+{
+  check('a file with no version at all is version 1 after migration',
+        format.migrate({ name: 'old' }).v === 1);
+  check('and keeps everything it had', format.migrate({ name: 'old' }).name === 'old');
+  check('a version that is not a number is not quietly accepted',
+        format.migrate({ v: 'banana' }).v === Infinity);
+  check('migrating nothing does not throw', format.migrate(null).v === 1);
+  // The rule: it runs on the way in, never on a file from the future.
+  check('a recording from the future is refused before it is migrated',
+        format.canRead({ v: format.CURRENT + 1 }) === false);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
