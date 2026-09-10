@@ -19,6 +19,8 @@ Notable changes, newest first. The reasoning behind each decision lives in
   are no longer five lines apart under similar words.
 - **Right-clicking a mark takes hold of it**, so the menu, the strip and the
   dots are always about the same mark.
+- A selected arrow no longer gets a dashed box around it — the dots on its ends
+  say it is selected, and a rectangle around a diagonal line said nothing.
 - The mark's strip drops to the bottom of the picture when it would otherwise
   cover the mark it is about — which, for anything marked near the top of a
   screenshot, it did.

@@ -238,6 +238,19 @@
    */
   function outlineFor(mark, width, height) {
     if (!mark) return '';
+
+    // Not around an arrow. An arrow is a diagonal line, so the box around it
+    // encloses a large area that is not part of the mark and says nothing about
+    // which way it points - it was the only cue that a mark was selected until
+    // the ends became handles, and with a dot on each end it is a rectangle
+    // doing no work. Said plainly: "is the blue border necessary? it doesn't do
+    // anything."
+    //
+    // The shapes keep theirs: a box or a ring's outline traces roughly what the
+    // mark is, and a label has no handles at all, so its outline is the only
+    // thing saying which one is in hand.
+    if (mark.tool === 'arrow') return '';
+
     const b = boundsOf(mark, 1.5);
     const x = (b.x / 100) * width;
     const y = (b.y / 100) * height;

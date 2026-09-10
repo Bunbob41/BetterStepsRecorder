@@ -992,6 +992,7 @@ app.whenReady().then(async () => {
     await sleep(250);
 
     const dots = handles.querySelectorAll('.mark-handle').length;
+    const outlined = Boolean(document.querySelector('#marks .mark-selection'));
     const hint = document.getElementById('mark-hint').textContent;
     // Read off the picture, not out of the page's variables: the renderer
     // hands its steps to nobody, and a handle IS the end of the mark - if the
@@ -1059,8 +1060,8 @@ app.whenReady().then(async () => {
     await sleep(150);
     const afterEscape = handles.querySelectorAll('.mark-handle').length;
 
-    return { beforeSelecting, dots, hint, before, duringSwing, after, snapped,
-             drawnBefore, drawnAfter, whileArmed, afterEscape };
+    return { beforeSelecting, dots, outlined, hint, before, duringSwing, after,
+             snapped, drawnBefore, drawnAfter, whileArmed, afterEscape };
   })()`);
 
   // Geometry is not appearance: every measurement below can pass while the dots
@@ -1090,6 +1091,9 @@ app.whenReady().then(async () => {
         `${aimed.beforeSelecting} handles`);
   check('selecting it puts one on each end', aimed.dots === 2,
         `${aimed.dots} handles`);
+  // The ends ARE the selection now, so the dashed box that used to be the only
+  // cue is a rectangle around a diagonal line doing no work.
+  check('and no box is drawn around it', aimed.outlined === false);
   check('and the strip says how to aim it', /Shift/.test(aimed.hint), aimed.hint);
   check('the drag is drawn while the mouse is down',
         aimed.duringSwing && aimed.duringSwing.from.y < aimed.before.from.y - 10,

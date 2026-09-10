@@ -267,6 +267,12 @@ console.log('\na box can be resized by a corner:');
   check('and one dragged to nothing keeps enough of itself to grab',
         squashed.rect.w > 0 && squashed.rect.h > 0);
 
+  check('an arrow is not outlined - the box around a diagonal says nothing',
+        a.outlineFor({ id: 'a2', tool: 'arrow', colour: 'red',
+                       from: { x: 10, y: 10 }, to: { x: 80, y: 70 } }, 800, 600) === '');
+  check('and a box still is, because it has no handles until it is selected',
+        a.outlineFor({ id: 'b9', tool: 'box', colour: 'red',
+                       rect: { x: 10, y: 10, w: 20, h: 20 } }, 800, 600) !== '');
   check('a label has no corners to drag - its size is a choice of three',
         a.handlesOf({ tool: 'text', at: { x: 1, y: 2 }, text: 'x' }).length === 0);
 }

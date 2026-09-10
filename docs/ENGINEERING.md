@@ -284,6 +284,12 @@ complaint waiting to be made.
 - **They disappear while a tool is armed**, so one drag cannot mean two things.
 - **The drag previews and commits once**, like every other mark change: one
   entry to undo, not sixty.
+- **A selected arrow is no longer boxed.** The dashed outline (D-61) was the
+  only cue that a mark was in hand; around an arrow it encloses a large area
+  that is not part of the mark and says nothing about which way it points.
+  With a dot on each end it does no work - "is the blue border necessary? it
+  doesn't do anything." The shapes keep theirs, because an outline traces
+  roughly what they are, and a label keeps its because it has no handles.
 - **The strip drops to the foot of the picture when it would sit on the mark.**
   It floats over the top-left (D-64), which is where a mark near the top of a
   screenshot keeps its handles - and the top of a screenshot, where the title
