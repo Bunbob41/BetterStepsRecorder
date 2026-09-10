@@ -3,7 +3,9 @@
 Notable changes, newest first. The reasoning behind each decision lives in
 [docs/ENGINEERING.md](docs/ENGINEERING.md); this is the short version.
 
-## Unreleased
+## 0.2.1
+
+### Marking up
 
 - **A drawn arrow can be aimed after it is drawn.** Select it and a dot appears
   on each end: drag the tail and the arrow swings around its point, which stays
@@ -26,6 +28,9 @@ Notable changes, newest first. The reasoning behind each decision lives in
   screenshot, it did.
 - A highlight can be recoloured from the menu now, from the highlighter's own
   five colours. The strip has always allowed it; the menu used to refuse.
+
+### Fixes
+
 - Fixed: **on a display scaled above 100%, a quarter of every screenshot was
   blank and the click marker was in the wrong place.** An application that does
   not declare itself DPI aware draws at 96 dpi and lets the desktop scale it up;
@@ -41,6 +46,9 @@ Notable changes, newest first. The reasoning behind each decision lives in
 - Fixed: **the application caption appeared on steps for no reason.** It named
   the application but was printed whenever the window title changed, so opening
   and closing a dialog re-announced the program you had never left.
+- Fixed: **"No steps yet." wrapped itself down the folded steps column**, one
+  letter at a time, on a recording with nothing in it — which is the first
+  thing anybody sees who folds the column before recording anything.
 
 ## 0.2.0
 
