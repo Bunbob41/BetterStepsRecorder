@@ -363,6 +363,22 @@ useful part and the next person to find F9 awkward will have the same idea. The
 defaults are function keys for a reason; both remain rebindable in Settings for
 anyone who wants that trade knowingly.
 
+**A fault found by a person, the day after:** the fold hid a LIST of the things
+in the column - the head, the list, the find bar, the footer - and "No steps
+yet." was not on it. On an empty recording it stayed behind and wrapped itself
+down the thirty-pixel rail, one letter per line. It hides the column now, not an
+inventory of its parts: anything added to that column from here is folded away
+by default, which is the right way round, because a new control appearing in a
+folded column is a bug and remembering to add it to a list is how that bug
+happens.
+
+The check that missed it is worth more than the fix. It asked whether the step
+LIST was hidden, in a fixture that has steps in it - and with steps present the
+empty message is hidden anyway, so a folded column looked perfect while the bug
+sat waiting for the first person to open the app before recording anything. It
+now asks whether ANYTHING in the column is still showing, with the empty message
+in the state it appears in.
+
 A note on how the checks for this went, because it is the second time in a day:
 a blanket `s.replace()` with no count edited the FIRST match in the file rather
 than the intended one, and left two probes referring to names they had not

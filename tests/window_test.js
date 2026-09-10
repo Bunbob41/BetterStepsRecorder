@@ -649,7 +649,26 @@ app.whenReady().then(async () => {
 
     document.getElementById('btn-steps-collapse').click();
     await sleep(250);
+    // Everything in the column, not the handful of things that were in it when
+    // the fold was written. "No steps yet." was left out of that list and
+    // wrapped itself down the thirty-pixel rail one letter at a time, which is
+    // what a person saw and no check did.
+    //
+    // Judged as an EMPTY recording, because that is the only state the message
+    // is shown in - with steps in the list it is hidden, and a folded column
+    // looks perfect while the bug is sitting there waiting for the first person
+    // to open the app before recording anything.
+    document.getElementById('empty').hidden = false;
+    await sleep(60);
+    const strays = [...document.querySelectorAll('.steps > *')]
+      .filter((n) => !n.classList.contains('steps-rail'))
+      .filter((n) => getComputedStyle(n).display !== 'none')
+      .map((n) => n.id || n.className || n.tagName);
+
+    document.getElementById('empty').hidden = true;   // put it back
+
     const collapsed = {
+      strays,
       listShown: getComputedStyle(list).display !== 'none',
       rail: getComputedStyle(rail).display,
       count: document.getElementById('rail-count').textContent,
@@ -681,6 +700,9 @@ app.whenReady().then(async () => {
   check('the rail is out of the way while the list is showing',
         folded.railBefore === 'none');
   check('folding hides the list', folded.collapsed.listShown === false);
+  check('and everything else in the column with it',
+        folded.collapsed.strays.length === 0,
+        `still showing: ${folded.collapsed.strays.join(', ')}`);
   check('and leaves a rail to bring it back',
         folded.collapsed.rail !== 'none');
   check('with the number of steps still in view',

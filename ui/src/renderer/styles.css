@@ -940,8 +940,13 @@ body.dropping::after {
 .ghost:hover { color: #e8ecf4; }
 
 body.steps-collapsed main { grid-template-columns: 30px 1fr; }
-body.steps-collapsed .steps-head,
-body.steps-collapsed #step-list,
-body.steps-collapsed .findbar,
-body.steps-collapsed .steps-foot { display: none; }
+
+/* Everything in the column except the rail, rather than a list of the things
+   that were in it when this was written. The list left out the "No steps yet."
+   message, which stayed behind and wrapped itself down a thirty-pixel strip
+   one letter at a time. Anything added to the column from now on is folded
+   away by default, which is the right way round: a new control appearing in a
+   folded column is a bug, and having to remember to add it to a list is how
+   that bug happens. */
+body.steps-collapsed .steps > *:not(.steps-rail) { display: none; }
 body.steps-collapsed .steps-rail { display: flex; }
