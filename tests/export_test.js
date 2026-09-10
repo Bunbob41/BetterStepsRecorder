@@ -206,6 +206,32 @@ console.log('\nthe window is worth saying once:');
   check('a new window is named again', c.endsWith('in "Settings"'));
   check('and then dropped again', e === 'Click the "Back" link');
 
+  // Reported from a real guide: "the title applies to the wrong steps, only
+  // sometimes." Seven steps out of twenty-six carried the line "HYPACK Shell",
+  // in a recording that never left HYPACK - one for every dialog that opened
+  // and closed. The caption names the APPLICATION, so a change of title inside
+  // one application is not a reason to print it again.
+  {
+    const hy = (title) => ({ action: 'leftClick', text: `Clicked in "${title}"`,
+                             window: { title, process: 'hypack.exe' } });
+    const w = windowTracker();
+    const lines = [];
+    for (const title of ['Project Manager', 'Settings', 'Settings',
+                         'Tool Options', 'Project Manager']) {
+      w(hy(title), 'imperative');
+      lines.push(w.changed);
+    }
+    check('the application is announced once, however many dialogs open',
+          lines.filter(Boolean).length === 1, JSON.stringify(lines));
+    check('and it is the first step that announces it', lines[0] === true);
+
+    // And it IS announced when the application really changes.
+    const other = { action: 'leftClick', text: 'Clicked in "Notepad"',
+                    window: { title: 'Notepad', process: 'notepad.exe' } };
+    w(other, 'imperative');
+    check('a different application is announced', w.changed === true);
+  }
+
   // 69% of one recording's description text was this repetition.
   const long = 'Rocket League (64-bit, DX11, Cooked)';
   const t = windowTracker();

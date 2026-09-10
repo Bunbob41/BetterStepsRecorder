@@ -59,7 +59,8 @@ function toImperative(step, voice = 'imperative') {
  * changes.
  */
 function windowTracker() {
-  let current = null;
+  let currentTitle = null;
+  let currentApp = null;
 
   function describe(step, voice) {
     const text = toImperative(step, voice);
@@ -69,9 +70,20 @@ function windowTracker() {
     // states a window nor moves the reader out of one.
     if (step.action === 'note' || !title) return text;
 
-    const repeated = title === current;
-    current = title;
-    describe.changed = !repeated;
+    // The caption under a step names the APPLICATION, so it is the application
+    // that decides whether to print one. It used to be decided by the title -
+    // so opening a dialog and closing it again re-announced the program the
+    // reader had never left, seven times in twenty-six steps in the guide that
+    // brought this to light. Reported as the title landing on the wrong steps.
+    const app = appName.friendly(step.window && step.window.process,
+                                 step.window && step.window.product) || '';
+    describe.changed = app !== currentApp;
+    currentApp = app;
+
+    // The title still decides the wording of the step itself: it is said inline
+    // the first time, and dropped from repeats.
+    const repeated = title === currentTitle;
+    currentTitle = title;
     if (!repeated) return text;
 
     // Only the trailing clause, and only when it is exactly this window: a

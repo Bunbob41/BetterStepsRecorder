@@ -16,6 +16,15 @@ internal static class Win32
     [DllImport("shcore.dll")]
     internal static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
 
+    // The DPI a particular window believes it is drawing at. For an application
+    // that never declared itself DPI aware this is 96 whatever the monitor is
+    // set to, which is exactly the mismatch that has to be measured.
+    [DllImport("user32.dll")]
+    internal static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
     internal const int MDT_EFFECTIVE_DPI = 0;
 
     // ---- Monitors -----------------------------------------------------------

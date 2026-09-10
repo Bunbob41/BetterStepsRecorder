@@ -3,6 +3,24 @@
 Notable changes, newest first. The reasoning behind each decision lives in
 [docs/ENGINEERING.md](docs/ENGINEERING.md); this is the short version.
 
+## Unreleased
+
+- Fixed: **on a display scaled above 100%, a quarter of every screenshot was
+  blank and the click marker was in the wrong place.** An application that does
+  not declare itself DPI aware draws at 96 dpi and lets the desktop scale it up;
+  the capture asked for a picture the size of the window on screen and got the
+  smaller, unscaled one in the corner of it. The marker, being a percentage of
+  the picture, drifted by a quarter of its distance from the top-left — a few
+  pixels near the corner, a hundred at the far side, and nothing at all at 100%,
+  which is why it seemed to come and go.
+- Fixed: **a window that drew its title bar and nothing else** — a black
+  rectangle where the content should be — was kept instead of falling back to
+  copying the screen. The test only rejected a picture that was *entirely*
+  black.
+- Fixed: **the application caption appeared on steps for no reason.** It named
+  the application but was printed whenever the window title changed, so opening
+  and closing a dialog re-announced the program you had never left.
+
 ## 0.2.0
 
 ### Photographs

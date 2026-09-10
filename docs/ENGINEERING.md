@@ -135,7 +135,10 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     recording is something people send each other, so its paths are claims.
     Rejected at load and re-checked at every read, write and delete.
 15. **A screenshot captured from the screen is exactly the size of the `frame`
-    recorded with its step.** The click marker is a percentage of that
+    recorded with its step, AND is entirely that window's rendering.** The
+    second half was learned the hard way (D-67): the sizes agreed while the
+    window had drawn itself into three quarters of the bitmap, so the marker was
+    a correct percentage of a picture that was mostly blank. The click marker is a percentage of that
     rectangle, so any mismatch misplaces the marker on every step of the guide.
     A photograph has no frame, no window and no click; every marker decision
     already answers "there is none" for a step shaped that way, which is why
@@ -222,6 +225,73 @@ there is nothing to convert them from.
 Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
+
+### D-67 - A window draws itself at its own dpi, not at the monitor's
+`(this change)` - [capture/ScreenCapture.cs](../capture/ScreenCapture.cs)
+
+Reported as three separate faults from one recording made with 0.2.0: the
+window title landing on the wrong steps, the in-window capture "not always"
+working, and clicks that were sometimes exact and sometimes wildly out. Two of
+the three were the same bug, and it had been there from the beginning.
+
+Measured from the exported guide, by finding where the drawn content ends
+inside each screenshot:
+
+    bitmap 800x560    content 645x455    ratio 1.240
+    bitmap 1900x1009  content 1525x814   ratio 1.246
+    bitmap 801x692    content 646x561    ratio 1.240
+    bitmap 121x35     content 97x28      ratio 1.247
+
+The same number every time: **1.25, a display at 125%.**
+
+This process is per-monitor DPI aware, deliberately, so that the coordinates it
+reports are real screen pixels (see `Program.Main`). A window's rectangle is
+therefore physical, and the bitmap is allocated at that size. But an application
+that never declared itself DPI aware does not draw in physical pixels: Windows
+renders it at 96 dpi and the desktop scales the result on the way to the screen.
+`PrintWindow` returns what the application drew - so the picture arrived three
+quarters the size of the bitmap it was asked for, in the top-left corner, with
+the rest untouched.
+
+Every symptom follows from that one fact:
+
+- **A quarter of every screenshot was blank**, right and bottom. That is the
+  "in-window capture does not always work".
+- **The click marker was displaced by a quarter of its distance from the corner**
+  - a few pixels near the top-left, over a hundred at the bottom right, and
+  nothing at all on a display at 100%. That is "sometimes dead accurate,
+  sometimes dead wrong", and it is why it looked random.
+- **Invariant 15 held the whole time.** The picture really was the size of the
+  frame. The invariant was not wrong, it was incomplete: it says nothing about
+  the picture being entirely the window's rendering, which is the property the
+  marker actually depends on.
+
+The fix asks Windows what each side believes: `GetDpiForWindow(hwnd)` for the
+window, `GetDpiForMonitor` for the display. Where they disagree, the drawn part
+is stretched to fill the frame. Scaled up rather than cropped down on purpose -
+the frame must stay the size of the picture, because the marker and every mark
+are percentages of it, and because a scaled-up render is what the person
+actually saw.
+
+**A second, older bug surfaced in the same screenshot.** One capture came back
+with its title bar drawn and a black hole where the content should be, which is
+what a window drawing through the graphics card does to `PrintWindow`. The
+fallback to copying the screen exists for exactly this, but the test asked
+whether the *whole* bitmap was black. A window that drew its frame and nothing
+else passed, and went into the guide as a black rectangle. It now asks whether
+nearly all of it is black. A genuinely near-black window would fall back to a
+screen copy, which is a correct picture by another route - a cheap way to be
+wrong.
+
+**And one that was not the engine at all.** The caption under a step names the
+application, but it was printed whenever the window TITLE changed - so opening
+a dialog and closing it again re-announced the program the reader had never
+left. Seven times in twenty-six steps, in a recording that never left HYPACK.
+That is the "title applies to the wrong steps".
+
+None of this is a 0.2.0 regression. It needed a scaled display and an
+application old enough not to declare itself DPI aware, which is most
+engineering software.
 
 ### D-66 - Whatever a change touches, its undo entry has to carry
 `(this change)` - [ui/src/main/history.js](../ui/src/main/history.js)
