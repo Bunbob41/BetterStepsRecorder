@@ -490,11 +490,41 @@ app.whenReady().then(async () => {
     await sleep(80);
     const labels = [...document.querySelectorAll('#context button')]
       .map((b) => b.textContent);
-    const recolour = [...document.querySelectorAll('#context button')]
-      .find((b) => /Make this box blue/.test(b.textContent));
-    if (recolour) recolour.click();
+    // Right-clicking a mark takes hold of it, so the menu, the strip and the
+    // handles are all talking about the same one.
+    const held = { bar: !document.getElementById('mark-bar').hidden,
+                   kind: document.getElementById('mark-kind').textContent,
+                   handles: document.querySelectorAll('#mark-handles .mark-handle').length };
+
+    // Four colours were four lines of an eleven-line menu. Hovered, not
+    // clicked: hovering is how a submenu is opened by hand, and a group that
+    // only opens on a click is a group nobody finds.
+    const group = [...document.querySelectorAll('#context button')]
+      .find((b) => /Change colour/.test(b.textContent));
+    if (group) group.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await sleep(80);
+    const subLabels = [...document.querySelectorAll('#context-sub button')]
+      .map((b) => b.textContent);
+    const ticked = [...document.querySelectorAll('#context-sub button.chosen')]
+      .map((b) => b.textContent);
+    const swatches = document.querySelectorAll('#context-sub .swatch').length;
+
+    // Moving onto anything else in the parent menu puts it away again.
+    const other = [...document.querySelectorAll('#context button')]
+      .find((b) => /Delete this box/.test(b.textContent));
+    if (other) other.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await sleep(60);
+    const subClosed = document.getElementById('context-sub').hidden;
+
+    if (group) group.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await sleep(80);
+    const blue = [...document.querySelectorAll('#context-sub button')]
+      .find((b) => b.textContent.trim() === 'Blue');
+    if (blue) blue.click();
     await sleep(300);
     const afterColour = layer.innerHTML;
+    const bothClosed = document.getElementById('context').hidden
+                    && document.getElementById('context-sub').hidden;
 
     // Right-click it again and delete it.
     wrap.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, ...at(0.5, 0.5) }));
@@ -512,15 +542,35 @@ app.whenReady().then(async () => {
       .map((b) => b.textContent);
     document.getElementById('context').hidden = true;
 
-    return { drawn, labels, afterColour, left, awayLabels };
+    return { drawn, labels, afterColour, left, awayLabels, held,
+             subLabels, ticked, swatches, subClosed, bothClosed };
   })()`);
 
   check('a drag draws a mark on the overlay', marks.drawn === 1,
         `${marks.drawn} on the layer`);
   check('right-clicking it offers to delete it',
         marks.labels.some((l) => /Delete this box/.test(l)), marks.labels.join(' | '));
-  check('and to change its colour',
-        marks.labels.some((l) => /Make this box blue/.test(l)));
+  check('right-clicking it takes hold of it',
+        marks.held.bar && marks.held.kind === 'Box',
+        `strip: ${marks.held.bar}, about a ${marks.held.kind}`);
+  check('and puts its corners on the picture', marks.held.handles === 4,
+        `${marks.held.handles} handles`);
+  // Reported as "we can probably file the colour options under one Change
+  // colour". They were four lines of an eleven-line menu, and one of the two
+  // reasons the menu had eleven lines.
+  check('the colours are one item, not one line each',
+        marks.labels.some((l) => /Change colour/.test(l))
+        && !marks.labels.some((l) => /Make this box/.test(l)),
+        marks.labels.join(' | '));
+  check('and hovering it opens them beside it',
+        marks.subLabels.length === 5, marks.subLabels.join(' | '));
+  check('each with the colour it is',
+        marks.swatches === 5, `${marks.swatches} swatches`);
+  check('and a tick on the one it already is',
+        marks.ticked.length === 1 && /Red/.test(marks.ticked[0]),
+        marks.ticked.join(' | '));
+  check('moving onto another item closes them again', marks.subClosed);
+  check('and choosing a colour closes the whole menu', marks.bothClosed);
   check('changing the colour redraws it in that colour',
         /#2f6fed/.test(marks.afterColour));
   check('deleting it takes it off the picture', marks.left === 0,
@@ -903,6 +953,235 @@ app.whenReady().then(async () => {
   check('and Delete on the strip removes it',
         grabbed.left === grabbed.marksBeforeDelete - 1,
         `${grabbed.marksBeforeDelete} mark(s) before, ${grabbed.left} after`);
+
+  // Reported as "there is no simple rotation of the drawn arrows". There was
+  // none at all: an arrow drawn at the wrong angle could be moved, recoloured
+  // or deleted, and the only way to change where it pointed was to delete it
+  // and draw it again.
+  console.log('\naiming an arrow after it is drawn:');
+  const aimed = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const wrap = document.getElementById('shot-wrap');
+    const shot = document.getElementById('shot');
+    const handles = document.getElementById('mark-handles');
+    const r = shot.getBoundingClientRect();
+    const at = (fx, fy) => ({ clientX: Math.round(r.left + r.width * fx),
+                              clientY: Math.round(r.top + r.height * fy) });
+
+    document.querySelector('#step-list li[data-id="s1"]').click();
+    await sleep(250);
+
+    // An arrow across the middle, pointing right.
+    document.getElementById('btn-arrow').click();
+    await sleep(20);
+    wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.2, 0.5) }));
+    await sleep(15);
+    window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, ...at(0.6, 0.5) }));
+    await sleep(15);
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(0.6, 0.5) }));
+    await sleep(300);
+    document.getElementById('btn-arrow').click();          // disarm
+    await sleep(20);
+
+    const beforeSelecting = handles.querySelectorAll('.mark-handle').length;
+
+    // Take hold of it.
+    wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.4, 0.5) }));
+    await sleep(40);
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(0.4, 0.5) }));
+    await sleep(250);
+
+    const dots = handles.querySelectorAll('.mark-handle').length;
+    const hint = document.getElementById('mark-hint').textContent;
+    // Read off the picture, not out of the page's variables: the renderer
+    // hands its steps to nobody, and a handle IS the end of the mark - if the
+    // two ever disagreed, the dot somebody grabs would not be on the thing
+    // they think they are grabbing.
+    const arrow = () => {
+      const end = (which, axis) => {
+        const dot = handles.querySelector('.mark-handle.h-' + which);
+        return dot ? Number.parseFloat(axis === 'x' ? dot.style.left : dot.style.top)
+                   : null;
+      };
+      return { from: { x: end('from', 'x'), y: end('from', 'y') },
+               to: { x: end('to', 'x'), y: end('to', 'y') } };
+    };
+    // And the drawn line, which comes from the committed mark rather than from
+    // the handles, so a change that never reached the recording is visible.
+    // The LAST arrow on the layer: this step already carries one from the
+    // drag-preview checks further up the file, and the first one in the
+    // document is that one - which never moves, and reported "no change" for a
+    // change that had happened perfectly.
+    const drawnTail = () => {
+      const arrows = [...document.querySelectorAll('#marks .mark-arrow line')];
+      const line = arrows[arrows.length - 1];
+      return line ? Math.round(Number(line.getAttribute('y1'))) : null;
+    };
+    const before = JSON.parse(JSON.stringify(arrow()));
+    const drawnBefore = drawnTail();
+
+    // Swing the tail up to the top left. The point is on the thing being
+    // pointed at, so it must not move.
+    const swing = async (fx, fy, shiftKey) => {
+      const tail = handles.querySelector('.mark-handle.h-from');
+      const box = tail.getBoundingClientRect();
+      tail.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0,
+        clientX: Math.round(box.left + box.width / 2),
+        clientY: Math.round(box.top + box.height / 2) }));
+      await sleep(30);
+      window.dispatchEvent(new MouseEvent('mousemove',
+        { bubbles: true, shiftKey, ...at(fx, fy) }));
+      await sleep(60);
+      const live = JSON.parse(JSON.stringify(arrow()));
+      window.dispatchEvent(new MouseEvent('mouseup',
+        { bubbles: true, button: 0, shiftKey, ...at(fx, fy) }));
+      await sleep(300);
+      return live;
+    };
+
+    const duringSwing = await swing(0.2, 0.1, false);
+    const after = JSON.parse(JSON.stringify(arrow()));
+    const drawnAfter = drawnTail();
+
+    // And with Shift, off a level line by a hair.
+    await swing(0.2, 0.54, true);
+    const snapped = JSON.parse(JSON.stringify(arrow()));
+
+    // Arming a tool takes the handles away: a drag that starts on one has to
+    // draw a new mark rather than resize the old one.
+    document.getElementById('btn-box').click();
+    await sleep(60);
+    const whileArmed = handles.querySelectorAll('.mark-handle').length;
+    document.getElementById('btn-box').click();
+    await sleep(60);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(150);
+    const afterEscape = handles.querySelectorAll('.mark-handle').length;
+
+    return { beforeSelecting, dots, hint, before, duringSwing, after, snapped,
+             drawnBefore, drawnAfter, whileArmed, afterEscape };
+  })()`);
+
+  // Geometry is not appearance: every measurement below can pass while the dots
+  // are drawn in the wrong place, invisible, or on top of one another.
+  if (process.env.BSR_SHOTS) {
+    await win.webContents.executeJavaScript(`(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const wrap = document.getElementById('shot-wrap');
+      const r = document.getElementById('shot').getBoundingClientRect();
+      const at = (fx, fy) => ({ clientX: Math.round(r.left + r.width * fx),
+                                clientY: Math.round(r.top + r.height * fy) });
+      // Back onto the arrow this probe left on the picture.
+      wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.32, 0.34) }));
+      await sleep(40);
+      window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(0.32, 0.34) }));
+      await sleep(250);
+    })()`);
+    const image = await win.webContents.capturePage();
+    const out = path.join(process.env.BSR_SHOTS, 'mark-handles.png');
+    fs.writeFileSync(out, image.toPNG());
+    console.log('    wrote ' + out);
+    await win.webContents.executeJavaScript(
+      `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  }
+
+  check('an unselected arrow has no handles on it', aimed.beforeSelecting === 0,
+        `${aimed.beforeSelecting} handles`);
+  check('selecting it puts one on each end', aimed.dots === 2,
+        `${aimed.dots} handles`);
+  check('and the strip says how to aim it', /Shift/.test(aimed.hint), aimed.hint);
+  check('the drag is drawn while the mouse is down',
+        aimed.duringSwing && aimed.duringSwing.from.y < aimed.before.from.y - 10,
+        `${aimed.before.from.y} -> ${aimed.duringSwing && aimed.duringSwing.from.y}`);
+  check('and dragging the tail turns the arrow',
+        aimed.after.from.y < aimed.before.from.y - 10,
+        `tail at ${aimed.before.from.y}% -> ${aimed.after.from.y}%`);
+  // The whole reason the tail is the handle: the point is on the thing being
+  // pointed at, and turning must not take it off it.
+  check('while the point stays on what it is pointing at',
+        Math.abs(aimed.after.to.x - aimed.before.to.x) < 1
+        && Math.abs(aimed.after.to.y - aimed.before.to.y) < 1,
+        JSON.stringify(aimed.after.to));
+  check('and the arrow on the picture is redrawn from the change',
+        aimed.drawnAfter !== null && aimed.drawnAfter < aimed.drawnBefore - 20,
+        `the line's tail: ${aimed.drawnBefore}px -> ${aimed.drawnAfter}px`);
+  check('and Shift snaps a nearly level arrow level',
+        Math.abs(aimed.snapped.from.y - aimed.snapped.to.y) < 0.01,
+        `${aimed.snapped.from.y} vs ${aimed.snapped.to.y}`);
+  check('arming a tool takes the handles away', aimed.whileArmed === 0,
+        `${aimed.whileArmed} handles`);
+  check('and letting go of the mark takes them away too', aimed.afterEscape === 0,
+        `${aimed.afterEscape} handles`);
+
+  // Found by looking at a window screenshot rather than at a number: the strip
+  // floats over the top-left of the picture, and a mark near the top of a
+  // screenshot had its handles underneath it.
+  console.log('\nthe strip keeps off the mark it is about:');
+  const strip = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const wrap = document.getElementById('shot-wrap');
+    const shot = document.getElementById('shot');
+    const bar = document.getElementById('mark-bar');
+    const handles = document.getElementById('mark-handles');
+    const r = shot.getBoundingClientRect();
+    const at = (fx, fy) => ({ clientX: Math.round(r.left + r.width * fx),
+                              clientY: Math.round(r.top + r.height * fy) });
+
+    document.querySelector('#step-list li[data-id="s3"]').click();
+    await sleep(250);
+
+    const draw = async (tool, x1, y1, x2, y2) => {
+      document.getElementById(tool).click();
+      await sleep(20);
+      wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(x1, y1) }));
+      await sleep(15);
+      window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, ...at(x2, y2) }));
+      await sleep(15);
+      window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(x2, y2) }));
+      await sleep(300);
+      document.getElementById(tool).click();
+      await sleep(20);
+    };
+
+    const take = async (fx, fy) => {
+      wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(fx, fy) }));
+      await sleep(30);
+      window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(fx, fy) }));
+      await sleep(200);
+      const b = bar.getBoundingClientRect();
+      const dots = [...handles.querySelectorAll('.mark-handle')]
+        .map((d) => d.getBoundingClientRect());
+      return {
+        kind: document.getElementById('mark-kind').textContent,
+        // A handle underneath the strip is a handle nobody can reach.
+        buried: dots.filter((d) => d.left < b.right && d.right > b.left
+                                && d.top < b.bottom && d.bottom > b.top).length,
+        low: bar.classList.contains('low'),
+      };
+    };
+
+    // A box across the top left, where a title bar and a menu live.
+    await draw('btn-box', 0.05, 0.05, 0.45, 0.3);
+    const high = await take(0.25, 0.06);
+
+    // And one across the bottom, which the strip was never in the way of.
+    await draw('btn-box', 0.05, 0.7, 0.45, 0.92);
+    const low = await take(0.25, 0.71);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(150);
+    return { high, low };
+  })()`);
+
+  check('a mark at the top of the picture is taken hold of', strip.high.kind === 'Box',
+        strip.high.kind);
+  check('and the strip moves out from over it', strip.high.low === true);
+  check('so none of its handles are buried', strip.high.buried === 0,
+        `${strip.high.buried} handle(s) under the strip`);
+  check('a mark lower down leaves the strip where it was', strip.low.low === false);
+  check('and none of its handles are buried either', strip.low.buried === 0,
+        `${strip.low.buried} handle(s) under the strip`);
 
   console.log('\nthe right button does not draw:');
   const rightClick = await win.webContents.executeJavaScript(`(async () => {
@@ -1318,9 +1597,15 @@ app.whenReady().then(async () => {
     document.getElementById('shot-wrap').dispatchEvent(new MouseEvent('contextmenu',
       { bubbles: true, clientX: r.left + 200, clientY: r.top + 150 }));
     await sleep(80);
-    const back = [...document.querySelectorAll('#context button')]
-      .find((b) => /the way it chooses/.test(b.textContent));
-    if (back) back.click();
+    // Under the marker's own group now, so the group is opened first. Found
+    // rather than guarded away: an item that has moved should fail here, not
+    // leave the next probe measuring a marker this one turned.
+    [...document.querySelectorAll('#context button')]
+      .find((b) => /The click marker/.test(b.textContent))
+      .dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await sleep(80);
+    [...document.querySelectorAll('#context-sub button')]
+      .find((b) => /the way it chooses/.test(b.textContent)).click();
     await sleep(250);
 
     sel.value = 'circle';
@@ -1406,9 +1691,12 @@ app.whenReady().then(async () => {
     document.getElementById('shot-wrap').dispatchEvent(new MouseEvent('contextmenu',
       { bubbles: true, clientX: r.left + 200, clientY: r.top + 150 }));
     await sleep(80);
-    const auto = [...document.querySelectorAll('#context button')]
-      .find((b) => /the way it chooses/.test(b.textContent));
-    if (auto) auto.click();
+    [...document.querySelectorAll('#context button')]
+      .find((b) => /The click marker/.test(b.textContent))
+      .dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await sleep(80);
+    [...document.querySelectorAll('#context-sub button')]
+      .find((b) => /the way it chooses/.test(b.textContent)).click();
     await sleep(250);
 
     sel.value = 'circle';
@@ -1589,6 +1877,18 @@ app.whenReady().then(async () => {
     const menu = document.getElementById('context');
     const items = [...menu.querySelectorAll('button')]
       .map((b) => ({ label: b.textContent, disabled: b.disabled }));
+
+    // What is under the group. Opened by hovering, which is how a person opens
+    // it - and the group itself is greyed when everything under it is, so a
+    // menu can never offer a way in to three unavailable choices.
+    const group = [...menu.querySelectorAll('button')]
+      .find((b) => /The click marker/.test(b.textContent));
+    const groupDisabled = group ? group.disabled : null;
+    if (group) group.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await sleep(80);
+    const markerItems = [...document.querySelectorAll('#context-sub button')]
+      .map((b) => ({ label: b.textContent, disabled: b.disabled }));
+    const subBox = document.getElementById('context-sub').getBoundingClientRect();
     const box = menu.getBoundingClientRect();
     // A menu with no background is a menu drawn over the screenshot, and a
     // measurement cannot tell the difference. The stylesheet is what makes it
@@ -1599,7 +1899,10 @@ app.whenReady().then(async () => {
              inside: box.right <= window.innerWidth && box.bottom <= window.innerHeight,
              opaque: !/transparent|rgba\(0, 0, 0, 0\)/.test(style.backgroundColor),
              ink: first.color, paper: style.backgroundColor,
-             items };
+             items, markerItems, groupDisabled,
+             subOnScreen: subBox.width > 0
+               && subBox.right <= window.innerWidth
+               && subBox.bottom <= window.innerHeight };
   })()`);
 
   // Geometry is not appearance. Every one of the bugs this file exists for -
@@ -1623,14 +1926,22 @@ app.whenReady().then(async () => {
         /Undo/.test(shotMenu.items[0].label) && /Redo/.test(shotMenu.items[1].label));
   check('both live, because there is something to go back to',
         !shotMenu.items[0].disabled && !shotMenu.items[1].disabled);
+  check('the marker keeps its own group', shotMenu.groupDisabled === false,
+        shotMenu.items.map((i) => i.label).join(' | '));
+  check('and the submenu opens on screen', shotMenu.subOnScreen);
   check('and the one thing only reachable here',
-        shotMenu.items.some((i) => /marker back/.test(i.label) && !i.disabled));
+        shotMenu.markerItems.some((i) => /marker back/.test(i.label) && !i.disabled),
+        shotMenu.markerItems.map((i) => i.label).join(' | '));
 
   const reset = await win.webContents.executeJavaScript(`(async () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const shot = document.getElementById('shot');
     const r = shot.getBoundingClientRect();
     [...document.querySelectorAll('#context button')]
+      .find((b) => /The click marker/.test(b.textContent))
+      .dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await sleep(80);
+    [...document.querySelectorAll('#context-sub button')]
       .find((b) => /marker back/.test(b.textContent)).click();
     await sleep(250);
 
@@ -1644,7 +1955,7 @@ app.whenReady().then(async () => {
     };
   })()`);
 
-  check('choosing an item closes the menu', reset.closed);
+  check('choosing an item under a group closes the menu', reset.closed);
   check('putting it back sends nothing rather than a position',
         reset.sent.at === null);
   check('and the marker returns to where the recording put it',
@@ -1660,9 +1971,19 @@ app.whenReady().then(async () => {
     document.getElementById('shot-wrap').dispatchEvent(new MouseEvent('contextmenu',
       { bubbles: true, clientX: r.left + 200, clientY: r.top + 150 }));
     await sleep(80);
-    const labelWhenShown = [...document.querySelectorAll('#context button')]
+    // The marker's own items live under one group now: "delete this arrow" and
+    // "point the arrow the way it chooses" were five lines apart in the same
+    // menu and meant different arrows.
+    const openMarker = async () => {
+      [...document.querySelectorAll('#context button')]
+        .find((b) => /The click marker/.test(b.textContent))
+        .dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      await sleep(80);
+    };
+    await openMarker();
+    const labelWhenShown = [...document.querySelectorAll('#context-sub button')]
       .map((b) => b.textContent).find((t) => /marker on this step/.test(t)) || '';
-    [...document.querySelectorAll('#context button')]
+    [...document.querySelectorAll('#context-sub button')]
       .find((b) => /Hide the marker/.test(b.textContent)).click();
     await sleep(250);
 
@@ -1672,9 +1993,10 @@ app.whenReady().then(async () => {
     document.getElementById('shot-wrap').dispatchEvent(new MouseEvent('contextmenu',
       { bubbles: true, clientX: r.left + 200, clientY: r.top + 150 }));
     await sleep(80);
-    const labelWhenHidden = [...document.querySelectorAll('#context button')]
+    await openMarker();
+    const labelWhenHidden = [...document.querySelectorAll('#context-sub button')]
       .map((b) => b.textContent).find((t) => /marker on this step/.test(t)) || '';
-    [...document.querySelectorAll('#context button')]
+    [...document.querySelectorAll('#context-sub button')]
       .find((b) => /Show the marker/.test(b.textContent)).click();
     await sleep(250);
 

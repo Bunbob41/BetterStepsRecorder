@@ -725,6 +725,11 @@ button.tool.active {
 .ctxmenu button:disabled { opacity: .35; cursor: default; }
 .ctxmenu button:disabled:hover { background: transparent; }
 .ctxmenu .key { color: var(--muted); font-size: 11px; }
+/* A swatch and its name travel together on the left; the tick and the arrow
+   sit on the right. Without this the button's space-between pushes a colour
+   away from the word for it. */
+.ctxmenu button > span { display: flex; align-items: center; gap: 9px; }
+.ctxmenu button.hassub.open { background: rgba(255,255,255,.07); }
 /* --line is for a border against the page background; on the menu's own
    panel it disappears, which is a divider that divides nothing. */
 .ctxmenu hr { border: 0; border-top: 1px solid rgba(255,255,255,.10);
@@ -834,6 +839,33 @@ body.dropping::after {
 }
 .marks svg { width: 100%; height: 100%; display: block; }
 
+/* The ends of the selected mark. The layer itself is deaf - a drag that starts
+   on bare picture has to reach the picture - and only the dots listen. */
+.mark-handles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.mark-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #1f6feb;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.28);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: grab;
+}
+.mark-handle:active { cursor: grabbing; }
+/* The tip is the end that is pointing at something, and is drawn as the point
+   it is - so the two ends of an arrow are told apart before either is dragged. */
+.mark-handle.h-to { border-radius: 2px; }
+.mark-handle.h-nw, .mark-handle.h-se { cursor: nwse-resize; }
+.mark-handle.h-ne, .mark-handle.h-sw { cursor: nesw-resize; }
+
 /* Typing a label. Positioned on the picture from script, so only the things
    that never change are here. */
 .label-input {
@@ -878,6 +910,9 @@ body.dropping::after {
   border-radius: 8px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
 }
+/* Dropped to the foot of the picture when it would otherwise sit on the mark
+   it is about - see paintMarkBar. */
+.mark-bar.low { top: auto; bottom: 8px; }
 .mark-kind { font-weight: 600; color: #e8ecf4; }
 .mark-colours { display: flex; gap: 6px; }
 .mark-colours button {

@@ -626,14 +626,18 @@ fixes its direction, and so does **moving it** — whichever way it happened to
 be pointing when you picked it up is the way it still points when you put it
 down. Otherwise an arrow would re-aim itself partway across a picture as you
 dragged it, which is startling and never what was wanted. Right-click the
-screenshot and choose **Point the arrow the way it chooses** to hand the
-decision back.
+screenshot and choose **The click marker → Point the arrow the way it
+chooses** to hand the decision back.
+
+> This is the *recorded* marker, the one the app puts on every click. An arrow
+> you draw yourself with the Arrow tool is a different thing, aimed by dragging
+> either of its ends — see **Marking up a screenshot** below.
 
 #### Turning it off
 
 Sometimes an arrow you draw yourself says it better than a ring around a click.
-Right-click a screenshot and choose **Hide the marker on this step**, and that
-step carries none — on screen and in everything you export. The same item shows
+Right-click a screenshot and choose **The click marker → Hide the marker on
+this step**, and that step carries none — on screen and in everything you export. The same item shows
 it again.
 
 If that is how you always work, Settings → **Marking up** has *Mark where the
@@ -657,8 +661,8 @@ have been. It glows faintly once you have moved it, so you can tell at a glance
 which steps you have adjusted. An arrow keeps the direction it was pointing —
 moving a marker is not asking for it to be re-aimed.
 
-Right-click the screenshot and choose **Put the marker back where it was
-recorded** to undo that for good; Ctrl+Z works too.
+Right-click the screenshot and choose **The click marker → Put the marker back
+where it was recorded** to undo that for good; Ctrl+Z works too.
 
 The position is remembered as a *proportion* of the picture rather than as
 pixels — a quarter across, a third down — which is the same way the recorded
@@ -1009,12 +1013,36 @@ just that mark's controls — its colour, its size if it is a label, and Delete
 — and **you can drag it wherever it should have gone**. Press Escape, or click
 somewhere empty, to let it go. Double-click a label to retype it.
 
-Everything is also on the right-click menu if you prefer it:
+**Small dots appear on the mark itself, and those change its shape:**
+
+- **An arrow gets one on each end.** Drag the tail and the arrow swings around
+  its point, which stays on the thing it is pointing at. Drag the point and it
+  moves to something else. That is how a drawn arrow is aimed after the fact —
+  before this, an arrow at the wrong angle had to be deleted and drawn again.
+  **Hold Shift while you drag** and it lands on a whole angle — level, upright,
+  or a clean forty-five — so a page of arrows does not look hand-wobbled.
+- **A box, a circle or a highlight gets one at each corner**, and dragging a
+  corner resizes it. The opposite corner stays where it is.
+
+The dots go away while a drawing tool is armed, so a drag that starts on one
+draws a new mark instead of moving an old one. If the strip itself would sit on
+top of the mark — a box around a title bar, say — it moves to the bottom of the
+picture instead.
+
+Everything is also on the right-click menu if you prefer it. **Right-clicking a
+mark takes hold of it too**, so the menu, the strip and the dots are always
+about the same mark:
 
 - **Delete it** — that one, whichever order you drew them in. Not undo, and not
   the four marks you drew after it.
-- **Change its colour** — red, blue, green, amber or black.
+- **Change colour** — opens beside itself with the five colours, a tick on the
+  one it already is. A highlight offers the highlighter's own five instead,
+  because those are the colours your guide's key explains.
 - **Retype a label.** Clearing the words removes it.
+
+Everything about the *recorded* click marker — hiding it, aiming it, putting it
+back — lives under **The click marker** at the bottom of that menu, out of the
+way of the marks you drew yourself.
 
 To set the colour of the *next* mark, right-click the Box, Circle, Arrow or
 Label tool and choose. That choice is remembered.

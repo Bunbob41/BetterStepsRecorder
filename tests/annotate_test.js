@@ -182,7 +182,96 @@ console.log('\nmarks, held as data:');
   check('an ampersand is escaped', tsvg.includes('&amp;'));
   check('and the words still come through', tsvg.includes('quoted'));
 
-  console.log('\nthe size a mark is measured against:');
+  console.log('\nan arrow can be aimed after it is drawn:');
+{
+  const arrow = { id: 'a1', tool: 'arrow', colour: 'red',
+                  from: { x: 20, y: 50 }, to: { x: 60, y: 50 } };
+
+  const ends = a.handlesOf(arrow);
+  check('an arrow is held by its two ends', ends.length === 2);
+  check('the tail is one of them',
+        ends.some((h) => h.key === 'from' && h.x === 20 && h.y === 50));
+  check('and the point is the other',
+        ends.some((h) => h.key === 'to' && h.x === 60 && h.y === 50));
+
+  // Turning about the tip is the whole idea: the point is on the thing being
+  // pointed at, and that is the end that must not move.
+  const swung = a.withHandle(arrow, 'from', 20, 10);
+  check('swinging the tail leaves the point where it was',
+        swung.to.x === 60 && swung.to.y === 50);
+  check('and moves the tail to the pointer',
+        swung.from.x === 20 && swung.from.y === 10);
+
+  const moved = a.withHandle(arrow, 'to', 90, 90);
+  check('moving the point leaves the tail where it was',
+        moved.from.x === 20 && moved.from.y === 50);
+
+  check('an end cannot be dragged off the picture',
+        a.withHandle(arrow, 'to', 140, -30).to.x === 100
+        && a.withHandle(arrow, 'to', 140, -30).to.y === 0);
+
+  console.log('\nand Shift lands it on a whole angle:');
+  // The picture is twice as wide as it is tall, which is where snapping in
+  // percentages rather than in what is on screen goes wrong: 45 degrees in
+  // these units is 27 on the screenshot.
+  const aspect = 2;
+  const degrees = (m) => {
+    const dx = (m.from.x - m.to.x) * aspect;
+    const dy = m.from.y - m.to.y;
+    return (Math.atan2(dy, dx) * 180) / Math.PI;
+  };
+
+  for (const [name, x, y] of [['just off horizontal', 20, 53],
+                              ['near 45', 34, 22],
+                              ['near vertical', 59, 10]]) {
+    const snapped = a.withHandle(arrow, 'from', x, y, { snap: true, aspect });
+    const off = Math.abs(degrees(snapped) % 15);
+    check(`dragged ${name}, it lands on a multiple of 15 (${degrees(snapped).toFixed(1)}deg)`,
+          off < 0.001 || Math.abs(off - 15) < 0.001);
+  }
+
+  const level = a.withHandle(arrow, 'from', 20, 53, { snap: true, aspect });
+  check('a nearly level arrow becomes a level one',
+        Math.abs(level.from.y - level.to.y) < 0.001,
+        `${level.from.y} vs ${level.to.y}`);
+  check('and keeps the length it was dragged to',
+        Math.abs(Math.hypot((level.from.x - level.to.x) * aspect, level.from.y - level.to.y)
+                 - Math.hypot((20 - 60) * aspect, 53 - 50)) < 0.001);
+
+  const free = a.withHandle(arrow, 'from', 20, 53, { snap: false, aspect });
+  check('and without Shift it goes exactly where it was put', free.from.y === 53);
+}
+
+console.log('\na box can be resized by a corner:');
+{
+  const box = { id: 'b1', tool: 'box', colour: 'red',
+                rect: { x: 20, y: 20, w: 40, h: 30 } };
+  const corners = a.handlesOf(box);
+  check('a box is held by four corners', corners.length === 4);
+  check('at the four corners of it',
+        corners.some((c) => c.x === 20 && c.y === 20)
+        && corners.some((c) => c.x === 60 && c.y === 50));
+
+  const wider = a.withHandle(box, 'se', 80, 70);
+  check('dragging one corner keeps the opposite one still',
+        wider.rect.x === 20 && wider.rect.y === 20);
+  check('and stretches to the pointer',
+        wider.rect.w === 60 && wider.rect.h === 50);
+
+  const flipped = a.withHandle(box, 'se', 5, 5);
+  check('dragging a corner past the anchor still gives a real box',
+        flipped.rect.w > 0 && flipped.rect.h > 0
+        && flipped.rect.x === 5 && flipped.rect.y === 5);
+
+  const squashed = a.withHandle(box, 'se', 20, 20);
+  check('and one dragged to nothing keeps enough of itself to grab',
+        squashed.rect.w > 0 && squashed.rect.h > 0);
+
+  check('a label has no corners to drag - its size is a choice of three',
+        a.handlesOf({ tool: 'text', at: { x: 1, y: 2 }, text: 'x' }).length === 0);
+}
+
+console.log('\nthe size a mark is measured against:');
   check('a screenshot uses its captured frame',
         a.sizeOf({ frame: { x: 0, y: 0, w: 1920, h: 1080 } }).w === 1920);
   check('a photograph uses its recorded size',

@@ -305,6 +305,96 @@
   }
 
   /**
+   * The points on a mark that can be taken hold of, in percentages.
+   *
+   * An arrow's are its two ends, and dragging one is how it is aimed: swinging
+   * the tail turns it about the tip, which is the end that is pointing at
+   * something and the end that must not move. There is deliberately no separate
+   * rotate control - a handle on each end is one idea rather than two, and it
+   * changes the length as well, which is the other half of "that arrow is
+   * wrong".
+   *
+   * The other shapes get their four corners, for the same reason: a box drawn
+   * two fields too short could only be deleted and drawn again.
+   *
+   * A label has none. Its size is a choice of three on the strip, and there is
+   * no second point on it to drag.
+   */
+  function handlesOf(mark) {
+    if (!mark) return [];
+    if (mark.tool === 'arrow') {
+      return [{ key: 'from', x: mark.from.x, y: mark.from.y },
+              { key: 'to', x: mark.to.x, y: mark.to.y }];
+    }
+    if (mark.tool === 'text' || !mark.rect) return [];
+
+    const { x, y, w, h } = mark.rect;
+    return [{ key: 'nw', x, y },
+            { key: 'ne', x: x + w, y },
+            { key: 'se', x: x + w, y: y + h },
+            { key: 'sw', x, y: y + h }];
+  }
+
+  const within = (v) => Math.max(0, Math.min(100, v));
+
+  /** Turning by hand is never exact; a guide full of arrows at 43 and 47
+      degrees looks like a guide nobody proofread. */
+  const SNAP_DEGREES = 15;
+
+  /**
+   * The nearest fifteen degrees, at the length the arrow already has.
+   *
+   * `aspect` is the picture's width over its height. Marks are percentages of
+   * each axis independently, so an angle worked out in those units is not the
+   * angle anybody sees on a picture that is not square - snapping without it
+   * would land on multiples of fifteen in a coordinate space that exists
+   * nowhere except this file.
+   */
+  function snapAngle(fixed, end, aspect) {
+    const ratio = aspect > 0 ? aspect : 1;
+    const dx = (end.x - fixed.x) * ratio;
+    const dy = end.y - fixed.y;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    if (!length) return end;
+
+    const step = (SNAP_DEGREES * Math.PI) / 180;
+    const angle = Math.round(Math.atan2(dy, dx) / step) * step;
+    return { x: within(fixed.x + (Math.cos(angle) * length) / ratio),
+             y: within(fixed.y + Math.sin(angle) * length) };
+  }
+
+  /**
+   * The same mark with one of its handles moved to a point.
+   *
+   * The opposite end stays where it is - that is what makes this a rotation
+   * rather than a move. `snap` is the Shift key: held, an arrow lands on a
+   * multiple of fifteen degrees and a horizontal one is actually horizontal.
+   */
+  function withHandle(mark, key, x, y, { snap = false, aspect = 1 } = {}) {
+    if (!mark) return mark;
+    const at = { x: within(x), y: within(y) };
+
+    if (mark.tool === 'arrow') {
+      const fixed = key === 'from' ? mark.to : mark.from;
+      const end = snap ? snapAngle(fixed, at, aspect) : at;
+      return key === 'from' ? { ...mark, from: end } : { ...mark, to: end };
+    }
+    if (mark.tool === 'text' || !mark.rect) return mark;
+
+    // The corner diagonally opposite the one in hand is the anchor.
+    const r = mark.rect;
+    const ax = (key === 'nw' || key === 'sw') ? r.x + r.w : r.x;
+    const ay = (key === 'nw' || key === 'ne') ? r.y + r.h : r.y;
+
+    // A floor on the size: a shape dragged to nothing is invisible and there is
+    // then no handle left to drag it back out by.
+    const w = Math.max(0.8, Math.abs(at.x - ax));
+    const h = Math.max(0.8, Math.abs(at.y - ay));
+    return { ...mark, rect: { ...r, x: Math.min(ax, at.x), y: Math.min(ay, at.y),
+                              w, h } };
+  }
+
+  /**
    * Which mark is at a point, in percentages. The LAST one drawn wins, because
    * that is the one on top and the one a person is looking at.
    */
@@ -497,5 +587,5 @@
   return { TOOLS, HIGHLIGHTS, COLOURS, highlightFill, colourValue, legendFor,
            strokeFor, fontFor, arrowGeometry, headArea, draw, isDeliberate,
            SIZES, sizeScale, svgFor, svgAll, outlineFor, sizeOf, boundsOf,
-           markAt, movedBy, pixelsOf, escapeXml };
+           markAt, movedBy, handlesOf, withHandle, pixelsOf, escapeXml };
 }));

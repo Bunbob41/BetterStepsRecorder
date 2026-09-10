@@ -5,6 +5,25 @@ Notable changes, newest first. The reasoning behind each decision lives in
 
 ## Unreleased
 
+- **A drawn arrow can be aimed after it is drawn.** Select it and a dot appears
+  on each end: drag the tail and the arrow swings around its point, which stays
+  on the thing it is pointing at. Hold **Shift** to land on a whole angle. A
+  box, a circle and a highlight get a dot at each corner, and dragging one
+  resizes the mark. Until now the only shape a mark could have was the one the
+  original drag gave it.
+- **The right-click menu groups what it offers.** The four colours became one
+  **Change colour** that opens beside itself, with the colour of each and a tick
+  on the one in force; hiding, aiming and resetting the recorded click marker
+  moved under **The click marker**. Eleven lines became six, and the two arrows
+  in that menu - the one you drew and the one the recorder puts on every click -
+  are no longer five lines apart under similar words.
+- **Right-clicking a mark takes hold of it**, so the menu, the strip and the
+  dots are always about the same mark.
+- The mark's strip drops to the bottom of the picture when it would otherwise
+  cover the mark it is about — which, for anything marked near the top of a
+  screenshot, it did.
+- A highlight can be recoloured from the menu now, from the highlighter's own
+  five colours. The strip has always allowed it; the menu used to refuse.
 - Fixed: **on a display scaled above 100%, a quarter of every screenshot was
   blank and the click marker was in the wrong place.** An application that does
   not declare itself DPI aware draws at 96 dpi and lets the desktop scale it up;

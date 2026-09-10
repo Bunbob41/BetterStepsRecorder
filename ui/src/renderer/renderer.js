@@ -32,6 +32,7 @@ const el = {
   textTool: $('btn-text'), labelInput: $('label-input'),
   markBar: $('mark-bar'), markKind: $('mark-kind'), markColours: $('mark-colours'),
   markSizeWrap: $('mark-size-wrap'), markSize: $('mark-size'),
+  markHint: $('mark-hint'), markHandles: $('mark-handles'),
   markDelete: $('mark-delete'), markDone: $('mark-done'),
   exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
   expTitle: $('exp-title'), expFormat: $('exp-format'),
@@ -45,7 +46,7 @@ const el = {
   stepsCollapse: $('btn-steps-collapse'), stepsExpand: $('btn-steps-expand'),
   railCount: $('rail-count'),
   libraryQuery: $('library-query'), libraryFound: $('library-found'),
-  context: $('context'),
+  context: $('context'), contextSub: $('context-sub'),
   libraryHeading: $('library-heading'), libraryUsage: $('library-usage'),
   rootUsage: $('set-root-usage'),
   findBar: $('findbar'), findQuery: $('find-query'),
@@ -345,6 +346,7 @@ function placeMarks(step) {
   const marks = (step && step.marks) || [];
   if (!marks.length || !el.shot.naturalWidth) {
     el.marks.replaceChildren();
+    placeMarkHandles(null);
     return;
   }
 
@@ -361,6 +363,36 @@ function placeMarks(step) {
     el.marks.replaceChildren(document.importNode(root, true));
   } else {
     el.marks.replaceChildren();
+  }
+
+  placeMarkHandles(step);
+}
+
+/**
+ * The ends of the selected mark, as dots to drag.
+ *
+ * Divs on their own layer rather than shapes in the SVG: the marks layer takes
+ * no pointer events at all - that is what lets a drag which starts over a mark
+ * still draw a new one - and making an exception for handles would mean
+ * unpicking that. Positioned in percentages, like the marks themselves and like
+ * the click indicator, so they land in the same place at any window size.
+ */
+function placeMarkHandles(step) {
+  el.markHandles.replaceChildren();
+  if (!step || !selectedMarkId || armedTool) return;
+
+  const mark = (step.marks || []).find((m) => m.id === selectedMarkId);
+  if (!mark) return;
+
+  const SAYS = { from: 'Drag to swing the tail', to: 'Drag to move the point' };
+  for (const handle of BsrAnnotate.handlesOf(mark)) {
+    const dot = document.createElement('div');
+    dot.className = `mark-handle h-${handle.key}`;
+    dot.dataset.handle = handle.key;
+    dot.title = SAYS[handle.key] || 'Drag to resize';
+    dot.style.left = `${handle.x}%`;
+    dot.style.top = `${handle.y}%`;
+    el.markHandles.append(dot);
   }
 }
 
@@ -1759,30 +1791,73 @@ window.addEventListener('mouseup', async () => {
 // menus would be two things to keep in step, and the highlighter menu already
 // showed the shape.
 
-function closeContext() { el.context.hidden = true; el.context.replaceChildren(); }
+function closeContext() {
+  closeSub();
+  el.context.hidden = true;
+  el.context.replaceChildren();
+}
+
+function closeSub() {
+  el.contextSub.hidden = true;
+  el.contextSub.replaceChildren();
+  for (const open of el.context.querySelectorAll('button.open')) {
+    open.classList.remove('open');
+  }
+}
 
 /**
- * Shows a menu at a point.
+ * Puts a menu on screen at a point, then nudges it back if it fell off.
  *
- * `items` are `{ label, key, run, enabled }`, or `null` for a divider. Built as
- * elements rather than markup: the labels include step wording, which came off
- * somebody's screen, and putting that through innerHTML would let a window
- * title write elements.
+ * `flipFrom` is a submenu's parent edge: a submenu that will not fit to the
+ * right of its item belongs on the LEFT of it, not shoved along the bottom of
+ * the screen on top of the menu it came from.
  */
-function showContext(x, y, items) {
-  el.hueMenu.hidden = true;    // two menus open at once is one too many
-  el.context.replaceChildren();
+function placeMenu(node, x, y, { flipFrom = null } = {}) {
+  node.style.left = `${x}px`;
+  node.style.top = `${y}px`;
+
+  const box = node.getBoundingClientRect();
+  if (box.right > window.innerWidth) {
+    node.style.left = `${flipFrom === null
+      ? Math.max(0, window.innerWidth - box.width - 4)
+      : Math.max(0, flipFrom - box.width + 3)}px`;
+  }
+  if (box.bottom > window.innerHeight) {
+    node.style.top = `${Math.max(0, window.innerHeight - box.height - 4)}px`;
+  }
+}
+
+/**
+ * Fills a menu element with items.
+ *
+ * `items` are `{ label, key, run, enabled }`, `{ label, items }` for a group
+ * that opens beside itself, or `null` for a divider. `swatch` draws a colour
+ * beside the words and `chosen` ticks the one already in force.
+ *
+ * Built as elements rather than markup: the labels include step wording, which
+ * came off somebody's screen, and putting that through innerHTML would let a
+ * window title write elements.
+ */
+function fillMenu(node, items, top = true) {
+  node.replaceChildren();
 
   for (const item of items) {
     if (!item) {
-      el.context.append(document.createElement('hr'));
+      node.append(document.createElement('hr'));
       continue;
     }
 
     const button = document.createElement('button');
     const label = document.createElement('span');
-    label.textContent = item.label;
+    if (item.swatch) {
+      const swatch = document.createElement('span');
+      swatch.className = 'swatch';
+      swatch.style.background = item.swatch;
+      label.append(swatch);
+    }
+    label.append(document.createTextNode(item.label));
     button.append(label);
+    if (item.chosen) button.classList.add('chosen');
 
     if (item.key) {
       const key = document.createElement('span');
@@ -1791,23 +1866,50 @@ function showContext(x, y, items) {
       button.append(key);
     }
 
-    button.disabled = item.enabled === false;
-    button.addEventListener('click', () => { closeContext(); item.run(); });
-    el.context.append(button);
-  }
+    if (item.items) {
+      const arrow = document.createElement('span');
+      arrow.className = 'key';
+      arrow.textContent = '\u203a';
+      button.append(arrow);
+      button.classList.add('hassub');
+      // Nothing under it to choose means there is nothing to open. An item
+      // that opens an empty menu is worse than one that is greyed out.
+      button.disabled = item.enabled === false
+        || item.items.every((child) => child && child.enabled === false);
 
-  // Placed, then nudged back on screen: a menu opened near the right or bottom
-  // edge would otherwise run off it.
+      const open = () => { if (!button.disabled) openSub(button, item.items); };
+      button.addEventListener('mouseenter', open);
+      button.addEventListener('click', (e) => { e.stopPropagation(); open(); });
+    } else {
+      button.disabled = item.enabled === false;
+      // Moving onto anything else in the parent menu closes whatever was open
+      // beside it, which is what every menu on this operating system does.
+      if (top) button.addEventListener('mouseenter', closeSub);
+      button.addEventListener('click', () => { closeContext(); item.run(); });
+    }
+
+    node.append(button);
+  }
+}
+
+/** Opens a group beside the item it belongs to. */
+function openSub(button, items) {
+  closeSub();
+  button.classList.add('open');
+  fillMenu(el.contextSub, items, false);
+
+  el.contextSub.hidden = false;
+  const b = button.getBoundingClientRect();
+  placeMenu(el.contextSub, b.right - 3, b.top - 6, { flipFrom: b.left });
+}
+
+/** Shows a menu at a point. */
+function showContext(x, y, items) {
+  el.hueMenu.hidden = true;    // two menus open at once is one too many
+  closeSub();
+  fillMenu(el.context, items);
   el.context.hidden = false;
-  el.context.style.left = `${x}px`;
-  el.context.style.top = `${y}px`;
-  const box = el.context.getBoundingClientRect();
-  if (box.right > window.innerWidth) {
-    el.context.style.left = `${Math.max(0, window.innerWidth - box.width - 4)}px`;
-  }
-  if (box.bottom > window.innerHeight) {
-    el.context.style.top = `${Math.max(0, window.innerHeight - box.height - 4)}px`;
-  }
+  placeMenu(el.context, x, y);
 }
 
 /** The two that belong on every menu, because they always apply. */
@@ -1910,25 +2012,41 @@ el.wrap.addEventListener('contextmenu', (e) => {
   const recoloured = (id) => (step.marks || [])
     .map((m) => (m.id === hitMark.id ? { ...m, colour: id } : m));
 
+  // A highlight keeps the highlighter's own colours: they mean something in the
+  // key at the front of the guide, and the shape palette here would quietly
+  // break that. The strip has always offered them; the menu used to refuse
+  // outright, so the same mark was recolourable in one place and not the other.
+  const palette = () => (hitMark.tool === 'highlight'
+    ? BsrAnnotate.HIGHLIGHTS.map((h) => ({ id: h.id, name: h.name, value: h.fill }))
+    : BsrAnnotate.COLOURS);
+
+  // Right-clicking a mark takes hold of it, the way right-clicking a row in any
+  // list on this operating system selects it. Without it the menu talked about
+  // one mark while the strip and the handles showed another - or showed
+  // nothing, which is how somebody comes to right-click an arrow, read "delete
+  // this arrow", and see no way to turn it.
+  if (hitMark && hitMark.id !== selectedMarkId) selectMark(hitMark.id);
+
   showContext(e.clientX, e.clientY, [
     ...historyItems(),
     null,
-    { label: hidden ? 'Show the marker on this step'
-                    : 'Hide the marker on this step',
-      enabled: Boolean(step),
-      run: () => hideMarker(step.id, !hidden) },
     ...(hitMark ? [
       ...(hitMark.tool === 'text'
         ? [{ label: 'Edit this label', run: () => openLabel(0, 0, hitMark) }]
         : []),
-      { label: `Delete this ${hitName}`,
+      // One item instead of four. Four colours, a delete and four things about
+      // the click marker made an eleven-line menu in which the two arrows -
+      // the drawn one and the recorded one - were five lines apart and read
+      // identically.
+      { label: 'Change colour',
+        items: palette().map((c) => ({
+          label: c.name,
+          swatch: c.value,
+          chosen: c.id === hitMark.colour,
+          run: () => commitMarks(step, recoloured(c.id)),
+        })) },
+      { label: `Delete this ${hitName}`, key: 'Del',
         run: () => commitMarks(step, withoutHit()) },
-      // Not offered for a highlight: its colours are the highlighter's own,
-      // and they mean something in the key at the front of the guide.
-      ...(hitMark.tool === 'highlight' ? [] : BsrAnnotate.COLOURS
-        .filter((c) => c.id !== hitMark.colour)
-        .map((c) => ({ label: `Make this ${hitName} ${c.name.toLowerCase()}`,
-                       run: () => commitMarks(step, recoloured(c.id)) }))),
       null,
     ] : []),
     { label: moved || !at ? 'Move the marker here' : 'Put a marker here',
@@ -1939,23 +2057,35 @@ el.wrap.addEventListener('contextmenu', (e) => {
         if (step.markerHidden) hideMarker(step.id, false);
         commitMarker(step.id, at);
       } },
-    { label: 'Point the arrow the way it chooses',
-      enabled: Boolean(step) && Number.isFinite(step.markerAngle),
-      run: () => window.bsr.turnMarker(step.id, null).then((r) => {
-        if (r && r.ok) {
-          Object.assign(step, r.step);
-          delete step.markerAngle;
-          placeIndicator(step);
-        }
-      }) },
-    { label: 'Put the marker back where it was recorded',
-      enabled: moved,
-      run: () => commitMarker(step.id, null) },
+    // Everything else about the recorded marker, together and out of the way.
+    // These are the three that are used once in a recording if at all, and
+    // they were taking three of the eleven lines somebody read every time they
+    // right-clicked to delete a box.
+    { label: 'The click marker', items: [
+      { label: hidden ? 'Show the marker on this step'
+                      : 'Hide the marker on this step',
+        enabled: Boolean(step),
+        run: () => hideMarker(step.id, !hidden) },
+      { label: 'Point the arrow the way it chooses',
+        enabled: Boolean(step) && Number.isFinite(step.markerAngle),
+        run: () => window.bsr.turnMarker(step.id, null).then((r) => {
+          if (r && r.ok) {
+            Object.assign(step, r.step);
+            delete step.markerAngle;
+            placeIndicator(step);
+          }
+        }) },
+      { label: 'Put the marker back where it was recorded',
+        enabled: moved,
+        run: () => commitMarker(step.id, null) },
+    ] },
   ]);
 });
 
 window.addEventListener('mousedown', (e) => {
-  if (!el.context.hidden && !el.context.contains(e.target)) closeContext();
+  if (!el.context.hidden
+      && !el.context.contains(e.target)
+      && !el.contextSub.contains(e.target)) closeContext();
 });
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeContext(); });
 window.addEventListener('blur', closeContext);
@@ -2206,6 +2336,9 @@ function armTool(tool) {
   el.indicator.classList.toggle('movable', !armedTool);
   el.selection.hidden = true;
   showPreview(false);
+  // The ends of the selected mark go away while a tool is armed: a drag that
+  // starts on one has to draw a new mark, not resize the old one.
+  placeMarkHandles(steps.find((s) => s.id === selectedId));
 }
 
 /**
@@ -2326,7 +2459,40 @@ function paintMarkBar() {
   el.markSizeWrap.hidden = mark.tool !== 'text';
   if (mark.tool === 'text') el.markSize.value = mark.size || 'medium';
 
+  // What can be done to THIS mark. "Drag it to move it", over an arrow with a
+  // handle on each end, describes the one thing the strip used to be able to
+  // say rather than what is on the screen.
+  const HINTS = { arrow: 'Drag an end to aim it - Shift snaps the angle',
+                  text: 'Drag it to move it' };
+  el.markHint.textContent = HINTS[mark.tool] || 'Drag a corner to resize it';
+
   el.markBar.hidden = false;
+
+  // The strip floats over the top-left of the picture (D-64), which is exactly
+  // where a mark near the top of a screenshot keeps its handles - and the top
+  // of a screenshot, where the title bar and the menus are, is the most marked
+  // up part of any picture there is. Seen in a window screenshot: a circle with
+  // its two upper corners underneath the strip.
+  //
+  // Measured rather than guessed at a percentage, because the strip's width
+  // depends on what is in it: a label carries a size control and a highlight
+  // does not.
+  el.markBar.classList.remove('low');
+  const shot = el.shot.getBoundingClientRect();
+  const bar = el.markBar.getBoundingClientRect();
+  if (shot.width && shot.height && bar.width) {
+    const b = BsrAnnotate.boundsOf(mark, 2);
+    const box = { top: shot.top + (b.y / 100) * shot.height,
+                  bottom: shot.top + ((b.y + b.h) / 100) * shot.height,
+                  left: shot.left + (b.x / 100) * shot.width,
+                  right: shot.left + ((b.x + b.w) / 100) * shot.width };
+    const over = box.top < bar.bottom + 6 && box.bottom > bar.top - 6
+              && box.left < bar.right + 6 && box.right > bar.left - 6;
+    // Not for a mark that runs the height of the picture: it would be covered
+    // at either end, and moving the strip would be motion for nothing.
+    const wholeHeight = box.bottom - box.top > shot.height - bar.height * 2 - 24;
+    el.markBar.classList.toggle('low', over && !wholeHeight);
+  }
 }
 
 function selectMark(id) {
@@ -2392,7 +2558,8 @@ const onTheControls = (target) =>
 el.wrap.addEventListener('mousedown', (e) => {
   if (e.button !== 0 || armedTool || !selectedId) return;
   // The click marker and its handle are on a layer above this and speak first.
-  if (e.target.closest && e.target.closest('.bsr-marker, .rotate-handle')) return;
+  if (e.target.closest
+      && e.target.closest('.bsr-marker, .rotate-handle, .mark-handle')) return;
   // The strip and the label box float over the picture, so a click on either
   // is also a mousedown on the picture's wrapper. Reported as "I cannot
   // interact with its options": the handler found no mark under the strip,
@@ -2442,6 +2609,82 @@ window.addEventListener('mouseup', async (e) => {
   const dy = at.y - move.from.y;
   await commitMarks(step, (step.marks || [])
     .map((m) => (m.id === move.id ? BsrAnnotate.movedBy(move.origin, dx, dy) : m)));
+  paintMarkBar();
+});
+
+// ---- taking an end of a mark ---------------------------------------------------
+// Rotation, without a rotate tool. An arrow is two points: drag either and the
+// other stays where it is, which turns the arrow about the end that is pointing
+// at something and sets its length in the same gesture. Reported as "there is
+// no simple rotation of the drawn arrows" - there was none at all, and a badly
+// aimed arrow had to be deleted and drawn again.
+//
+// The same handles resize a box, a ring and a highlight, which had exactly the
+// same problem and nobody had said so yet.
+
+let handleDrag = null;
+
+/**
+ * Where a pointer is on the picture, clamped to it. `pictureAt` returns null
+ * off the edge, which is right for deciding what was clicked and wrong in the
+ * middle of a drag: an arrow being swung past the edge of the screenshot would
+ * stop dead rather than stop at the edge.
+ */
+function pictureNear(clientX, clientY) {
+  const r = el.shot.getBoundingClientRect();
+  if (!r.width || !r.height) return null;
+  const pc = (v, lo, span) => Math.max(0, Math.min(100, ((v - lo) / span) * 100));
+  return { x: pc(clientX, r.left, r.width), y: pc(clientY, r.top, r.height) };
+}
+
+/** The shape of the picture as it is displayed, so a snapped angle is the angle
+    somebody sees rather than one in a coordinate space nothing is drawn in. */
+function pictureAspect() {
+  const r = el.shot.getBoundingClientRect();
+  return r.height ? r.width / r.height : 1;
+}
+
+el.markHandles.addEventListener('mousedown', (e) => {
+  if (e.button !== 0 || armedTool || !selectedId) return;
+  const dot = e.target.closest && e.target.closest('.mark-handle');
+  if (!dot) return;
+  const mark = selectedMark();
+  if (!mark) return;
+
+  e.preventDefault();
+  // Kept from the wrapper underneath, which would otherwise take this as
+  // picking the mark up and move the whole of it. The window-level mousedown
+  // that closes menus does not see it either, so the menu is closed by hand.
+  e.stopPropagation();
+  closeContext();
+  handleDrag = { id: mark.id, key: dot.dataset.handle, origin: mark, next: null };
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!handleDrag) return;
+  const at = pictureNear(e.clientX, e.clientY);
+  const step = steps.find((s) => s.id === selectedId);
+  if (!at || !step) return;
+
+  // Drawn as it would be, written down only when the mouse is let go: a drag
+  // is one change to undo, not sixty.
+  handleDrag.next = BsrAnnotate.withHandle(
+    handleDrag.origin, handleDrag.key, at.x, at.y,
+    { snap: e.shiftKey, aspect: pictureAspect() });
+  placeMarks({ ...step,
+               marks: (step.marks || [])
+                 .map((m) => (m.id === handleDrag.id ? handleDrag.next : m)) });
+});
+
+window.addEventListener('mouseup', async () => {
+  const drag = handleDrag;
+  handleDrag = null;
+  if (!drag || !drag.next) return;
+
+  const step = steps.find((s) => s.id === selectedId);
+  if (!step) return;
+  await commitMarks(step, (step.marks || [])
+    .map((m) => (m.id === drag.id ? drag.next : m)));
   paintMarkBar();
 });
 

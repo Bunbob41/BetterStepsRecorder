@@ -59,6 +59,10 @@
   <!-- One menu element, filled differently depending on what was right-clicked.
        Two menus would be two things to keep in step. -->
   <div id="context" class="huemenu ctxmenu" hidden></div>
+  <!-- What opens beside an item that has more under it. A separate element
+       rather than a nested one: the menu is emptied and refilled every time it
+       opens, and a child would go with it mid-hover. -->
+  <div id="context-sub" class="huemenu ctxmenu ctxsub" hidden></div>
 
   <main>
     <aside class="steps">
@@ -181,7 +185,7 @@
                 <option value="large">Large</option>
               </select>
             </label>
-            <span class="mark-hint">Drag it to move it</span>
+            <span id="mark-hint" class="mark-hint">Drag it to move it</span>
             <button id="mark-delete" class="danger">Delete</button>
             <button id="mark-done">Done</button>
           </div>
@@ -190,6 +194,10 @@
                indicator, so a marker dropped on top of a box is still the
                thing you grab. -->
           <div id="marks" class="marks"></div>
+          <!-- The ends of the selected mark. Above the marks layer, which
+               takes no pointer events at all, and below the click indicator,
+               which was here first and whose own handle must still win. -->
+          <div id="mark-handles" class="mark-handles"></div>
           <div id="indicator" class="indicator"></div>
           <div id="selection" class="selection" hidden></div>
           <!-- A rectangle is the wrong preview for an arrow or an ellipse:

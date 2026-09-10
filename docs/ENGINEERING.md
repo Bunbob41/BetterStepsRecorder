@@ -226,6 +226,84 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-68 - A mark is held by its ends, and a menu holds groups
+`(this change)` - [ui/src/renderer/annotate.js](../ui/src/renderer/annotate.js),
+[ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
+
+Reported together, from the menu itself: "we can probably file the colour
+options under one *change colour*", and "there is no simple rotation of the
+drawn arrows".
+
+**The menu could not group anything.** `showContext` walked a flat list of
+items, so every choice cost a line. Right-clicking an arrow produced eleven:
+undo, redo, hide the marker, delete this arrow, four colours, move the marker
+here, point the arrow the way it chooses, and put the marker back. Two of those
+eleven contain the word "arrow" and they mean DIFFERENT arrows - the one the
+author drew and the one the recorder puts on every click - five lines apart.
+
+So `fillMenu` builds either menu from the same items, and an item may carry
+`items` of its own, which open beside it on hover in a second element. A second
+element rather than a nested one: the menu is emptied and refilled on every
+open, and a child would go with it mid-hover. Two groups came out of it -
+**Change colour** (with a swatch each and a tick on the current one) and **The
+click marker** (the three things done once per recording, if ever) - and the
+menu went from eleven lines to six, with the drawn mark's own actions at the
+top where the right-click happened.
+
+A group whose every child is unavailable is itself disabled, so a menu never
+offers a way in to three greyed-out choices.
+
+The colour group also settled an inconsistency: the strip had always offered a
+highlight its five highlighter colours while the menu refused to recolour a
+highlight at all, for want of room. It offers them now, from the highlighter's
+palette rather than the shape one, because those colours mean something in the
+key at the front of the guide (D-33).
+
+**Nothing could change a mark's shape after it was drawn.** A mark could be
+moved, recoloured and deleted; its geometry was whatever the original drag
+happened to be. `handlesOf` and `withHandle` in `annotate.js` fix that, and the
+choice worth recording is that **there is no rotate control**. An arrow is two
+points: dragging either end while the other stays put IS a rotation, and it
+sets the length in the same gesture. A rotate handle would have been a second
+idea that could only do half as much - and the same two functions give a box, a
+circle and a highlight four corners to resize by, which was the identical
+complaint waiting to be made.
+
+- **The tail turns it, and the point does not move.** The tip is on the thing
+  being pointed at; a rotation that took it off that would be the wrong end.
+- **Shift snaps to fifteen degrees**, and the snap needs the picture's aspect
+  ratio. Marks are percentages of each axis independently, so an angle worked
+  out in those units is not the angle anybody sees: on a 2:1 screenshot, 45
+  degrees in mark coordinates is 27 on screen. `withHandle` takes `aspect` and
+  the renderer passes the displayed shape of the picture.
+- **The handles are divs on their own layer, not shapes in the SVG.** The marks
+  layer takes no pointer events at all - that is what lets a drag beginning
+  over a mark still draw a new one (D-61) - and an exception for handles would
+  mean unpicking it. Positioned in percentages, like the marks and like the
+  click indicator.
+- **They disappear while a tool is armed**, so one drag cannot mean two things.
+- **The drag previews and commits once**, like every other mark change: one
+  entry to undo, not sixty.
+- **The strip drops to the foot of the picture when it would sit on the mark.**
+  It floats over the top-left (D-64), which is where a mark near the top of a
+  screenshot keeps its handles - and the top of a screenshot, where the title
+  bar and the menus are, is the most marked-up part of any picture. Found by
+  looking at a window screenshot, not at a number: every measurement passed
+  while two handles were underneath the strip. Measured rather than guessed at
+  a percentage, because the strip's width depends on what is in it.
+
+**Right-clicking a mark now selects it**, the way right-clicking a row in any
+list on this operating system does. Without it the menu talked about one mark
+while the strip and the handles showed another, or showed nothing - which is
+how somebody came to right-click an arrow, read "delete this arrow", and see no
+way to turn it.
+
+Proved in a real window: the group opens on hover and closes when the pointer
+moves to another item, the tail is dragged with a real mouse and the point is
+still where it was, Shift makes a nearly-level arrow level, and the line
+redrawn on the picture comes from the committed mark rather than from the
+handle that was dragged.
+
 ### D-67 - A window draws itself at its own dpi, not at the monitor's
 `(this change)` - [capture/ScreenCapture.cs](../capture/ScreenCapture.cs)
 
