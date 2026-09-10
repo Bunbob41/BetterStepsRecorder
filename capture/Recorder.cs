@@ -12,6 +12,15 @@ internal enum RecordingState { Idle, Recording, Paused, RecordingOnce }
 internal readonly record struct RawEvent(
     string Action, Win32.POINT Point, Win32.POINT EndPoint, DateTime Utc);
 
+/// <summary>
+/// A button going down, which is where a step now begins.
+///
+/// Smaller still than a RawEvent, and for the same reason: the hook does
+/// nothing but hand this over. See <see cref="PressPairing"/> for why the
+/// press is the moment that matters.
+/// </summary>
+internal readonly record struct RawPress(Win32.POINT Point, DateTime Utc);
+
 internal sealed class Recorder : IDisposable
 {
     /// <summary>Typing is flushed into one step after this much quiet.</summary>
@@ -40,6 +49,37 @@ internal sealed class Recorder : IDisposable
     /// </summary>
     private byte[]? _lastShot;
     private string? _lastShotRelative;
+
+    /// <summary>
+    /// The screen as it was when the button went down, waiting for the button
+    /// to come up.
+    ///
+    /// Worker-thread only. At most one: a second press means the first never
+    /// became a step, and its picture is deleted rather than left behind.
+    /// </summary>
+    private Pending? _pending;
+
+    /// <summary>Everything a step needs, taken before the click landed.</summary>
+    private sealed class Pending
+    {
+        internal Win32.POINT Point;
+        internal DateTime Utc;
+        internal IntPtr Hwnd;
+        internal Rectangle Bounds;
+        /// <summary>The temporary file the picture went into, or "" if it could
+        /// not be taken - in which case the release captures as it used to,
+        /// which still gets the window and the name from the right moment.</summary>
+        internal string Picture = "";
+        internal WindowInfo? Window;
+        internal TargetInfo? Target;
+
+        internal void Discard()
+        {
+            if (Picture.Length == 0) return;
+            try { System.IO.File.Delete(Picture); } catch { /* a temp file */ }
+            Picture = "";
+        }
+    }
 
     // Worker-thread only; no locking needed.
     private DateTime _lastClickUtc = DateTime.MinValue;
@@ -102,6 +142,20 @@ internal sealed class Recorder : IDisposable
     }
 
     /// <summary>
+    /// Called on the hook thread when a button goes down.
+    ///
+    /// Deliberately does NOT consume a single-shot re-recording: pressing is
+    /// not clicking, and a press that never becomes a release must leave the
+    /// arm where it was.
+    /// </summary>
+    internal void OfferPress(RawPress p)
+    {
+        var state = State;
+        if (state != RecordingState.Recording && state != RecordingState.RecordingOnce) return;
+        if (!_queue.IsAddingCompleted) _queue.Add(p);
+    }
+
+    /// <summary>
     /// Called on the keyboard hook thread. Single-shot re-recording deliberately
     /// ignores keys: it exists to refresh one click, and consuming the arm on a
     /// stray keystroke would make it unusable.
@@ -124,6 +178,7 @@ internal sealed class Recorder : IDisposable
                 if (!_queue.TryTake(out item, 250))
                 {
                     FlushTypingIfIdle();
+                    AbandonStalePress();
                     if (_queue.IsAddingCompleted && _queue.Count == 0) break;
                     continue;
                 }
@@ -140,6 +195,10 @@ internal sealed class Recorder : IDisposable
                         // the click that ended it.
                         FlushTyping();
                         Process(mouse);
+                        break;
+
+                    case RawPress press:
+                        Prepare(press);
                         break;
 
                     case RawKey key:
@@ -295,6 +354,91 @@ internal sealed class Recorder : IDisposable
     }
 
     /// <summary>
+    /// The button has gone down. Take everything a step is made of now, while
+    /// the screen still shows what is being clicked.
+    ///
+    /// The order is the same as it always was - ask UI Automation, capture,
+    /// then read the answer - so the hit test runs alongside the screenshot
+    /// rather than after it. What has changed is when: this happens with the
+    /// button still held, rather than after the application has acted on the
+    /// click, opened a menu over the control, or destroyed the dialog the step
+    /// was about.
+    /// </summary>
+    private void Prepare(RawPress p)
+    {
+        // One press at a time. A second means the first never became a step.
+        _pending?.Discard();
+        _pending = null;
+
+        // Whatever was being typed ended when this button went down, not when
+        // it came up - so the typed step's own picture is taken here too,
+        // before the click has changed anything.
+        FlushTyping();
+
+        var hwnd = WindowResolver.RootWindowAt(p.Point);
+        if (!InScope(WindowResolver.ProcessIdOf(hwnd))) return;
+
+        var asking = UiaResolver.Begin(p.Point.X, p.Point.Y);
+        var bounds = ScreenCapture.ResolveBounds(hwnd, p.Point, _options.Frame);
+
+        // Into a temporary name: at this point nobody knows whether this press
+        // will become a step at all, let alone which number it is. The dot
+        // keeps it out of the way of anything that lists the folder.
+        var picture = Path.Combine(
+            _sessionDir, "steps", $".press-{DateTime.UtcNow.Ticks:x}.{_options.Extension}");
+        try
+        {
+            ScreenCapture.CaptureTo(bounds, picture, _options, hwnd);
+        }
+        catch (Exception ex)
+        {
+            // A step with a late picture beats no step: the release will
+            // capture the way it always did, and the window and the name are
+            // still the ones from this moment.
+            Protocol.Error("PRESS_CAPTURE_FAILED", ex.Message);
+            picture = "";
+        }
+
+        _pending = new Pending
+        {
+            Point = p.Point,
+            Utc = p.Utc,
+            Hwnd = hwnd,
+            Bounds = bounds,
+            Picture = picture,
+            Window = WindowResolver.Describe(hwnd, bounds),
+            Target = UiaResolver.End(asking),
+        };
+    }
+
+    /// <summary>The press that belongs to this release, if there is one.</summary>
+    private Pending? TakePending(Win32.POINT at)
+    {
+        var pre = _pending;
+        if (pre is null) return null;
+        _pending = null;
+
+        if (PressPairing.SameClick(pre.Point, pre.Utc, at, DateTime.UtcNow)) return pre;
+        pre.Discard();
+        return null;
+    }
+
+    /// <summary>
+    /// A press whose release never arrived - the recording was stopped between
+    /// the two, or a window took the mouse. Left alone it would be adopted by
+    /// whatever click came next, hours later, and put that step's picture back
+    /// in time.
+    /// </summary>
+    private void AbandonStalePress()
+    {
+        var pre = _pending;
+        if (pre is null) return;
+        if (!PressPairing.Abandoned(pre.Utc, DateTime.UtcNow)) return;
+        _pending = null;
+        pre.Discard();
+    }
+
+    /// <summary>
     /// Captures to <paramref name="relative"/>, or points at the previous
     /// screenshot when the pixels have not changed at all.
     /// </summary>
@@ -314,6 +458,39 @@ internal sealed class Recorder : IDisposable
     {
         var full = Path.Combine(_sessionDir, relative);
         ScreenCapture.CaptureTo(bounds, full, _options, hwnd);
+        return Settle(full, relative, mayReuse);
+    }
+
+    /// <summary>
+    /// Takes the picture already captured at the press and gives it the name
+    /// the step will refer to. The same reuse rule then applies to it as to one
+    /// captured here, because two steps sharing a file is about the pixels, not
+    /// about when they were taken.
+    /// </summary>
+    private string AdoptOrReuse(Pending pre, string relative, bool mayReuse)
+    {
+        var full = Path.Combine(_sessionDir, relative);
+        try
+        {
+            if (pre.Picture.Length == 0 || !File.Exists(pre.Picture)) throw new FileNotFoundException();
+            File.Move(pre.Picture, full, overwrite: true);
+            pre.Picture = "";
+        }
+        catch
+        {
+            // Whatever went wrong with a file, a step is worth more than the
+            // improvement: capture now, the way this always did.
+            return CaptureOrReuse(pre.Bounds, relative, pre.Hwnd, mayReuse);
+        }
+        return Settle(full, relative, mayReuse);
+    }
+
+    /// <summary>
+    /// Decides whether a freshly written picture is worth keeping as its own
+    /// file, shared by both callers above.
+    /// </summary>
+    private string Settle(string full, string relative, bool mayReuse)
+    {
         if (!mayReuse) { _lastShot = null; _lastShotRelative = null; return relative; }
 
         try
@@ -382,40 +559,38 @@ internal sealed class Recorder : IDisposable
             supersedes = _lastStepId;
         }
 
-        var hwnd = WindowResolver.RootWindowAt(e.Point);
+        // The screen as it was when the button went down. Everything a step is
+        // made of comes from there when it is available - the window, the
+        // picture and the name - because by the time the button comes up the
+        // application has acted: the menu is open over the control, the dialog
+        // is drawn, or the window that was clicked no longer exists.
+        var pre = TakePending(e.Point);
+
+        var hwnd = pre?.Hwnd ?? WindowResolver.RootWindowAt(e.Point);
 
         // Checked before any screenshot or UIA work: cheapest possible bail-out.
-        if (!InScope(WindowResolver.ProcessIdOf(hwnd))) return;
+        if (!InScope(WindowResolver.ProcessIdOf(hwnd))) { pre?.Discard(); return; }
 
-        // Started BEFORE the screenshot rather than after it, so the question is
-        // asked as early as this code can ask it.
-        //
-        // It is NOT a cure. Measured on a real recording, a click on "Additional
-        // settings..." is still named after a control in the dialog that click
-        // opened: the event reaches this handler only after the application has
-        // already processed it and drawn the new window, and UIA hit-tests when
-        // it is called rather than remembering where the pointer was. Fixing it
-        // properly means resolving inside the hook, before the click is
-        // delivered - which a low-level hook has no time for. See the open
-        // question in ENGINEERING.
-        var pending = UiaResolver.Begin(e.Point.X, e.Point.Y);
+        // Only when the press was missed - a recording started with the button
+        // already down, a release with no press of its own. Started before the
+        // screenshot so the hit test runs alongside it.
+        var asking = pre is null ? UiaResolver.Begin(e.Point.X, e.Point.Y) : null;
 
-        var bounds = ScreenCapture.ResolveBounds(hwnd, e.Point, _options.Frame);
+        var bounds = pre?.Bounds ?? ScreenCapture.ResolveBounds(hwnd, e.Point, _options.Frame);
 
         // A replacement keeps its own numbering namespace so it cannot collide
         // with an existing screenshot file.
         var seq = replaces is null ? ++_seq : _seq;
-        var relative = CaptureOrReuse(
-            bounds,
-            replaces is null
-                ? $"steps/{seq:D4}.{_options.Extension}"
-                : $"steps/redo-{DateTime.UtcNow:yyyyMMddHHmmssfff}.{_options.Extension}",   // forward slashes: the UI treats this as a URL
-            hwnd,
-            mayReuse: replaces is null);
+        var name = replaces is null
+            ? $"steps/{seq:D4}.{_options.Extension}"
+            : $"steps/redo-{DateTime.UtcNow:yyyyMMddHHmmssfff}.{_options.Extension}";   // forward slashes: the UI treats this as a URL
+        var relative = pre is not null
+            ? AdoptOrReuse(pre, name, mayReuse: replaces is null)
+            : CaptureOrReuse(bounds, name, hwnd, mayReuse: replaces is null);
 
-        var window = WindowResolver.Describe(hwnd, bounds);
+        var window = pre?.Window ?? WindowResolver.Describe(hwnd, bounds);
         var monitor = WindowResolver.DescribeMonitor(e.Point);
-        var target = UiaResolver.End(pending);
+        var target = pre is not null ? pre.Target : UiaResolver.End(asking);
 
         var step = new StepMessage
         {
@@ -458,6 +633,8 @@ internal sealed class Recorder : IDisposable
 
     public void Dispose()
     {
+        _pending?.Discard();
+        _pending = null;
         _queue.CompleteAdding();
         _worker.Join(TimeSpan.FromSeconds(5));   // let in-flight screenshots land
         _queue.Dispose();

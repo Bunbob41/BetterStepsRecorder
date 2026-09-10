@@ -39,6 +39,13 @@ internal sealed class MouseHook : IDisposable
                 case Win32.WM_LBUTTONDOWN:
                     _downPoint = data.pt;
                     _leftDown = true;
+                    // The last moment the thing being clicked is still on
+                    // screen. Almost every control acts when the button comes
+                    // UP, and the ones that act on the way down - a menu bar -
+                    // have not painted yet. Nothing expensive happens here:
+                    // the point goes on the queue and the worker does the work
+                    // while the button is still held.
+                    _recorder.OfferPress(new RawPress(data.pt, now));
                     break;
 
                 case Win32.WM_LBUTTONUP when _leftDown:
@@ -47,6 +54,12 @@ internal sealed class MouseHook : IDisposable
                              || Math.Abs(data.pt.Y - _downPoint.Y) > DragThresholdPx;
                     _recorder.Offer(new RawEvent(
                         moved ? "drag" : "leftClick", _downPoint, data.pt, now));
+                    break;
+
+                case Win32.WM_RBUTTONDOWN:
+                    // A context menu opens on the way UP, so this is the one
+                    // chance to photograph the screen without it.
+                    _recorder.OfferPress(new RawPress(data.pt, now));
                     break;
 
                 case Win32.WM_RBUTTONUP:

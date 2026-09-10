@@ -164,13 +164,22 @@ console.log('\nno screenshot is written or edited behind the sharing rules:');
   const recorder = fs2.readFileSync(
     path2.join(__dirname, '..', 'capture', 'Recorder.cs'), 'utf8');
 
-  // Every capture site must go through the one that can reuse a file. A new
-  // site calling CaptureTo directly would write duplicates again, silently.
+  // There are two moments a picture can be taken now: at the press, into a
+  // temporary file, and at the release when the press was missed. Both have to
+  // end up in the one place that decides whether a file is worth keeping - a
+  // site that skipped it would write duplicates again, silently.
   const direct = [...recorder.matchAll(/ScreenCapture\.CaptureTo\(/g)];
-  check('the engine captures through one place only', direct.length === 1,
+  check('the engine captures in two places and no more', direct.length === 2,
         `${direct.length} direct calls to CaptureTo`);
-  check('and that place is the one that can reuse a file',
+  check('one of them is the press', /private void Prepare[\s\S]{0,1400}ScreenCapture\.CaptureTo\(/.test(recorder));
+  check('and the other is the one that captures at the release',
         /CaptureOrReuse[\s\S]{0,600}ScreenCapture\.CaptureTo\(/.test(recorder));
+  // Both routes end at Settle, which owns the comparison and the shared file.
+  check('both routes settle through the same rule',
+        /CaptureOrReuse[\s\S]{0,400}return Settle\(/.test(recorder)
+        && /AdoptOrReuse[\s\S]{0,900}return Settle\(/.test(recorder));
+  check('and only that rule remembers the last picture',
+        [...recorder.matchAll(/_lastShot = bytes/g)].length === 1);
   check('a re-record is never deduplicated',
         /mayReuse: replaces is null/.test(recorder));
 
@@ -179,6 +188,47 @@ console.log('\nno screenshot is written or edited behind the sharing rules:');
   const body2 = main.slice(at2, main.indexOf('\n}', at2) + 2);
   check('the window gives a step its own copy before writing pixels',
         body2.indexOf('forkScreenshot') < body2.indexOf('writeFileSync'));
+}
+
+console.log('\na step is made of what was on screen at the press:');
+{
+  const fsp = require('node:fs');
+  const pathp = require('node:path');
+  const rec = fsp.readFileSync(
+    pathp.join(__dirname, '..', 'capture', 'Recorder.cs'), 'utf8');
+  const hook = fsp.readFileSync(
+    pathp.join(__dirname, '..', 'capture', 'MouseHook.cs'), 'utf8');
+
+  // Measured before this existed: the picture, the window and the name were
+  // all resolved 60-260ms after the click had been delivered. Long enough for
+  // a menu to open over the control - so the menu went into the picture of the
+  // step that opened it - and long enough for a dialog dismissed by the click
+  // to be gone, which left steps reading "Clicked" with no window at all.
+  const down = hook.slice(hook.indexOf('WM_LBUTTONDOWN'), hook.indexOf('WM_LBUTTONUP'));
+  check('the hook offers a press on the way down', /OfferPress\(/.test(down));
+  check('and on the way down for the right button too',
+        /WM_RBUTTONDOWN[\s\S]{0,400}OfferPress\(/.test(hook));
+  check('but a press never consumes a single-shot re-record',
+        /internal void OfferPress[\s\S]{0,400}RecordingOnce\) return;/.test(rec)
+        && !/internal void OfferPress[\s\S]{0,400}State = RecordingState\.Paused/.test(rec));
+
+  // What the release does with it. Each of these is a field that used to be
+  // read after the click and now comes from before it.
+  const body = rec.slice(rec.indexOf('private void Process(RawEvent'),
+                         rec.indexOf('Protocol.Emit(step)', rec.indexOf('private void Process(RawEvent')));
+  check('the release looks for the press first',
+        body.indexOf('TakePending') < body.indexOf('RootWindowAt'));
+  check('the window comes from the press', /pre\?\.Window \?\?/.test(body));
+  check('the frame comes from the press', /pre\?\.Bounds \?\?/.test(body));
+  check('the name comes from the press', /pre is not null \? pre\.Target/.test(body));
+  check('and so does the picture', /AdoptOrReuse\(pre/.test(body));
+
+  // A picture taken for a press that never became a step is a file in
+  // somebody's recording folder that nothing refers to.
+  const discards = [...rec.matchAll(/\.Discard\(\)/g)].length;
+  check(`an unused press is always discarded (${discards} places)`, discards >= 4);
+  check('including when the release lands out of scope',
+        /InScope[\s\S]{0,120}pre\?\.Discard\(\)/.test(body));
 }
 
 console.log('\nthe control is asked about at the moment of the click:');
@@ -202,7 +252,7 @@ console.log('\nthe control is asked about at the moment of the click:');
   for (const at of paths) {
     const body = rec.slice(at, rec.indexOf('UiaResolver.End', at) + 20);
     check('the screenshot is taken between asking and collecting',
-          body.includes('CaptureOrReuse'),
+          /CaptureOrReuse|ScreenCapture\.CaptureTo/.test(body),
           'no capture between Begin and End - the query is not overlapping anything');
   }
 

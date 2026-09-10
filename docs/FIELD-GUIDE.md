@@ -328,6 +328,26 @@ misrepresent what the document is. And if you rewrote a step's wording yourself,
 your words are emitted exactly as you wrote them. Your prose is not ours to
 correct.
 
+### When the picture is taken
+
+The screenshot for a step is taken **as the mouse button goes down**, not when
+it comes up.
+
+That sounds like a detail and it is the difference between a guide that makes
+sense and one that does not. Almost everything on screen reacts when you
+*release* a button, and a menu reacts on the way down but takes a moment to
+draw — so the instant the button goes down is the last moment the thing you are
+clicking is still on screen, unobscured, and still exists.
+
+Taken any later, a guide comes out subtly wrong in three ways at once: the
+picture for *"Click Options"* shows the menu that clicking Options opened, the
+step gets named after a control in the window that appeared, and a click on
+**OK** — which closes the dialog — has nothing left to describe by the time
+anyone asks, so the step reads *"Clicked"* and nothing more.
+
+So: what you see in a guide is what was on screen at the moment you pressed,
+with the marker on the thing you pressed.
+
 ### A recording that will not open
 
 Very occasionally a recording's details file gets damaged — a crash part-way

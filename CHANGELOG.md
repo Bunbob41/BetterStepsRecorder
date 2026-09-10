@@ -5,6 +5,24 @@ Notable changes, newest first. The reasoning behind each decision lives in
 
 ## Unreleased
 
+- Fixed: **the screenshots were one step behind the words.** Click Options and
+  then Settings, and the picture filed under *"Click Options"* showed the menu
+  that clicking Options had just opened. Everything about a step — the picture,
+  the window it names and the control it names — was worked out 60 to 260
+  milliseconds *after* the click had already been delivered, which is ample time
+  for a menu to open, a dialog to draw, or the thing you clicked to disappear.
+  It is all done as the button goes **down** now, while what you are clicking is
+  still on screen.
+- Fixed: **a click on OK or Open often produced a step that said only
+  "Clicked"** — no control, no window, no application. Those clicks close the
+  dialog, and by the time the recorder looked, there was nothing left to
+  describe. The two most important steps in a procedure were the two it failed
+  hardest on.
+- Fixed: **a step could be named after a control in the window the click
+  opened** — a name for something you never touched, which is worse than no name
+  at all, because the picture and the words disagree and only the words are
+  wrong.
+
 - **A recording keeps the parts your version does not understand.** Recordings
   get passed between machines, and those machines will not always be running
   the same version of this app. The details file is now written back with

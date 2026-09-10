@@ -226,6 +226,92 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-70 - A step is made at the press, not at the release
+`(this change)` - [capture/MouseHook.cs](../capture/MouseHook.cs),
+[capture/Recorder.cs](../capture/Recorder.cs),
+[capture/PressPairing.cs](../capture/PressPairing.cs)
+
+Reported as an off-by-one: "when it says I clicked Options, it's a picture of
+HYPACK; when it says I clicked Settings, that picture is when I clicked
+Options." The pictures read as one step behind the words.
+
+**Everything about a step was resolved after the click had already been
+delivered.** The hook did nothing at all on button-down except remember the
+point; the event was offered on button-UP, queued, and a worker thread then
+hit-tested the window, asked UI Automation, and took the screenshot. Measured
+from a real recording, click timestamp against the moment the PNG hit disk:
+
+    step  7   click 15:39:31.868   picture 15:39:32.126   +258 ms
+    step 13   click 15:40:10.573   picture 15:40:10.763   +190 ms
+    step  1   click 15:39:10.564   picture 15:39:10.687   +123 ms
+
+A Win32 menu opens on button-DOWN and paints in about twenty milliseconds. So
+the menu the click opened was on screen before the recorder looked, and went
+into the picture of the step that opened it.
+
+The same clock produced two faults nobody had connected to it:
+
+- **D-4's open question** - "a click that changes the interface is named after
+  what replaced it" - is this bug. UI Automation hit-tests when it is called,
+  and it was called after the dialog had drawn.
+- **Steps with no name at all.** In the recording above, steps 14 and 15 have
+  an empty title, an empty process and no target: `"text": "Clicked"`. Both
+  were clicks on **Open** and **OK**. Pressing them closed the dialog, so by
+  the time the worker described the window, *the window did not exist*. The two
+  steps that commit the action were the two the recorder failed hardest on.
+
+**The fix is to do the work at the press.** Almost every control acts when the
+button comes UP, so button-down is a genuine "before" that costs nothing: the
+hook still only enqueues, and the worker takes the picture, the window and the
+UIA target while the button is still held. The release then decides only what
+kind of event it was - click, double-click or drag - and adopts what the press
+took.
+
+The previous note in this file said a real fix "has to resolve inside the hook,
+before the click is delivered - which a low-level hook has no time for". That
+was true and it was the wrong conclusion: it does not have to be inside the
+hook, it has to be before the RELEASE.
+
+Details worth keeping:
+
+- **The hook still does nothing expensive.** `WindowFromPoint` sends
+  `WM_NCHITTEST`, which can block on a hung application, and a low-level hook
+  that blocks is evicted from the chain for the whole desktop. So the press is
+  enqueued exactly like a release and the window lookup happens on the worker -
+  microseconds later rather than 150ms later.
+- **A press is matched to its release** by point and by clock
+  ([PressPairing](../capture/PressPairing.cs)), and matching can fail: a
+  recording paused between the two, a press whose release never came. An
+  unmatched press is discarded and the release captures where it always did,
+  which is the old behaviour rather than a lost step. Its own file because it
+  is arithmetic on a point and a clock, so LogicTests can check it without
+  hooks or COM.
+- **The picture goes to a temporary name** (`steps/.press-<ticks>.png`), because
+  at press time nobody knows whether this will become a step or which number it
+  is. It is renamed at the release, or deleted - on the next press, on the idle
+  tick after thirty seconds, when the release lands out of scope, and on the way
+  out.
+- **Both capture routes end at `Settle`**, which owns the byte comparison that
+  lets two steps share one file (D-47). A second capture site that skipped it
+  would write duplicates again, silently, so an invariant pins it.
+- **Typing flushes at the press too.** What ends a typed step is usually the
+  click that follows it, so its screenshot is now taken before that click as
+  well.
+- **A press does not consume a single-shot re-record.** Pressing is not
+  clicking; only the release may spend the arm.
+- **A double-click keeps the second press's picture**, which is the screen after
+  the first click. Left alone: the two are usually identical and the dedupe
+  makes them one file.
+
+Menus still race, because they act on the way down - but the gap is a few
+milliseconds instead of a hundred and fifty, which they will lose far more often
+than they win.
+
+Verified where it can be: the pairing rule in LogicTests, and invariants that
+pin the hook offering a press, the release preferring what the press took, and
+every unused press being discarded. The rest is the user's to confirm against
+the application it was reported from.
+
 ### D-69 - What this version does not understand, it writes back
 `(this change)` - [ui/src/main/format.js](../ui/src/main/format.js),
 [ui/src/main/session.js](../ui/src/main/session.js)
@@ -2660,18 +2746,13 @@ waits out because it waits for the engine's `ready`.
   costs nothing to ignore, while a field whose MEANING changes cannot be
   ignored by an older build at all, and only the second kind needs the refusal.
   There is no rule written down yet, only a test that asks.
-- **A click that changes the interface is named after what replaced it.**
-  Measured: clicking "Additional settings..." in the Region dialog produced
-  *"Clicked the 'Measurement system:' dropdown"* - a control that exists only in
-  the window that click opened. The lookup now starts before the screenshot
-  rather than after it, which was worth doing and did not fix it: the mouse
-  event reaches the recorder only after the application has processed the click
-  and drawn the new window, and `FromPoint` hit-tests when it is called rather
-  than remembering where the pointer was. A real fix has to resolve inside the
-  hook, before the click is delivered, which is the one place with no time to
-  spare. Until then a step whose click opened or closed something may be named
-  wrongly - worse than unnamed, because the picture and the words disagree and
-  only the words are wrong.
+- ~~**A click that changes the interface is named after what replaced it.**~~
+  Answered by D-70: the lookup, the window and the picture all happen at the
+  press now, while the thing being clicked is still on screen. What remains
+  open is the narrower case of a control that acts on button-DOWN - a menu bar
+  - where the recorder is racing the application by a few milliseconds instead
+  of losing to it by a hundred and fifty. Whether that race is ever lost in
+  practice needs a real recording to say.
 - **Transparent always-on-top overlays poison the lookup.** In the same
   recording one step resolved to "NVIDIA GeForce Overlay": UIA hit-testing finds
   the topmost window at the point, and an invisible full-screen overlay is

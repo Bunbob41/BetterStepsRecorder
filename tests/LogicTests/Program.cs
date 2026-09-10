@@ -394,5 +394,45 @@ Check("monitor framing starts at a real monitor origin",
           WindowResolver.ProductNameOf(gone) == "");
 }
 
+Console.WriteLine("\nmatching a release to the press it came from:");
+{
+    // The recorder takes the picture, the window and the name when the button
+    // goes DOWN - the last moment the thing being clicked is still on screen.
+    // The release then has to be matched to that press, and matching wrongly is
+    // worse than not matching at all: it would put one step's picture on
+    // another step.
+    var dot = (int x, int y) => new Win32.POINT { X = x, Y = y };
+    var pressedAt = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+    Check("a press and a release in the same place are one click",
+        PressPairing.SameClick(dot(400, 300), pressedAt, dot(400, 300), pressedAt.AddMilliseconds(90)));
+    Check("and a pixel or two of drift under a finger still is",
+        PressPairing.SameClick(dot(400, 300), pressedAt, dot(404, 297), pressedAt.AddMilliseconds(90)));
+    Check("a release somewhere else is not",
+        !PressPairing.SameClick(dot(400, 300), pressedAt, dot(460, 300), pressedAt.AddMilliseconds(90)));
+
+    // A drag reports the point the button went DOWN as its own point, which is
+    // what makes a drag pair with its press at all.
+    Check("a long press is still one click - people hold the button",
+        PressPairing.SameClick(dot(400, 300), pressedAt, dot(400, 300), pressedAt.AddSeconds(4)));
+    Check("but a press from another age is not adopted",
+        !PressPairing.SameClick(dot(400, 300), pressedAt, dot(400, 300), pressedAt.AddMinutes(5)));
+    // A recording paused between the two, then resumed: the release must not
+    // reach back and take a picture of a screen from before the pause.
+    Check("nor one from before a pause",
+        !PressPairing.SameClick(dot(400, 300), pressedAt, dot(400, 300), pressedAt.Add(PressPairing.Patience).AddSeconds(1)));
+    Check("a release that appears to precede its press is refused",
+        !PressPairing.SameClick(dot(400, 300), pressedAt, dot(400, 300), pressedAt.AddSeconds(-1)));
+
+    Check("a press nobody released is abandoned once it is old",
+        PressPairing.Abandoned(pressedAt, pressedAt.AddMinutes(2)));
+    Check("and held on to while it might still be released",
+        !PressPairing.Abandoned(pressedAt, pressedAt.AddMilliseconds(200)));
+    // The two have to agree, or a press could be abandoned and then matched.
+    Check("what is abandoned can no longer be matched",
+        PressPairing.Abandoned(pressedAt, pressedAt.AddMinutes(2))
+        && !PressPairing.SameClick(dot(1, 1), pressedAt, dot(1, 1), pressedAt.AddMinutes(2)));
+}
+
 Console.WriteLine($"\n{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;
