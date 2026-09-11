@@ -22,6 +22,22 @@ internal static class Win32
     [DllImport("user32.dll")]
     internal static extern uint GetDpiForWindow(IntPtr hwnd);
 
+    // A window's own DPI mode, so a question about it can be asked in its terms.
+    // Asked in this process's per-monitor terms instead, a plain Windows tab
+    // control in a DPI-unaware application was measured unscaled and hit-tested
+    // with a real-pixel point: HYPACK's "Tracklines" tab came back as "Charts".
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetWindowDpiAwarenessContext(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr SetThreadDpiAwarenessContext(IntPtr dpiContext);
+
+    [DllImport("user32.dll")]
+    internal static extern bool PhysicalToLogicalPointForPerMonitorDPI(IntPtr hwnd, ref POINT point);
+
+    [DllImport("user32.dll")]
+    internal static extern bool LogicalToPhysicalPointForPerMonitorDPI(IntPtr hwnd, ref POINT point);
+
     [DllImport("user32.dll")]
     internal static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
 

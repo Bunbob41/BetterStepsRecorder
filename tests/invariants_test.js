@@ -304,6 +304,28 @@ console.log('\nan engine problem does not end a recording it has not ended:');
         !/GetWindowText|WindowFromPoint|SendMessage/.test(shotE));
 }
 
+console.log('\nthe control is asked about in its window\'s own terms:');
+{
+  const fsU = require('node:fs');
+  const pathU = require('node:path');
+  const uia = fsU.readFileSync(pathU.join(__dirname, '..', 'capture', 'UiaResolver.cs'), 'utf8');
+  const recU = fsU.readFileSync(pathU.join(__dirname, '..', 'capture', 'Recorder.cs'), 'utf8');
+
+  // On a display at 125%, HYPACK's Tracklines tab was named "Charts": the
+  // question was asked in this process's per-monitor terms about a window that
+  // draws at 96 dpi.
+  check('the lookup goes through the window\'s terms', /InWindowTerms<TargetInfo\?>\(window/.test(uia));
+  check('the thread takes the window\'s DPI mode before asking',
+        /SetThreadDpiAwarenessContext\(context\)/.test(uia));
+  check('and is given the point in that window\'s coordinates',
+        /PhysicalToLogicalPointForPerMonitorDPI\(window, ref point\)/.test(uia));
+  check('and the thread\'s mode is put back whatever happens',
+        /finally \{ if \(previous != IntPtr\.Zero\) Win32\.SetThreadDpiAwarenessContext\(previous\); \}/.test(uia));
+  const calls = [...recU.matchAll(/UiaResolver\.Begin\(([^)]*)\)/g)].map((m) => m[1]);
+  check(`every lookup says which window it is asking about (${calls.length})`,
+        calls.length >= 3 && calls.every((a) => a.split(',').length === 3), calls.join(' | '));
+}
+
 console.log('\nthe control is asked about at the moment of the click:');
 {
   const fs3 = require('node:fs');

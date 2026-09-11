@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>dpitabtarget</AssemblyName>
+    <DisableWinExeOutputInference>true</DisableWinExeOutputInference>
+    <!-- The whole point: an application that never declared itself DPI aware,
+         as HYPACK has not. Windows draws it at 96 dpi and scales it up. -->
+    <ApplicationHighDpiMode>DpiUnaware</ApplicationHighDpiMode>
+  </PropertyGroup>
+</Project>

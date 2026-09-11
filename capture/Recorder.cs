@@ -342,7 +342,7 @@ internal sealed class Recorder : IDisposable
         // Asked before the screenshot, collected after it. Typing rarely moves
         // anything under the pointer, but the two paths should agree about when
         // the question is asked.
-        var pending = UiaResolver.Begin(point.X, point.Y);
+        var pending = UiaResolver.Begin(point.X, point.Y, hwnd);
 
         var bounds = ScreenCapture.ResolveBounds(hwnd, point, _options.Frame);
         var seq = ++_seq;
@@ -421,7 +421,10 @@ internal sealed class Recorder : IDisposable
         var hwnd = WindowResolver.FrameWindowFor(under, p.Foreground);
         if (!InScope(WindowResolver.ProcessIdOf(hwnd))) return;
 
-        var asking = UiaResolver.Begin(p.Point.X, p.Point.Y);
+        // The window actually under the pointer, which is the one whose terms the
+        // question has to be asked in - not the frame, which for a dropdown is
+        // the dialog it belongs to.
+        var asking = UiaResolver.Begin(p.Point.X, p.Point.Y, under);
         var bounds = ScreenCapture.ResolveBounds(hwnd, p.Point, _options.Frame);
         if (under != hwnd) bounds = ScreenCapture.Including(bounds, under);
 
@@ -646,7 +649,7 @@ internal sealed class Recorder : IDisposable
         // Only when the press was missed - a recording started with the button
         // already down, a release with no press of its own. Started before the
         // screenshot so the hit test runs alongside it.
-        var asking = pre is null ? UiaResolver.Begin(e.Point.X, e.Point.Y) : null;
+        var asking = pre is null ? UiaResolver.Begin(e.Point.X, e.Point.Y, hwnd) : null;
 
         var bounds = pre?.Bounds ?? ScreenCapture.ResolveBounds(hwnd, e.Point, _options.Frame);
 

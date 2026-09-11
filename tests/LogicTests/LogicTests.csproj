@@ -13,6 +13,9 @@
     <!-- Compile the engine's pure logic directly; no hooks, no input, no COM. -->
     <Compile Include="../../capture/Keys.cs" />
     <Compile Include="../../capture/UiaNaming.cs" />
+    <!-- Asked for real, against a test window: a question about naming that is
+         answered by Windows cannot be settled with arithmetic. -->
+    <Compile Include="../../capture/UiaResolver.cs" />
     <Compile Include="../../capture/Scope.cs" />
     <Compile Include="../../capture/PressPairing.cs" />
     <Compile Include="../../capture/PressShot.cs" />

@@ -226,6 +226,81 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-73 - A control is asked about in its own window's DPI terms
+`(this change)` - [capture/UiaResolver.cs](../capture/UiaResolver.cs),
+[tests/DpiTabTarget](../tests/DpiTabTarget/Program.cs)
+
+Found while checking whether pictures ran before or after their clicks, in a
+HYPACK recording on a display at 125%. Step 9 read *"Clicked the Charts tab"*;
+its arrow was on Tracklines, and the next picture showed the Tracklines page.
+The picture was right and the WORDS were wrong. Step 17 the same: Planned Lines
+recorded as "3D Options and Levels".
+
+Every tab step fitted one rule. Multiply the click's distance along the dialog
+by 1.25 and the tab there is the name that was recorded:
+
+    step  arrow is on       tab at x * 1.25          recorded as
+       6  Soundings         Soundings                Soundings
+       7  Seabed ID         Seabed ID                Seabed ID
+       9  Tracklines        Charts                   Charts
+      17  Planned Lines     3D Options and Levels    3D Options and Levels
+
+Radio buttons and checkboxes in the same dialog were named correctly.
+
+**The cause is where UI Automation builds its description.** A button, a
+checkbox, a radio button is a window of its own, and Windows scales a question
+about it. The tabs of a plain Windows tab control are drawn inside one window
+and have no description of their own, so UI Automation builds one with a
+stand-in that runs in the ASKING process and measures the tabs with messages -
+in the application's own coordinates. HYPACK never declared itself DPI aware,
+so those are unscaled, and this process is per-monitor aware, so its point is in
+real pixels. A real-pixel point against a layout four fifths the size lands a
+quarter further along. Near the start of the strip a quarter is less than a
+tab, which is why General through Seabed ID were right.
+
+**The first attempt to reproduce it found nothing.** A DPI-unaware WinForms test
+window, asked the old way, named all eight tabs correctly - because a WinForms
+TabControl describes its own tabs from inside its own process, at the scale it
+knows, and never touches the stand-in. Only a plain `SysTabControl32`, which is
+what an MFC dialog has, reproduced it, and then exactly:
+
+    plain tabs    asked the old way: 2/8   (Seabed ID as "Tracklines", Tracklines as "Charts" ...)
+                  asked this way:    8/8
+    WinForms tabs 8/8 both ways
+    checkbox      1/1 both ways
+
+That is the reason `tests/DpiTabTarget` has both rows. A target with only the
+WinForms row passes against the bug.
+
+**The fix asks in the window's own terms.** Before UI Automation is asked what
+is at a point, the asking thread takes the DPI mode of the window under that
+point (`GetWindowDpiAwarenessContext`), and the point is converted into that
+window's coordinates (`PhysicalToLogicalPointForPerMonitorDPI`). The stand-in's
+measurements and the point then agree. For a per-monitor-aware window it is no
+change at all: its mode is this process's, and its logical point is its
+physical one.
+
+Details worth keeping:
+
+- **The window under the pointer, not the frame.** For a dropdown the frame is
+  the dialog it belongs to (D-71); the question is about the list.
+- **The thread's mode is always put back.** The lookup runs on a pool thread, and
+  a mode left behind would change the answer to the next question anything else
+  in the engine asks on it.
+- **Every call says which window it is asking about.** The two-argument form is
+  gone, so a new caller cannot forget; an invariant also checks it.
+- **Verified against a real window, not arithmetic.** LogicTests launches the
+  target, converts each tab's centre to real pixels, and asks the resolver.
+  It skips on a display at 100%, where there is nothing to get wrong.
+
+Open: HYPACK runs as Administrator and the recorder, launched normally, does
+not. The reproduction here was without elevation, and the fix changes only the
+thread's mode and the point, not the route the question takes - but whether it
+holds against an elevated HYPACK is for a real recording to confirm. A
+system-aware application on a monitor that differs from the system DPI goes wrong
+by the same mechanism and is covered by the same fix, but cannot be reproduced on
+a machine whose monitors all match its system DPI, as this one's do.
+
 ### D-72 - A problem a recording survives does not end it
 `(this change)` - [ui/src/main/sidecar.js](../ui/src/main/sidecar.js),
 [ui/src/main/main.js](../ui/src/main/main.js),

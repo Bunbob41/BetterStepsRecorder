@@ -556,5 +556,80 @@ Console.WriteLine("\nwhat counts as full-screen, and so is not copied inside the
         !PressShots.FillsMonitor(FullScreenRect(1920, 0, 3840, 1080), fullScreenMonitor, fullScreenPopup));
 }
 
+Console.WriteLine("\nnaming tabs in an older application on a scaled display:");
+{
+    // HYPACK's Settings dialog, recorded on a display at 125%: a click on
+    // Tracklines was named "Charts", one on Planned Lines "3D Options and Levels".
+    // A plain Windows tab control is described by a stand-in in the ASKING
+    // process, measuring in the application's unscaled coordinates - so a
+    // real-pixel point landed about a quarter further along the strip.
+    var dpiTestsDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+    var dpiExe = new[] { "Debug", "Release" }
+        .Select(c => Path.Combine(dpiTestsDir, "DpiTabTarget", "bin", c, "net10.0-windows", "dpitabtarget.exe"))
+        .Where(File.Exists)
+        .OrderByDescending(File.GetLastWriteTimeUtc)
+        .FirstOrDefault();
+
+    if (dpiExe is null)
+    {
+        Console.WriteLine("  SKIP  build the target first: dotnet build tests/DpiTabTarget -c Debug");
+    }
+    else
+    {
+        using var dpiTarget = System.Diagnostics.Process.Start(
+            new System.Diagnostics.ProcessStartInfo(dpiExe) { RedirectStandardOutput = true, UseShellExecute = false })!;
+        try
+        {
+            var dpiWindow = IntPtr.Zero;
+            var dpiItems = new List<(int X, int Y, string Kind, string Name)>();
+            var dpiReading = Task.Run(() =>
+            {
+                string? line;
+                while ((line = dpiTarget.StandardOutput.ReadLine()) != null && line != "ready")
+                {
+                    var parts = line.Split(' ', 5);
+                    if (parts[0] == "hwnd") dpiWindow = new IntPtr(long.Parse(parts[1]));
+                    else if (parts[0] == "item") dpiItems.Add((int.Parse(parts[1]), int.Parse(parts[2]), parts[3], parts[4]));
+                }
+            });
+
+            if (!dpiReading.Wait(TimeSpan.FromSeconds(15)) || dpiWindow == IntPtr.Zero)
+            {
+                Console.WriteLine("  SKIP  the test window did not start");
+            }
+            else
+            {
+                Thread.Sleep(700);   // painted, and its tabs measurable
+                var dpiMonitor = Win32.MonitorFromWindow(dpiWindow, Win32.MONITOR_DEFAULTTONEAREST);
+                Win32.GetDpiForMonitor(dpiMonitor, Win32.MDT_EFFECTIVE_DPI, out var dpiOfMonitor, out _);
+                if (dpiOfMonitor == Win32.GetDpiForWindow(dpiWindow))
+                {
+                    Console.WriteLine($"  SKIP  this display is not scaled ({dpiOfMonitor} dpi): nothing to get wrong");
+                }
+                else
+                {
+                    Console.WriteLine($"  (window at {Win32.GetDpiForWindow(dpiWindow)} dpi on a {dpiOfMonitor} dpi display)");
+                    foreach (var it in dpiItems)
+                    {
+                        // WinForms tabs describe themselves and were never affected.
+                        if (it.Kind == "winforms") continue;
+                        var dpiPoint = new Win32.POINT { X = it.X, Y = it.Y };
+                        Win32.LogicalToPhysicalPointForPerMonitorDPI(dpiWindow, ref dpiPoint);
+                        var found = UiaResolver.Resolve(dpiPoint.X, dpiPoint.Y, dpiWindow);
+                        var right = found?.Name == it.Name;
+                        var what = it.Kind == "native" ? $"the \"{it.Name}\" tab" : $"the \"{it.Name}\" checkbox";
+                        Check(right ? $"{what} is named as itself"
+                                    : $"{what} is named as itself (was named \"{found?.Name}\")", right);
+                    }
+                }
+            }
+        }
+        finally
+        {
+            try { dpiTarget.Kill(); } catch { }
+        }
+    }
+}
+
 Console.WriteLine($"\n{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;

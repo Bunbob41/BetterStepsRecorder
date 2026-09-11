@@ -28,6 +28,11 @@ Notable changes, newest first. The reasoning behind each decision lives in
   picture at that instant was slow enough to risk Windows switching the recorder
   off.
 - Fixed: closing the app logged a misleading *write after end* error.
+- Fixed: **tabs in older programs were named after the tab next to them** on a
+  display scaled above 100%. In HYPACK's Settings, a click on *Tracklines* was
+  recorded as *Charts* and one on *Planned Lines* as *3D Options and Levels*,
+  while the picture and the arrow showed the right tab. Buttons, checkboxes and
+  radio buttons were never affected.
 - Fixed: **a click on OK or Open often produced a step that said only
   "Clicked"** — no control, no window, no application. Those clicks close the
   dialog, and by the time the recorder looked, there was nothing left to

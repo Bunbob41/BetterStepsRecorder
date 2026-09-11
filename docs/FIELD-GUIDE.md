@@ -359,6 +359,12 @@ menus — for an early picture to get right.
 recorded, the recording carries on and you are told afterwards, in the notice
 bar, rather than having the editor jump in front of what you were doing.
 
+**Names on a scaled display.** On a screen set above 100%, older programs —
+HYPACK among them — used to have their tabs named after the tab next door: a
+click on *Tracklines* was written down as *Charts*. The picture and the arrow
+were right; only the words were wrong. The recorder now asks about each control
+in the program's own terms, so the name matches what you clicked.
+
 Taken any later, a guide comes out subtly wrong in three ways at once: the
 picture for *"Click Options"* shows the menu that clicking Options opened, the
 step gets named after a control in the window that appeared, and a click on

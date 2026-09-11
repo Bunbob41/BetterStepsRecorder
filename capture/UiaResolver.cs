@@ -142,13 +142,13 @@ internal static class UiaResolver
     /// So the caller starts this first and collects it after the screenshot,
     /// which the query then overlaps rather than follows.
     /// </remarks>
-    internal static Task<TargetInfo?>? Begin(int x, int y)
+    internal static Task<TargetInfo?>? Begin(int x, int y, IntPtr window)
     {
         try
         {
-            return Task.Run(() =>
+            return Task.Run(() => InWindowTerms<TargetInfo?>(window, x, y, (wx, wy) =>
             {
-                var element = AutomationElement.FromPoint(new System.Windows.Point(x, y));
+                var element = AutomationElement.FromPoint(new System.Windows.Point(wx, wy));
                 if (element is null) return null;
 
                 var info = element.Current;
@@ -168,7 +168,7 @@ internal static class UiaResolver
 
                 if (name is null && automationId is null && controlType is null) return null;
                 return new TargetInfo(name, controlType, automationId);
-            });
+            }));
         }
         catch
         {
@@ -176,6 +176,54 @@ internal static class UiaResolver
             // windows. All expected; degrade to coordinates.
             return null;
         }
+    }
+
+    /// <summary>
+    /// Runs a question about a screen point on a thread in the DPI mode of the
+    /// window being asked about, with the point in that window's coordinates.
+    ///
+    /// This process is per-monitor aware, so a point is in real screen pixels.
+    /// For most controls that is fine: a button, a checkbox, a radio button is a
+    /// window of its own, and Windows scales the question for it. A plain Windows
+    /// tab control is not like that. Its tabs are drawn inside one window, and UI
+    /// Automation describes them with a stand-in that runs in THIS process and
+    /// measures the tabs with messages - in the application's own coordinates.
+    /// In an application that never declared itself DPI aware those are unscaled,
+    /// so on a display at 125% a real-pixel point was compared against a layout
+    /// four fifths the size and landed about a quarter further along. HYPACK's
+    /// Settings dialog, recorded for real: a click on Tracklines named "Charts", a
+    /// click on Planned Lines named "3D Options and Levels", and General through
+    /// Seabed ID fine, because near the start of the strip a quarter is less than
+    /// a tab. Reproduced exactly with a DPI-unaware test window: 2 of 8 plain tabs
+    /// named correctly asked the old way, 8 of 8 asked this way.
+    ///
+    /// For a per-monitor-aware window this is no change at all - its mode is this
+    /// process's mode, and its logical point is its physical one.
+    ///
+    /// The thread is a pool thread, so its mode is put back whatever happens:
+    /// left behind, it would quietly change the answer to the next question some
+    /// other part of the engine asks on it.
+    /// </summary>
+    private static T InWindowTerms<T>(IntPtr window, int x, int y, Func<int, int, T> ask)
+    {
+        var point = new Win32.POINT { X = x, Y = y };
+        var previous = IntPtr.Zero;
+
+        if (window != IntPtr.Zero)
+        {
+            var context = Win32.GetWindowDpiAwarenessContext(window);
+            if (context != IntPtr.Zero)
+            {
+                if (!Win32.PhysicalToLogicalPointForPerMonitorDPI(window, ref point))
+                {
+                    point = new Win32.POINT { X = x, Y = y };
+                }
+                previous = Win32.SetThreadDpiAwarenessContext(context);
+            }
+        }
+
+        try { return ask(point.X, point.Y); }
+        finally { if (previous != IntPtr.Zero) Win32.SetThreadDpiAwarenessContext(previous); }
     }
 
     /// <summary>
@@ -199,5 +247,5 @@ internal static class UiaResolver
     }
 
     /// <summary>Begin and End together, for callers with nothing to overlap.</summary>
-    internal static TargetInfo? Resolve(int x, int y) => End(Begin(x, y));
+    internal static TargetInfo? Resolve(int x, int y, IntPtr window) => End(Begin(x, y, window));
 }

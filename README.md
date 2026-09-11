@@ -238,6 +238,7 @@ not. From the repository root:
 ```
 dotnet build capture -c Debug          # the engine these tests drive
 dotnet build tests/KbdTarget -c Debug  # something for them to point at
+dotnet build tests/DpiTabTarget -c Debug  # an older, unscaled app with tabs
 
 python tests/smoke.py                  # engine protocol
 python tests/scope_test.py             # window enumeration and scoping
