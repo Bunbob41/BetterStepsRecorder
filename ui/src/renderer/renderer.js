@@ -58,7 +58,7 @@ const el = {
   libraryEmpty: $('library-empty'),
   compactBar: $('compactbar'), cDot: $('c-dot'), cState: $('c-state'),
   cCount: $('c-count'), cPause: $('c-pause'), cStop: $('c-stop'),
-  cElapsed: $('c-elapsed'),
+  cElapsed: $('c-elapsed'), cBlocked: $('c-blocked'),
   build: $('build'),
   marker: $('set-marker'), markerBold: $('set-marker-bold'),
   showMarker: $('set-show-marker'),
@@ -88,6 +88,8 @@ function setState(next) {
 
   el.record.disabled = next !== 'idle';
   if (next === 'idle') stopElapsed();
+  // A warning about the program in front means nothing once nothing is recording.
+  if (next === 'idle') paintBlocked(null);
   // Safety net: idle and compact is a dead end, so never allow the pair.
   if (next === 'idle' && document.body.classList.contains('compact')) {
     window.bsr.restoreWindow();
@@ -950,6 +952,38 @@ window.bsr.onError((m) => {
 });
 
 window.bsr.onExit(() => setState('idle'));
+
+/**
+ * The program in front is one the recorder cannot see, because it is running as
+ * administrator and the recorder is not. Its clicks are not arriving at all.
+ *
+ * Said on the strip while it lasts - the only thing on screen during a recording
+ * - and in the notice bar, which is hidden while the strip is up and so is there
+ * to read afterwards, when somebody opens the recording and wonders where the
+ * steps went.
+ */
+function paintBlocked(m) {
+  const shut = Boolean(m && m.blocked);
+  el.compactBar.classList.toggle('blocked', shut);
+  el.cBlocked.hidden = !shut;
+  if (!shut) {
+    el.cBlocked.textContent = '';
+    el.cBlocked.title = '';
+    return;
+  }
+
+  // The filename, because a program running as administrator will not tell a
+  // lesser one its product name.
+  const name = BsrAppName.friendly(m.process, '') || 'this program';
+  el.cBlocked.textContent = `Can't see ${name}: running as administrator`;
+  el.cBlocked.title = `${name} is running as administrator, and Windows does not let `
+    + `Steps Recorder see what happens in it, so nothing there is being recorded.`;
+  showNotice(`Clicks in ${name} were not recorded: it was running as administrator, `
+    + `and Windows does not let Steps Recorder see into it. Start ${name} the normal `
+    + `way, or run Steps Recorder as administrator too.`);
+}
+
+window.bsr.onBlocked(paintBlocked);
 window.bsr.onLog((m) => console.log('[capture]', m.level, m.message));
 
 // ---- re-record ----------------------------------------------------------------

@@ -259,6 +259,9 @@ bridge.__keys = async () =>
 bridge.__lastMarker = async () => LAST_MARKER;
 bridge.__called = async () => CALLED;
 bridge.onUndoDepth = (fn) => { depthListener = fn; };
+let blockedListener = () => {};
+bridge.onBlocked = (fn) => { blockedListener = fn; };
+bridge.__block = async (m) => { blockedListener(m); };
 // Redo is only reachable once something has been undone, and nothing in this
 // window has a real history - so the depth is set directly to open the door.
 bridge.__setDepth = async (d) => { DEPTH = d; depthListener(DEPTH); };
@@ -1186,6 +1189,71 @@ app.whenReady().then(async () => {
   check('a mark lower down leaves the strip where it was', strip.low.low === false);
   check('and none of its handles are buried either', strip.low.buried === 0,
         `${strip.low.buried} handle(s) under the strip`);
+
+  // HYPACK started with Run as administrator produced no steps and no message.
+  // The strip now says so - and it is 132 pixels tall, so the check that matters
+  // most is that saying so does not push Pause and Stop out of it.
+  console.log('\nthe strip says when it cannot see the program in front:');
+  const shut = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const bar = document.getElementById('compactbar');
+    const line = document.getElementById('c-blocked');
+    const elapsed = document.getElementById('c-elapsed');
+    const stop = document.getElementById('c-stop');
+
+    // The strip as it is while recording.
+    document.body.classList.add('compact');
+    bar.hidden = false;
+    bar.style.width = '360px';
+    elapsed.textContent = '00:42';
+    await sleep(60);
+    const before = { height: Math.round(bar.getBoundingClientRect().height) };
+
+    // A long name on purpose. "Hypack64" happens to fit on the strip's one
+    // line, so a warning that wrapped passed every check below with it.
+    await window.bsr.__block({ blocked: true, process: 'NmeaBridgeAcquisitionService64.exe' });
+    await sleep(60);
+    const b = bar.getBoundingClientRect();
+    const s = stop.getBoundingClientRect();
+    const during = {
+      shown: !line.hidden && getComputedStyle(line).display !== 'none',
+      text: line.textContent,
+      tooltip: line.title,
+      elapsedHidden: getComputedStyle(elapsed).display === 'none',
+      height: Math.round(b.height),
+      stopInside: s.top >= b.top - 1 && s.bottom <= b.bottom + 1 && s.height > 0,
+      oneLine: Math.round(line.getBoundingClientRect().height) <= 20,
+      notice: document.getElementById('notice-text').textContent,
+    };
+
+    await window.bsr.__block({ blocked: false, process: '' });
+    await sleep(60);
+    const after = {
+      hidden: line.hidden,
+      elapsedBack: getComputedStyle(elapsed).display !== 'none',
+    };
+
+    // Put the page back as it was found.
+    document.body.classList.remove('compact');
+    bar.hidden = true;
+    bar.style.width = '';
+    elapsed.textContent = '';
+    document.getElementById('notice-close').click();
+    await sleep(60);
+    return { before, during, after };
+  })()`);
+
+  check('the strip names the program it cannot see', shut.during.shown && /NmeaBridgeAcquisitionService64/.test(shut.during.text),
+        JSON.stringify(shut.during.text));
+  check('and says why', /administrator/.test(shut.during.text));
+  check('in place of the elapsed time, not beside it', shut.during.elapsedHidden);
+  check('on one line', shut.during.oneLine);
+  check('without making the strip any taller', shut.during.height === shut.before.height,
+        `${shut.before.height}px -> ${shut.during.height}px`);
+  check('so Stop is still on it', shut.during.stopInside);
+  check('the full sentence is there to hover over', /nothing there is being recorded/.test(shut.during.tooltip));
+  check('and a note is left for afterwards', /were not recorded/.test(shut.during.notice), shut.during.notice);
+  check('it goes away when the program in front can be seen again', shut.after.hidden && shut.after.elapsedBack);
 
   console.log('\nthe right button does not draw:');
   const rightClick = await win.webContents.executeJavaScript(`(async () => {

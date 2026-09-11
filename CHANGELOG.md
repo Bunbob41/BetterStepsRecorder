@@ -33,6 +33,12 @@ Notable changes, newest first. The reasoning behind each decision lives in
   recorded as *Charts* and one on *Planned Lines* as *3D Options and Levels*,
   while the picture and the arrow showed the right tab. Buttons, checkboxes and
   radio buttons were never affected.
+- **The recording strip says when it can't see the program you're in.** A
+  program started with *Run as administrator* can't be recorded by an ordinary
+  one — Windows doesn't allow it — and a recording made that way used to miss
+  every step without a word. Now the strip says *Can't see … running as
+  administrator* while you're in it, and a note afterwards explains what was
+  missed and what to do.
 - Fixed: **a click on OK or Open often produced a step that said only
   "Clicked"** — no control, no window, no application. Those clicks close the
   dialog, and by the time the recorder looked, there was nothing left to

@@ -226,6 +226,65 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-74 - A program the recorder cannot see is said out loud
+`(this change)` - [capture/Privilege.cs](../capture/Privilege.cs),
+[capture/Recorder.cs](../capture/Recorder.cs),
+[ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
+
+HYPACK started with *Run as administrator* produced two recordings with no
+HYPACK steps in them. No error, no warning, nothing in the log - the recording
+strip showed a healthy recording the whole time. Windows withholds a
+higher-privilege program's input from a lower-privilege program's hooks (User
+Interface Privilege Isolation), so the clicks never reached the engine. There
+was nothing to fail.
+
+That cannot be fixed from inside an ordinary process, and it is not a bug to
+work around: it is Windows keeping one program from watching another. What can
+be fixed is the silence, which made the recorder look broken rather than
+blocked.
+
+**What is still visible from this side of the wall is which window is in
+front.** So the engine watches that:
+
+- **On the idle tick.** Shut out of the program in front, no events arrive and
+  the worker is idle - so the tick runs exactly when the check is needed.
+- **Asked about a program only when the program in front changes.** The
+  question is two handle opens and a token read; asking it four times a second
+  about the same program would be waste.
+- **By integrity level**, which is what the isolation is decided by
+  ([Privilege](../capture/Privilege.cs)). A process whose token this one may not
+  even open is higher by definition. A process that could not be opened for any
+  other reason - most often one that has already exited - is not reported as a
+  wall.
+- **Not about programs out of the recording's scope**, whose clicks would not be
+  recorded anyway.
+- **Sent on the change** as a `blocked` message, true on the way in and false on
+  the way out, never repeated between.
+
+**The window says it where it will be read.** On the recording strip, in place of
+the elapsed time - *Can't see Hypack64: running as administrator* - because the
+strip is the only thing on screen during a recording. It takes the elapsed
+line's place rather than adding a row: the strip is 132 pixels tall, and a
+warning that wrapped would push Pause and Stop out of it, which are the two
+buttons somebody who has just read "not recording" most wants. It stays on one
+line and shortens with an ellipsis; the full sentence is its tooltip. And a
+notice is left in the notice bar, hidden while the strip is up, for when the
+recording is opened afterwards and the steps are not there.
+
+The name is the filename, tidied - *Hypack64*, not *HYPACK Shell*: the friendly
+name lives in the executable's own version resource, which a program running as
+administrator will not let a lesser one read.
+
+Proved: `Privilege.CannotSee` against real processes in LogicTests - this one,
+File Explorer, `services.exe` (SYSTEM on every machine, so always above the
+test), and a process that has already exited; a window test that raises the
+message on a 360-pixel strip and checks the strip is no taller, Stop is still
+inside it, and the warning clears; invariants for the rest. The window test
+uses a long program name on purpose: *Hypack64* happens to fit on the strip's
+one line, and with it a warning allowed to wrap passed every check. With a
+long name the same change grew the strip from 113 to 131 pixels and failed. Not proved against
+HYPACK itself, which needs the user to start it elevated again.
+
 ### D-73 - A control is asked about in its own window's DPI terms
 `(this change)` - [capture/UiaResolver.cs](../capture/UiaResolver.cs),
 [tests/DpiTabTarget](../tests/DpiTabTarget/Program.cs)
@@ -2968,9 +3027,9 @@ waits out because it waits for the engine's `ready`.
   clicks never reach the engine: no step, no picture, no error, nothing in the
   log. Found by starting HYPACK with *Run as administrator*; two recordings
   came out with no HYPACK steps at all. Running Steps Recorder as administrator
-  as well should put both at the same level, but that is untested. The recorder
-  does not yet notice the situation or say so, which makes it look broken
-  rather than blocked.
+  as well should put both at the same level, but that is untested. Since D-74
+  the recorder at least notices and says so, on the strip and afterwards; it
+  still cannot record what it cannot see.
 - ~~**Monitor and full-screen framing still capture the recording strip.**~~
   Closed by D-71. The black rectangle this note feared is what older Windows
   does; on Windows 10 2004 and later `setContentProtection` leaves the window

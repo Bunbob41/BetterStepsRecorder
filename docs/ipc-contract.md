@@ -49,6 +49,10 @@ error        { "code": "HOOK_FAILED", "message": "" }
              SPAWN_FAILED). Any other code is one thing that failed - a step, a
              picture, a command - and the engine is still recording.
 warning      { "code": "PRESS_COPY_SLOW", "message": "" }   stopped nothing; log it
+blocked      { "blocked": true, "process": "Hypack64.exe" }
+             the program in front runs with higher rights than the engine, so its
+             input never reaches the hooks. Sent when that starts, and again with
+             "blocked": false when it ends; never repeated in between.
 pong         {}
 windows      { "items": [ { hwnd, pid, title, process } ] }
 verified     { "items": [ { id, status, matchedBy, window } ] }

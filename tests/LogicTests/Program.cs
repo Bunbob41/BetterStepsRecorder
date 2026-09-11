@@ -631,5 +631,34 @@ Console.WriteLine("\nnaming tabs in an older application on a scaled display:");
     }
 }
 
+Console.WriteLine("\nwhich programs this recorder is shut out of:");
+{
+    // Started with Run as administrator, HYPACK produced no steps at all: Windows
+    // withholds a higher-privilege program's input from a lower one's hooks.
+    Check("its own process is not one", !Privilege.CannotSee((uint)Environment.ProcessId));
+    Check("no process at all is not one", !Privilege.CannotSee(0));
+
+    var privShell = System.Diagnostics.Process.GetProcessesByName("explorer").FirstOrDefault();
+    if (privShell is not null)
+        Check("File Explorer, running as the user, is not one", !Privilege.CannotSee((uint)privShell.Id));
+    else
+        Console.WriteLine("  SKIP  explorer is not running");
+
+    // Runs as SYSTEM on every Windows machine there is: always above this test.
+    var privService = System.Diagnostics.Process.GetProcessesByName("services").FirstOrDefault();
+    if (privService is not null)
+        Check("a Windows service running as SYSTEM is - it has higher rights", Privilege.CannotSee((uint)privService.Id));
+    else
+        Console.WriteLine("  SKIP  services.exe was not found");
+
+    // A process that has exited cannot be opened, and that is not a wall.
+    using var privGone = System.Diagnostics.Process.Start(
+        new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c exit") { CreateNoWindow = true, UseShellExecute = false })!;
+    var privGonePid = (uint)privGone.Id;
+    privGone.WaitForExit();
+    Thread.Sleep(200);
+    Check("a process that has already exited is not reported as one", !Privilege.CannotSee(privGonePid));
+}
+
 Console.WriteLine($"\n{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;

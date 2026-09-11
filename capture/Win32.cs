@@ -248,4 +248,35 @@ internal static class Win32
     internal const uint GW_OWNER = 4;
     internal const long WS_POPUP = 0x80000000L;
     internal const long WS_CAPTION = 0x00C00000L;
+
+    // ---- who can see whom -----------------------------------------------------
+    // A program's integrity level, which is what decides whether this recorder's
+    // hooks are told about its input at all.
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern bool CloseHandle(IntPtr handle);
+
+    [DllImport("kernel32.dll")]
+    internal static extern IntPtr GetCurrentProcess();
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    internal static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    internal static extern bool GetTokenInformation(IntPtr token, int infoClass, IntPtr info,
+                                                    int length, out int returned);
+
+    [DllImport("advapi32.dll")]
+    internal static extern IntPtr GetSidSubAuthority(IntPtr sid, uint index);
+
+    [DllImport("advapi32.dll")]
+    internal static extern IntPtr GetSidSubAuthorityCount(IntPtr sid);
+
+    internal const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    internal const uint TOKEN_QUERY = 0x0008;
+    internal const int TokenIntegrityLevel = 25;
+    internal const int ERROR_ACCESS_DENIED = 5;
 }

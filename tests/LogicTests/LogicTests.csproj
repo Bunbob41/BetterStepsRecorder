@@ -19,6 +19,7 @@
     <Compile Include="../../capture/Scope.cs" />
     <Compile Include="../../capture/PressPairing.cs" />
     <Compile Include="../../capture/PressShot.cs" />
+    <Compile Include="../../capture/Privilege.cs" />
     <Compile Include="../../capture/TypingState.cs" />
     <Compile Include="../../capture/CaptureOptions.cs" />
     <Compile Include="../../capture/Win32.cs" />

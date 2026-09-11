@@ -196,6 +196,17 @@ function wireSidecar() {
   });
   sidecar.on('warning', (m) => log.warn(`capture engine ${m.code}: ${m.message}`));
 
+  // The program in front is one the engine cannot see - started with Run as
+  // administrator - so nothing in it is being recorded. The window says so on
+  // the strip while it lasts, and in the notice bar afterwards; this writes it
+  // down, because it used to leave no trace anywhere.
+  sidecar.on('blocked', (m) => {
+    if (m.blocked) {
+      log.warn(`capture: cannot see ${m.process || 'the program in front'}: it is running with higher rights`);
+    }
+    send('capture:blocked', m);
+  });
+
   sidecar.on('step', (step) => {
     if (!session) return;
 

@@ -60,6 +60,11 @@ internal sealed class Recorder : IDisposable
     /// </summary>
     private Pending? _pending;
 
+    // The program in front, and whether this recorder is shut out of it.
+    // Worker-thread only.
+    private uint _frontPid;
+    private bool _shutOut;
+
     /// <summary>Everything a step needs, taken before the click landed.</summary>
     private sealed class Pending
     {
@@ -120,6 +125,8 @@ internal sealed class Recorder : IDisposable
         // fresh chance, and the first press does not pay for starting the copy up.
         PressShots.Enable();
         PressShots.Warm(CursorPoint());
+        _frontPid = 0;
+        _shutOut = false;
         State = RecordingState.Recording;
     }
 
@@ -200,6 +207,7 @@ internal sealed class Recorder : IDisposable
                 {
                     FlushTypingIfIdle();
                     AbandonStalePress();
+                    WatchForeground();
                     if (_queue.IsAddingCompleted && _queue.Count == 0) break;
                     continue;
                 }
@@ -484,6 +492,55 @@ internal sealed class Recorder : IDisposable
         if (frame == IntPtr.Zero || foreground == IntPtr.Zero) return false;
         var active = Win32.GetAncestor(foreground, Win32.GA_ROOT);
         return (active != IntPtr.Zero ? active : foreground) == frame;
+    }
+
+    /// <summary>
+    /// Notices when the program in front is one this recorder cannot see.
+    ///
+    /// A click in a program started with Run as administrator never arrives here -
+    /// Windows withholds it (see Privilege). Nothing fails; there is just nothing to
+    /// record, and a recording of HYPACK started that way looked perfectly healthy
+    /// while missing every step. The one thing still visible from this side of the
+    /// wall is which window is in front, so that is what is watched, and the
+    /// interface is told when it moves into a program this recorder cannot see and
+    /// when it comes back out.
+    ///
+    /// On the idle tick, which is exactly when it is needed: shut out of the program
+    /// in front, no events arrive and the worker is idle. A program is only asked
+    /// about when the program in front changes.
+    /// </summary>
+    private void WatchForeground()
+    {
+        var state = State;
+        if (state != RecordingState.Recording && state != RecordingState.RecordingOnce)
+        {
+            if (_shutOut) Tell(false, 0);
+            _frontPid = 0;
+            return;
+        }
+
+        var pid = WindowResolver.ProcessIdOf(Win32.GetForegroundWindow());
+        if (pid == _frontPid) return;
+        _frontPid = pid;
+
+        // Not about a program this recording is not covering: out of scope, its
+        // clicks would not be recorded anyway, and a warning would be noise.
+        var shut = pid != 0 && InScope(pid) && Privilege.CannotSee(pid);
+        if (shut != _shutOut) Tell(shut, pid);
+    }
+
+    private void Tell(bool shut, uint pid)
+    {
+        _shutOut = shut;
+        var process = "";
+        if (shut)
+        {
+            // The filename is readable across the wall; the friendly product name
+            // is not, because it lives in the executable's own version resource.
+            try { process = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName + ".exe"; }
+            catch { /* gone already */ }
+        }
+        Protocol.Blocked(shut, process);
     }
 
     /// <summary>The press that belongs to this release, if there is one.</summary>

@@ -368,7 +368,9 @@ in the program's own terms, so the name matches what you clicked.
 **Programs run as administrator cannot be recorded** unless Steps Recorder is
 run as administrator too. Windows keeps an ordinary program from watching what
 you do in an administrator one, so the clicks never reach the recorder: you get
-no steps from that program at all, and no message saying why. HYPACK's title
+no steps from that program at all. While you are in one, the recording strip
+says so — *Can't see Hypack64: running as administrator* — and a note is left
+for afterwards saying what was missed. HYPACK's title
 bar says *(Administrator)*, but that is HYPACK's own user mode, not Windows
 administrator rights — started the normal way, it records fine.
 

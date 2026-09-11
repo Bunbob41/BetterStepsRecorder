@@ -40,6 +40,13 @@ internal static class Protocol
     /// </summary>
     internal static void Warn(string code, string message) =>
         Emit(new { v = 1, type = "warning", id = Guid.NewGuid().ToString(), code, message });
+
+    /// <summary>
+    /// The program in front is one this recorder cannot see - or no longer is.
+    /// Sent on the change, not repeatedly.
+    /// </summary>
+    internal static void Blocked(bool blocked, string process) =>
+        Emit(new { v = 1, type = "blocked", id = Guid.NewGuid().ToString(), blocked, process });
 }
 
 internal sealed record Point2(int X, int Y);

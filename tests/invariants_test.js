@@ -304,6 +304,33 @@ console.log('\nan engine problem does not end a recording it has not ended:');
         !/GetWindowText|WindowFromPoint|SendMessage/.test(shotE));
 }
 
+console.log('\na program the recorder cannot see is said out loud:');
+{
+  const fsB = require('node:fs');
+  const pathB = require('node:path');
+  const readB = (...p) => fsB.readFileSync(pathB.join(__dirname, '..', ...p), 'utf8');
+  const recB = readB('capture', 'Recorder.cs');
+  const mainB = readB('ui', 'src', 'main', 'main.js');
+  const preB = readB('ui', 'src', 'main', 'preload.js');
+  const rendB = readB('ui', 'src', 'renderer', 'renderer.js');
+  const htmlB = readB('ui', 'src', 'renderer', 'index.html');
+  const cssB = readB('ui', 'src', 'renderer', 'styles.css');
+
+  // HYPACK started with Run as administrator: two recordings with no HYPACK
+  // steps in them, no error, nothing in the log.
+  check('the idle tick watches the program in front', /AbandonStalePress\(\);\s*WatchForeground\(\);/.test(recB));
+  check('and asks about a program only when the program in front changes', /if \(pid == _frontPid\) return;/.test(recB));
+  check('a program outside the recording\'s scope is not warned about',
+        /InScope\(pid\) && Privilege\.CannotSee\(pid\)/.test(recB));
+  check('it is written to the log', /sidecar\.on\('blocked'[\s\S]{0,300}log\.warn/.test(mainB));
+  check('and passed to the window', /sidecar\.on\('blocked'[\s\S]{0,400}send\('capture:blocked', m\)/.test(mainB));
+  check('which the bridge exposes', /onBlocked: \(fn\) => ipcRenderer\.on\('capture:blocked'/.test(preB));
+  check('the strip has a place for it', /id="c-blocked"/.test(htmlB));
+  check('that cannot wrap and push Pause and Stop out of the strip',
+        /\.c-blocked \{[\s\S]*?white-space: nowrap;[\s\S]*?text-overflow: ellipsis;/.test(cssB));
+  check('and the warning clears when recording stops', /if \(next === 'idle'\) paintBlocked\(null\);/.test(rendB));
+}
+
 console.log('\nthe control is asked about in its window\'s own terms:');
 {
   const fsU = require('node:fs');

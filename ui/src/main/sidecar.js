@@ -8,7 +8,7 @@ const EXE = 'bettersteps-capture.exe';
 
 /**
  * Owns the C# capture process and the NDJSON framing on its stdio.
- * Emits: 'ready', 'step', 'error', 'warning', 'log', 'exit'.
+ * Emits: 'ready', 'step', 'error', 'warning', 'blocked', 'log', 'exit'.
  */
 class Sidecar extends EventEmitter {
   #proc = null;

@@ -335,6 +335,22 @@ button.tiny {
 .c-state { grid-area: state; font-weight: 600; }
 .c-count { grid-area: count; color: var(--muted); font-size: 12px; align-self: start; }
 .c-elapsed { grid-area: elapsed; }
+/* The program in front cannot be seen. It takes the elapsed line's place rather
+   than adding a row: the strip is 132 pixels tall, and a warning that wrapped
+   would push Pause and Stop off the bottom of it - the two buttons somebody who
+   has just read "not recording" most wants. The full sentence is its tooltip. */
+.c-blocked {
+  grid-area: elapsed;
+  min-width: 0;
+  color: #e5a13a;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-blocked[hidden] { display: none; }
+.compactbar.blocked .c-elapsed { display: none; }
+.compactbar.blocked #c-dot { background: #e5a13a; }
 .c-actions { grid-area: actions; display: flex; gap: 8px; }
 .c-actions button { flex: 1; padding: 7px 0; }
 
