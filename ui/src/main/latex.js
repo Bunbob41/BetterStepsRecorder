@@ -106,7 +106,7 @@ function slugify(text, fallback = 'steps') {
  * side's business, not this one's.
  */
 function buildLatex(session, { title, voice = 'imperative', legend = [],
-                               imageRef = () => null,
+                               imageRef = () => null, inputName = null,
                                imageDir = null, width = 0.85 } = {}) {
   const steps = exportable(session);
   const slug = slugify(title);
@@ -122,6 +122,18 @@ function buildLatex(session, { title, voice = 'imperative', legend = [],
   out.push('%');
   out.push('% Assumes \\usepackage{graphicx} in your preamble.');
   if (imageDir) out.push(`% Screenshots are in ./${imageDir}/ - upload that folder too.`);
+  if (inputName) {
+    // The step everything else depends on, and the one nobody thinks to
+    // mention. Watched for real: both files uploaded to Overleaf, graphicx
+    // already in the preamble, and nothing appeared - because no line in the
+    // document included this file. A fragment cannot include itself, so the
+    // least it can do is say how.
+    //
+    // Quoted when the name has a space in it: \input{my guide} is an error,
+    // and the name comes from whatever the file was saved as.
+    const called = /\s/.test(inputName) ? `"${inputName}"` : inputName;
+    out.push(`% To include it without pasting: \\input{${called}}`);
+  }
   out.push('% Figures are floats [htbp]. To pin each one exactly where it appears,');
   out.push('% add \\usepackage{float} to your preamble and change [htbp] to [H].');
   out.push('');

@@ -892,6 +892,33 @@ So you paste it in. Two things travel with it:
 The top of the exported file says both of those in comments, so they travel with
 it even if this page does not.
 
+**Getting it into Overleaf.** This order works, and was done start to finish to
+check that it does:
+
+1. **Name the recording before exporting.** The name becomes the `\subsection`
+   heading and the caption under every figure. Left alone, all thirty-seven
+   captions read *9/11/2026, 3:42:26 PM*.
+2. **Export → LaTeX.** You get `Your name.tex` and a folder `Your name-images`
+   beside it.
+3. **Upload both** into the project: drag the `.tex` and the whole images folder
+   into Overleaf's file list, at the top level. **Keep the folder's name** — the
+   pictures are referenced through it, and renaming it turns every figure into a
+   missing file.
+4. **Add one line** where the procedure belongs, inside `\begin{document}`:
+   `\input{Your name}`. The exported file's header gives you that line with the
+   right name already in it. Pasting the file's contents there instead works
+   just as well.
+5. **Recompile.**
+
+**Step 4 is the one people miss.** Both files can be in the project, the
+preamble can already have `graphicx`, and nothing appears — because nothing in
+the document includes the fragment. Nothing is wrong and nothing says so.
+
+**A long recording can outrun a free Overleaf project.** Thirty-seven
+full-size PNG screenshots came to 14MB and took that project to the edge of the
+free plan's compile time limit. Settings → Screenshots → JPEG at 85% cuts that
+to roughly a quarter and looks the same on a printed page.
+
 **Numbering.** Each recording becomes one `\subsection`; section headings inside
 it become `\subsubsection`. A note or a heading between two steps breaks the
 numbered list in LaTeX, so the list is closed and reopened with the count

@@ -1244,17 +1244,29 @@ async function runExport({ format, title }) {
 
       // Written beside the .tex rather than embedded: there is no such thing as
       // an embedded image in LaTeX, and Overleaf takes a folder.
+      const imagesDir = path.join(path.dirname(out), imageDir);
       const names = writeImages({
         files: shotFiles(session),
         images: marks.images,
-        dir: path.join(path.dirname(out), imageDir),
+        dir: imagesDir,
       });
+
+      // How big the folder came out, for the advice below. A name can appear
+      // twice when two steps share a screenshot, and it is one file.
+      let imageBytes = 0;
+      for (const name of new Set(names.values())) {
+        try { imageBytes += fs.statSync(path.join(imagesDir, name)).size; }
+        catch { /* advice, not the export */ }
+      }
 
       fs.writeFileSync(out, buildLatex(session, {
         title: safeTitle,
         voice: voiceFor(session),
         legend: legendFor(session),
         imageDir,
+        // What the file ended up being called, so the header can say the line
+        // that includes it.
+        inputName: base,
         // Forward slashes whatever this platform uses: a Windows separator
         // inside \includegraphics is an escape character to TeX, and these are
         // pasted into a document that is compiled on Overleaf.
@@ -1270,10 +1282,19 @@ async function runExport({ format, title }) {
         ok: true,
         file: out,
         warning: [
-          `The screenshots are in ${imageDir} beside it - upload that folder too.`,
+          `Upload both to Overleaf - this file and the ${imageDir} folder beside `
+          + `it - then add \\input{${base}} where the procedure belongs.`,
           marks.shared
             ? `${marks.shared} step(s) share a screenshot; it carries the first `
               + `step's marker.`
+            : null,
+          // Measured in Overleaf: 37 full-size PNGs came to 14MB and took a free
+          // project to the edge of its compile timeout. Better said here than
+          // discovered as a build that never finishes.
+          imageBytes > 8 * 1024 * 1024
+            ? `The screenshots come to ${Math.round(imageBytes / 1048576)}MB - a free `
+              + `Overleaf project may run out of compile time on that many. Settings, `
+              + `Screenshots, JPEG at 85% is about a quarter of the size.`
             : null,
           screenshots.describe(prep),
         ].filter(Boolean).join(' '),

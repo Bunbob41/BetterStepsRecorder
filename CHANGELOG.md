@@ -33,6 +33,12 @@ Notable changes, newest first. The reasoning behind each decision lives in
   recorded as *Charts* and one on *Planned Lines* as *3D Options and Levels*,
   while the picture and the arrow showed the right tab. Buttons, checkboxes and
   radio buttons were never affected.
+- **The LaTeX export tells you how to include it.** Its header now carries the
+  one line that puts it into your document — `\input{your file}`, with the name
+  it was saved as — and the message after exporting says it too. Uploading both
+  files to Overleaf and finding nothing in the PDF, because nothing includes the
+  fragment, was the step everyone was missing. Verified by exporting a
+  thirty-seven step recording and compiling it in Overleaf.
 - **The recording strip says when it can't see the program you're in.** A
   program started with *Run as administrator* can't be recorded by an ordinary
   one — Windows doesn't allow it — and a recording made that way used to miss

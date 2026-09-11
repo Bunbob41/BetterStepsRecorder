@@ -129,6 +129,26 @@ check('and says in a comment what it assumes',
       tex.includes('% Assumes ' + B + 'usepackage{graphicx}'));
 check('and where the pictures went', tex.includes('invoice-images'));
 
+// Watched going into Overleaf for the first time: both files uploaded, the
+// folder name right, graphicx already in the preamble - and nothing appeared,
+// because no line in the document included the fragment. It cannot include
+// itself; the least it can do is say how.
+{
+  const one = { steps: [{ id: 'x', action: 'leftClick', text: 'Clicked Save' }] };
+  const named = buildLatex(one, { title: 'Halifax survey', imageDir: 'halifax-images',
+                                  inputName: 'halifax' });
+  check('the header gives the line that includes it',
+        named.includes('% To include it without pasting: ' + B + 'input{halifax}'));
+
+  const spaced = buildLatex(one, { title: 'Halifax survey', inputName: 'Halifax survey' });
+  check('with a name that has a space quoted, which TeX would otherwise refuse',
+        spaced.includes(B + 'input{"Halifax survey"}'));
+
+  const unnamed = buildLatex(one, { title: 'Halifax survey' });
+  check('and says nothing at all when the file has no name yet',
+        !unnamed.includes('To include it'));
+}
+
 console.log('\nthe procedure itself:');
 check('the steps are an enumerate', tex.includes(B + 'begin{enumerate}'));
 check('written as instructions', tex.includes(B + 'item Click the ``Save'));

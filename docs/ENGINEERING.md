@@ -226,6 +226,33 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-75 - The fragment says the line that includes it
+`(this change)` - [ui/src/main/latex.js](../ui/src/main/latex.js),
+[ui/src/main/main.js](../ui/src/main/main.js)
+
+The LaTeX export shipped in 0.2.0 with one part never verified: whether what it
+writes actually compiles **in Overleaf**. A local TeX install proved the file is
+well-formed, which is not the same claim. This is that part, done: a real
+recording of thirty-seven steps exported, uploaded, compiled, and the figures
+inspected in the PDF - screenshots with the click marker burned in, captioned
+*procedure name, step N*, in a project that went from three pages to twenty-three.
+
+What it found was not a bug in the output. Both files uploaded correctly, the
+folder name matched the paths inside the `.tex`, and the template's preamble
+already had `graphicx` - and nothing appeared, because **nothing in the document
+included the fragment**. A fragment cannot include itself. It could say how, and
+did not.
+
+So the header gained one line - `% To include it without pasting: \input{name}` -
+with the name the file was actually saved as, quoted when that name has a space
+in it, because `\input{my guide}` is an error. The message the app shows after
+exporting says the same thing: upload both, then add this line.
+
+Also measured, and worth knowing before somebody's first attempt: thirty-seven
+full-size PNG screenshots come to 14MB, and that project reported itself near
+the free plan's compile timeout. JPEG at 85% is about a quarter of that. The
+field guide says so in the recipe.
+
 ### D-74 - A program the recorder cannot see is said out loud
 `(this change)` - [capture/Privilege.cs](../capture/Privilege.cs),
 [capture/Recorder.cs](../capture/Recorder.cs),
