@@ -17,6 +17,17 @@ Notable changes, newest first. The reasoning behind each decision lives in
 - **The recording strip never appears in a screenshot**, whether a step frames
   one window, a whole monitor or every screen. It used to show up in the last
   two.
+- Fixed: **a recording could appear to stop by itself.** Any problem the
+  capture engine reported — even one failed step — brought the editor back over
+  what you were recording, showed a blocking error box and marked the recording
+  stopped, while it was in fact still recording. Only a problem the recording
+  cannot survive does that now; anything else is noted, and you are told
+  afterwards.
+- Full-screen programs — games, videos, slideshows — are photographed just after
+  each click rather than at the instant of it. Copying a full-screen game's
+  picture at that instant was slow enough to risk Windows switching the recorder
+  off.
+- Fixed: closing the app logged a misleading *write after end* error.
 - Fixed: **a click on OK or Open often produced a step that said only
   "Clicked"** — no control, no window, no application. Those clicks close the
   dialog, and by the time the recorder looked, there was nothing left to

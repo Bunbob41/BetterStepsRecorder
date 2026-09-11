@@ -226,6 +226,72 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-72 - A problem a recording survives does not end it
+`(this change)` - [ui/src/main/sidecar.js](../ui/src/main/sidecar.js),
+[ui/src/main/main.js](../ui/src/main/main.js),
+[capture/PressShot.cs](../capture/PressShot.cs),
+[capture/Protocol.cs](../capture/Protocol.cs)
+
+Reported as "the app really did not like me trying to record multiple games of
+Rocket League", and then, asked what that looked like: it stopped or closed.
+
+Nothing crashed. Windows recorded no crash or hang for either process, both
+recordings' details files were intact and saved within a second of their last
+click, and the engine never fell behind - every picture was written within a
+fraction of a second of its click, from the first step to the 657th. What the
+evidence did show took reading three layers of code together:
+
+- **D-71's slow-copy guard reported itself as an error.** `Protocol.Error`
+  sends a message of type `error`.
+- **Every engine error ended the recording in the window.**
+  `sidecar.on('error')` called `leaveCompact()` - the full editor came back
+  over the game and stopped being on top - and the renderer then raised a
+  blocking `alert()` and set the state to idle. The engine went on recording
+  underneath. From inside a full-screen game that is indistinguishable from the
+  app giving up.
+- **None of it was logged.** The only line in `main.log` was the harmless one
+  below, so the recording that ended mid-game left no trace of why.
+
+And one fact in the recording points at a worse failure D-71 made possible:
+mouse steps stop at 05:59:19 while keyboard steps carry on until 05:59:37.
+Windows removes a low-level hook that runs too long, silently, and D-71's guard
+switches copies off only AFTER the slow one has happened. A full-screen
+DirectX game is exactly where a screen copy is slow - it is read back from the
+graphics card - so the eviction is consistent with the evidence. It is not
+proved: eighteen seconds without a click is at the edge of ordinary play.
+
+Four changes:
+
+- **A slow copy is a `warning`**, a new message type. Logged, shown to nobody,
+  stops nothing. An interface older than the type ignores it by contract
+  instead of mistaking it for an error.
+- **Only a fatal error ends a recording in the window** - `HOOK_FAILED` and the
+  interface's own `SPAWN_FAILED`. Every other code is one thing that failed, and
+  the engine is still recording. Those are now logged, and told to the person
+  in the notice bar, which is hidden while the strip is up and so appears
+  afterwards instead of over the application. `STEP_FAILED` had been ending
+  recordings in the window this way since long before D-71; nothing had hit it
+  often enough to notice.
+- **A full-screen window is not copied inside the hook.** A window covering its
+  monitor to every edge with no title bar is a game, a video or a slideshow:
+  the case where a copy is slow, and where a picture from before the click
+  matters least, with no tab to switch or menu to open. Such a click is captured
+  just after the press, as before D-71. The title bar is the test rather than
+  the size, because a maximised window covers its monitor too when the taskbar
+  hides itself, and maximised HYPACK is the window the copy exists for. Both
+  calls it needs read what Windows already knows about the window and cannot
+  wait on the game.
+- **Stopping the engine is safe to call twice.** Quitting runs both
+  `window-all-closed` and `before-quit`, each of which stopped the engine; the
+  second wrote to a stdin the first had ended. That produced the one line in the
+  log - `write after end` - which read like a crash and was not one.
+
+Proved by a stand-in engine in `sidecar_test.js` that is stopped twice and must
+raise nothing a tick later; the fatal classification there; `FillsMonitor` in
+LogicTests, including the maximised window with a hidden taskbar; and
+invariants for the error handler's order and for the full-screen test coming
+before any pixels are borrowed.
+
 ### D-71 - The picture is copied inside the hook, before the click is delivered
 `(this change)` - [capture/PressShot.cs](../capture/PressShot.cs),
 [capture/MouseHook.cs](../capture/MouseHook.cs),

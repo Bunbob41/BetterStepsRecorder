@@ -31,6 +31,15 @@ internal static class Protocol
 
     internal static void Error(string code, string message) =>
         Emit(new { v = 1, type = "error", id = Guid.NewGuid().ToString(), code, message });
+
+    /// <summary>
+    /// Something worth knowing that stopped nothing. Its own type rather than an
+    /// error, because an error is what the interface treats as the end of a
+    /// recording - and an interface older than this type ignores it, by
+    /// contract, rather than mistaking it for one.
+    /// </summary>
+    internal static void Warn(string code, string message) =>
+        Emit(new { v = 1, type = "warning", id = Guid.NewGuid().ToString(), code, message });
 }
 
 internal sealed record Point2(int X, int Y);

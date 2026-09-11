@@ -393,7 +393,10 @@ internal sealed class Recorder : IDisposable
 
         if (PressShots.TakeSlowReport() is double slow)
         {
-            Protocol.Error("PRESS_COPY_SLOW",
+            // A warning. Sent as an error, this ended a recording of a
+            // full-screen game in the interface while the engine went on
+            // recording underneath it.
+            Protocol.Warn("PRESS_COPY_SLOW",
                 $"Copying the screen at a click took {slow:0}ms, so for the rest of this "
                 + "recording the picture is taken just after each click instead.");
         }

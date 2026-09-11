@@ -84,16 +84,17 @@ internal static class PressShots
     /// nothing that can wait on another process: no window lookup, no UI
     /// Automation, no file.
     /// </summary>
-    internal static PressShot? Take(Win32.POINT at) => Take(at, timed: true);
+    internal static PressShot? Take(Win32.POINT at, IntPtr foreground) =>
+        Take(at, foreground, timed: true);
 
     /// <summary>
     /// Runs a copy once, off the hook, so the first real click does not pay for
     /// compiling this code and starting GDI+ - which, timed, would switch press
     /// shots off before the recording had begun.
     /// </summary>
-    internal static void Warm(Win32.POINT at) => Take(at, timed: false)?.Release();
+    internal static void Warm(Win32.POINT at) => Take(at, IntPtr.Zero, timed: false)?.Release();
 
-    private static PressShot? Take(Win32.POINT at, bool timed)
+    private static PressShot? Take(Win32.POINT at, IntPtr foreground, bool timed)
     {
         if (_disabled) return null;
         var clock = Stopwatch.StartNew();
@@ -108,6 +109,21 @@ internal static class PressShots
             var area = Rectangle.FromLTRB(info.rcMonitor.Left, info.rcMonitor.Top,
                                           info.rcMonitor.Right, info.rcMonitor.Bottom);
             if (area.Width <= 0 || area.Height <= 0) return null;
+
+            // Not a full-screen window: a game, a video, a slideshow. Copying one
+            // is where a copy gets slow - a DirectX game is read back from the
+            // graphics card - and a hook that is slow is removed by Windows
+            // without a word. Recording a game is how that was found: mouse steps
+            // stopped eighteen seconds before keyboard steps did. It is also
+            // where a picture from before the click matters least, with no tab
+            // to switch and no menu to open, so such a click is captured just
+            // after the press, as it always was. Both calls read what Windows
+            // already knows about the window; neither can wait on the game.
+            if (foreground != IntPtr.Zero && Win32.GetWindowRect(foreground, out var fg)
+                && FillsMonitor(fg, area, (long)Win32.GetWindowLongPtr(foreground, Win32.GWL_STYLE)))
+            {
+                return null;
+            }
 
             pixels = Borrow(area.Size);
             var screen = Win32.GetDC(IntPtr.Zero);
@@ -148,6 +164,20 @@ internal static class PressShots
                 Interlocked.Exchange(ref _slowMs, clock.Elapsed.TotalMilliseconds);
             }
         }
+    }
+
+    /// <summary>
+    /// Whether a window is full-screen: covering its monitor to every edge, with
+    /// no title bar. The title bar is the part that matters. A maximised
+    /// application covers its monitor too when the taskbar hides itself, and
+    /// that - HYPACK, maximised - is exactly the window the copy exists for.
+    /// </summary>
+    internal static bool FillsMonitor(Win32.RECT window, Rectangle monitor, long style)
+    {
+        var covers = window.Left <= monitor.Left && window.Top <= monitor.Top
+                  && window.Right >= monitor.Right && window.Bottom >= monitor.Bottom;
+        var titled = (style & Win32.WS_CAPTION) == Win32.WS_CAPTION;
+        return covers && !titled;
     }
 
     private static Bitmap Borrow(Size size)

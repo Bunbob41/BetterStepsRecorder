@@ -535,5 +535,26 @@ Console.WriteLine("\nwhat a menu or a dropdown is framed as:");
     }
 }
 
+Console.WriteLine("\nwhat counts as full-screen, and so is not copied inside the hook:");
+{
+    var fullScreenMonitor = new System.Drawing.Rectangle(0, 0, 1920, 1080);
+    Win32.RECT FullScreenRect(int l, int t, int r, int b) => new Win32.RECT { Left = l, Top = t, Right = r, Bottom = b };
+    const long fullScreenCaption = 0x00C00000L;
+    const long fullScreenPopup = 0x80000000L;
+
+    Check("a borderless window covering the monitor is full-screen - a game",
+        PressShots.FillsMonitor(FullScreenRect(0, 0, 1920, 1080), fullScreenMonitor, fullScreenPopup));
+    // With the taskbar set to hide, a maximised window covers the whole monitor
+    // too - and HYPACK maximised is the window the copy exists for.
+    Check("a maximised application is not, even with the taskbar hidden: it has a title bar",
+        !PressShots.FillsMonitor(FullScreenRect(-9, -9, 1929, 1089), fullScreenMonitor, fullScreenCaption));
+    Check("a maximised application with the taskbar showing does not cover the monitor at all",
+        !PressShots.FillsMonitor(FullScreenRect(9, 0, 1931, 1031), fullScreenMonitor, fullScreenCaption));
+    Check("a borderless window stopping short of an edge is not full-screen",
+        !PressShots.FillsMonitor(FullScreenRect(0, 0, 1920, 1040), fullScreenMonitor, fullScreenPopup));
+    Check("a full-screen window on the other monitor does not count on this one",
+        !PressShots.FillsMonitor(FullScreenRect(1920, 0, 3840, 1080), fullScreenMonitor, fullScreenPopup));
+}
+
 Console.WriteLine($"\n{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;

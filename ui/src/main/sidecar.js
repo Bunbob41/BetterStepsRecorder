@@ -2,12 +2,13 @@ const { spawn } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 const { EventEmitter } = require('node:events');
+const crypto = require('node:crypto');
 
 const EXE = 'bettersteps-capture.exe';
 
 /**
  * Owns the C# capture process and the NDJSON framing on its stdio.
- * Emits: 'ready', 'step', 'error', 'log', 'exit'.
+ * Emits: 'ready', 'step', 'error', 'warning', 'log', 'exit'.
  */
 class Sidecar extends EventEmitter {
   #proc = null;
@@ -83,7 +84,14 @@ class Sidecar extends EventEmitter {
 
   send(command) {
     if (!this.#proc) return false;
-    this.#proc.stdin.write(JSON.stringify({ v: 1, id: crypto.randomUUID(), ...command }) + '\n');
+    // Not once stdin is closed. Quitting stops the engine from two handlers -
+    // window-all-closed and before-quit - and the second write landed on a
+    // stream the first had already ended: "write after end", the only line in
+    // the log of a recording that had otherwise finished perfectly well, and it
+    // read like a crash.
+    const stdin = this.#proc.stdin;
+    if (!stdin || !stdin.writable || stdin.writableEnded) return false;
+    stdin.write(JSON.stringify({ v: 1, id: crypto.randomUUID(), ...command }) + '\n');
     return true;
   }
 
@@ -145,7 +153,7 @@ class Sidecar extends EventEmitter {
   resume() { return this.send({ type: 'resume' }); }
 
   stop() {
-    if (!this.#proc) return;
+    if (!this.#proc || this.#proc.stdin.writableEnded) return;   // already stopped
     this.send({ type: 'stop' });
     // Closing stdin is the sidecar's orphan guard: if the stop message is
     // somehow missed, EOF makes it quit rather than linger holding a global hook.
@@ -157,4 +165,16 @@ class Sidecar extends EventEmitter {
   }
 }
 
-module.exports = { Sidecar };
+/**
+ * Whether an engine error means there is no recording any more.
+ *
+ * Every error used to be treated that way: the window came back over whatever
+ * was being recorded, a blocking alert appeared, and the recording was shown as
+ * stopped - while the engine carried on recording underneath. A report about
+ * one slow screen copy did that in the middle of a full-screen game, and it
+ * looked exactly like the app had given up. Only these mean it has.
+ */
+const FATAL = new Set(['HOOK_FAILED', 'SPAWN_FAILED']);
+const isFatal = (code) => FATAL.has(code);
+
+module.exports = { Sidecar, isFatal };

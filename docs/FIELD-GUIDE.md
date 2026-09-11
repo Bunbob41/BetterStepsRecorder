@@ -349,6 +349,16 @@ its own.
 top of everything — but Windows is told not to include it in screenshots, so it
 never appears in the guide.
 
+**Full-screen programs are the exception.** A game, a video or a slideshow that
+fills the whole screen is photographed just *after* each click instead. Copying
+one of those at the instant of the click is slow enough that Windows can switch
+the recorder off without warning, and there is nothing in them — no tabs, no
+menus — for an early picture to get right.
+
+**A problem during a recording no longer stops it.** If one step cannot be
+recorded, the recording carries on and you are told afterwards, in the notice
+bar, rather than having the editor jump in front of what you were doing.
+
 Taken any later, a guide comes out subtly wrong in three ways at once: the
 picture for *"Click Options"* shows the menu that clicking Options opened, the
 step gets named after a control in the window that appeared, and a click on

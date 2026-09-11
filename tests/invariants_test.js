@@ -273,6 +273,37 @@ console.log('\na step is made of what was on screen at the press:');
         /InScope[\s\S]{0,120}pre\?\.Discard\(\)/.test(body));
 }
 
+console.log('\nan engine problem does not end a recording it has not ended:');
+{
+  const fsE = require('node:fs');
+  const pathE = require('node:path');
+  const mainE = fsE.readFileSync(pathE.join(__dirname, '..', 'ui', 'src', 'main', 'main.js'), 'utf8');
+
+  // Recording a full-screen game: one slow screen copy was reported as an
+  // error, and every error brought the editor back over the game, raised a
+  // blocking alert and showed the recording as stopped - while the engine went
+  // on recording. Nothing was written to the log, so it left no trace.
+  const onError = mainE.slice(mainE.indexOf("sidecar.on('error'"), mainE.indexOf("sidecar.on('warning'"));
+  check('the error handler was found', onError.length > 40, `${onError.length} characters`);
+  check('every engine error is written to the log', /log\.error\(/.test(onError));
+  check('the window comes back only for an error the recording cannot survive',
+        onError.indexOf('isFatal(m.code)') >= 0
+        && onError.indexOf('leaveCompact()') > onError.indexOf('isFatal(m.code)')
+        && onError.indexOf('return;') > onError.indexOf('leaveCompact()'));
+  check('and a warning is logged, never shown as an error',
+        /sidecar\.on\('warning', \(m\) => log\.warn/.test(mainE));
+
+  const recE = fsE.readFileSync(pathE.join(__dirname, '..', 'capture', 'Recorder.cs'), 'utf8');
+  check('a slow screen copy is a warning, not an error',
+        /Protocol\.Warn\("PRESS_COPY_SLOW"/.test(recE) && !/Protocol\.Error\("PRESS_COPY_SLOW"/.test(recE));
+
+  const shotE = fsE.readFileSync(pathE.join(__dirname, '..', 'capture', 'PressShot.cs'), 'utf8');
+  check('a full-screen window is ruled out before any pixels are copied',
+        shotE.indexOf('FillsMonitor(fg') > 0 && shotE.indexOf('FillsMonitor(fg') < shotE.indexOf('pixels = Borrow('));
+  check('and deciding that cannot wait on the application',
+        !/GetWindowText|WindowFromPoint|SendMessage/.test(shotE));
+}
+
 console.log('\nthe control is asked about at the moment of the click:');
 {
   const fs3 = require('node:fs');

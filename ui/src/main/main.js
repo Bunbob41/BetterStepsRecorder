@@ -3,7 +3,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
-const { Sidecar } = require('./sidecar');
+const { Sidecar, isFatal } = require('./sidecar');
 const { Session } = require('./session');
 const { Settings } = require('./settings');
 const log = require('./log');
@@ -160,6 +160,14 @@ function createWindow() {
   screen.on('display-metrics-changed', () => fitToDisplay(win));
 }
 
+/** What somebody is told, afterwards, about a problem a recording survived. */
+function engineNotice(m) {
+  if (m.code === 'STEP_FAILED') {
+    return `One step could not be recorded (${m.message}). The rest of the recording carried on.`;
+  }
+  return `The capture engine reported a problem it recovered from (${m.code}): ${m.message}`;
+}
+
 function wireSidecar() {
   sidecar = new Sidecar();
 
@@ -170,7 +178,23 @@ function wireSidecar() {
     send('sidecar:ready', m);
   });
   sidecar.on('log', (m) => send('sidecar:log', m));
-  sidecar.on('error', (m) => { leaveCompact(); send('sidecar:error', m); });
+  sidecar.on('error', (m) => {
+    // Written down, whatever it is. Nothing the engine reported used to reach
+    // the log, so a recording that ended in the middle of a game left no trace.
+    log.error(`capture engine ${m.code}: ${m.message}`);
+
+    // Only an error the recording cannot survive ends it in the window. The rest
+    // - one step that failed, one picture that could not be taken - are told to
+    // the person afterwards, in the notice bar, which stays out of sight while
+    // the strip is up. The engine was still recording through all of them.
+    if (isFatal(m.code)) {
+      leaveCompact();
+      send('sidecar:error', m);
+      return;
+    }
+    send('notice', { kind: 'engine', message: engineNotice(m) });
+  });
+  sidecar.on('warning', (m) => log.warn(`capture engine ${m.code}: ${m.message}`));
 
   sidecar.on('step', (step) => {
     if (!session) return;

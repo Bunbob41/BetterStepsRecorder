@@ -86,8 +86,11 @@ internal sealed class MouseHook : IDisposable
     private void Press(Win32.POINT pt, DateTime now)
     {
         if (!_recorder.WantsPress) return;
-        var shot = PressShots.Take(pt);
-        if (!_recorder.OfferPress(new RawPress(pt, now, shot, Win32.GetForegroundWindow())))
+        // Asked once, before the copy: whether to copy at all depends on it (a
+        // full-screen game is not copied), and the worker needs the same answer.
+        var foreground = Win32.GetForegroundWindow();
+        var shot = PressShots.Take(pt, foreground);
+        if (!_recorder.OfferPress(new RawPress(pt, now, shot, foreground)))
             shot?.Release();
     }
 

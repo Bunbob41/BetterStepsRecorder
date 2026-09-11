@@ -45,6 +45,10 @@ ping         {}                                        health check
 ready        { "pid": 1234, "dpiAware": true }         emitted once on startup
 step         { see below }                             one recorded user action
 error        { "code": "HOOK_FAILED", "message": "" }
+             ends a recording only for HOOK_FAILED (and the UI's own
+             SPAWN_FAILED). Any other code is one thing that failed - a step, a
+             picture, a command - and the engine is still recording.
+warning      { "code": "PRESS_COPY_SLOW", "message": "" }   stopped nothing; log it
 pong         {}
 windows      { "items": [ { hwnd, pid, title, process } ] }
 verified     { "items": [ { id, status, matchedBy, window } ] }
