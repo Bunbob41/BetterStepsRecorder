@@ -42,6 +42,61 @@ console.log('a packaged build:');
   check('an engine built alongside it is not stale', info.engineStale === false);
 }
 
+console.log('\na stamp left behind in a source tree:');
+{
+  // Reported from real use: `npm start` from a tree three commits past a
+  // release reported itself as that release, because packaging the release had
+  // left its stamp in ui/. A tested fix then looked like an untested one.
+  const { execFileSync } = require('node:child_process');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bsr-build-repo-'));
+  const git = (...args) => execFileSync('git', args,
+    { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+
+  let haveGit = true;
+  try {
+    git('init', '-q');
+    git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'one');
+  } catch { haveGit = false; }
+
+  if (haveGit) {
+    const head = git('rev-parse', '--short', 'HEAD');
+    fs.mkdirSync(path.join(repo, 'ui'), { recursive: true });
+    const write = (commit) => fs.writeFileSync(path.join(repo, 'ui', 'build-info.json'),
+      JSON.stringify({ version: '0.2.1', commit, build: 117, source: 'packaged' }));
+
+    // A stamp for a commit this tree has moved past.
+    write('c1c588c');
+    // Untracked stamp file makes the tree dirty, which is itself true of a
+    // source tree with a leftover stamp in it - so it is committed first.
+    git('add', '-A');
+    git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'two');
+    const moved = b.describe({ version: '0.2.1', projectRoot: repo });
+    check('a stamp for another commit is not reported as this build',
+          moved.commit !== 'c1c588c');
+    check('the tree is described as what it is: a development build',
+          moved.source === 'development');
+    check('with the commit it is actually at',
+          moved.commit === git('rev-parse', '--short', 'HEAD'));
+
+    // And a stamp that DOES describe the tree is still believed.
+    const now = git('rev-parse', '--short', 'HEAD');
+    write(now);
+    git('add', '-A');
+    git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--amend', '--no-edit');
+    const current = git('rev-parse', '--short', 'HEAD');
+    write(current);
+    // The write dirties the tree again; the stamp then says clean and git says
+    // dirty, so it is correctly NOT believed. Assert the honest version of that.
+    const dirty = b.describe({ version: '0.2.1', projectRoot: repo });
+    check('a stamp is not believed over uncommitted changes either',
+          dirty.source === 'development' && dirty.commit.endsWith('+'));
+    void head;
+  } else {
+    console.log('  SKIP  git is not available');
+  }
+  fs.rmSync(repo, { recursive: true, force: true });
+}
+
 console.log('\nthe number a person actually reads:');
 {
   // The version does not move. 0.1.0 covered a whole day of builds that

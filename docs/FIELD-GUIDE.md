@@ -330,14 +330,24 @@ correct.
 
 ### When the picture is taken
 
-The screenshot for a step is taken **as the mouse button goes down**, not when
-it comes up.
+The screenshot for a step is taken **as the mouse button goes down** — before
+Windows has even told the program you clicked.
 
 That sounds like a detail and it is the difference between a guide that makes
-sense and one that does not. Almost everything on screen reacts when you
-*release* a button, and a menu reacts on the way down but takes a moment to
-draw — so the instant the button goes down is the last moment the thing you are
-clicking is still on screen, unobscured, and still exists.
+sense and one that does not. Some things react the moment the button goes down:
+a tab switches, a menu opens. If the picture were taken even a few thousandths
+of a second later, the step *"Click the Targets tab"* would show the Targets tab
+already open, and every picture in a run of tabs would sit one step behind its
+words. Taken before the program hears about the click, it cannot show anything
+the click did.
+
+**An open menu or dropdown appears in place.** When you click an item in a menu,
+the picture is the window with the menu open over it, not the menu cut out on
+its own.
+
+**The recording strip is left out.** While you record, the small strip floats on
+top of everything — but Windows is told not to include it in screenshots, so it
+never appears in the guide.
 
 Taken any later, a guide comes out subtly wrong in three ways at once: the
 picture for *"Click Options"* shows the menu that clicking Options opened, the

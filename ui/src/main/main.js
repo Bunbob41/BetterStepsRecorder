@@ -322,6 +322,12 @@ function enterCompact() {
     y: workArea.y + 24,
   });
   win.setAlwaysOnTop(true, 'floating');
+  // Left out of every screen copy while it floats there. The capture engine
+  // copies the screen at the moment of each click, and this strip is always on
+  // top - without this it would sit in the corner of every picture of the
+  // procedure being documented. Measured on Windows 11: the window is omitted
+  // and what is behind it is copied, rather than a black rectangle.
+  win.setContentProtection(true);
   send('mode', { compact: true });
   win.webContents.invalidate();
 }
@@ -329,6 +335,8 @@ function enterCompact() {
 function leaveCompact() {
   if (!win || !fullBounds) return;
   win.setAlwaysOnTop(false);
+  // And put back in, or the editor would vanish from somebody's screen share.
+  win.setContentProtection(false);
   win.setMinimumSize(MIN_SIZE.width, MIN_SIZE.height);
   win.setBounds(fullBounds);
   fullBounds = null;

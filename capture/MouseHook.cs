@@ -39,13 +39,7 @@ internal sealed class MouseHook : IDisposable
                 case Win32.WM_LBUTTONDOWN:
                     _downPoint = data.pt;
                     _leftDown = true;
-                    // The last moment the thing being clicked is still on
-                    // screen. Almost every control acts when the button comes
-                    // UP, and the ones that act on the way down - a menu bar -
-                    // have not painted yet. Nothing expensive happens here:
-                    // the point goes on the queue and the worker does the work
-                    // while the button is still held.
-                    _recorder.OfferPress(new RawPress(data.pt, now));
+                    Press(data.pt, now);
                     break;
 
                 case Win32.WM_LBUTTONUP when _leftDown:
@@ -57,9 +51,7 @@ internal sealed class MouseHook : IDisposable
                     break;
 
                 case Win32.WM_RBUTTONDOWN:
-                    // A context menu opens on the way UP, so this is the one
-                    // chance to photograph the screen without it.
-                    _recorder.OfferPress(new RawPress(data.pt, now));
+                    Press(data.pt, now);
                     break;
 
                 case Win32.WM_RBUTTONUP:
@@ -75,6 +67,28 @@ internal sealed class MouseHook : IDisposable
         }
 
         return Win32.CallNextHookEx(_handle, nCode, wParam, lParam);
+    }
+
+    /// <summary>
+    /// A button going down: copy the screen now, before this callback returns.
+    ///
+    /// The one moment guaranteed to come before the application sees the click,
+    /// because Windows does not deliver it until every low-level hook has
+    /// returned. Doing the work on the worker thread instead - even a few
+    /// milliseconds after the press - measurably lost to tabs and menus, which
+    /// act on the way down: the picture showed the tab already switched.
+    ///
+    /// The cost is one monitor's pixels copied into a reused buffer, about 20ms
+    /// measured on a 1920x1080 display. Nothing else happens here - no window
+    /// lookup (WindowFromPoint can wait on a hung application), no UI Automation,
+    /// no encoding, no file - and none of it at all unless a recording wants it.
+    /// </summary>
+    private void Press(Win32.POINT pt, DateTime now)
+    {
+        if (!_recorder.WantsPress) return;
+        var shot = PressShots.Take(pt);
+        if (!_recorder.OfferPress(new RawPress(pt, now, shot, Win32.GetForegroundWindow())))
+            shot?.Release();
     }
 
     public void Dispose()

@@ -17,19 +17,47 @@ const { execFileSync } = require('node:child_process');
  * stale engine looks like the fix did not work.
  */
 
-/** Written by scripts/stamp-build.js during a packaged build. */
+function readStamp(file) {
+  try {
+    if (file && fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch { /* an unreadable stamp is no stamp */ }
+  return null;
+}
+
+/**
+ * Written by scripts/stamp-build.js during a packaged build.
+ *
+ * Two places, and they are not equally trustworthy. One inside the installed
+ * application's resources IS that application: nothing can have changed since
+ * it was written. One inside a source tree is a leftover from the last time
+ * somebody packaged from that tree, and describes the commit it was written at
+ * - which stops being the code that is running the moment anybody commits.
+ *
+ * That happened for real. `npm start` three commits past 0.2.1 reported itself
+ * as "Build 117 - 0.2.1 - c1c588c", the stamp from packaging 0.2.1, so a
+ * recording made with a brand-new capture engine was reported as having been
+ * made with the release - and a fix that had been tested looked exactly like
+ * one that had not.
+ */
 function stamped(projectRoot) {
+  // Only when there IS a resources path. Without one, joining '' gives a bare
+  // relative name, which quietly means "whatever happens to be in the current
+  // directory" - and from ui/ that is the source tree's leftover stamp again.
+  if (process.resourcesPath) {
+    const packaged = readStamp(path.join(process.resourcesPath, 'build-info.json'));
+    if (packaged) return packaged;
+  }
+
   // Deliberately not relative to __dirname: that ignores projectRoot and would
   // report a stamp from an unrelated tree as if it described this one.
-  for (const file of [path.join(process.resourcesPath || '', 'build-info.json'),
-                      path.join(projectRoot || '', 'ui', 'build-info.json')]) {
-    try {
-      if (file && fs.existsSync(file)) {
-        return JSON.parse(fs.readFileSync(file, 'utf8'));
-      }
-    } catch { /* fall through to the next candidate */ }
-  }
-  return null;
+  const leftover = readStamp(path.join(projectRoot || '', 'ui', 'build-info.json'));
+  if (!leftover) return null;
+
+  // Believed only while it still describes the tree it is in. A tree that is
+  // not a repository cannot be asked, and a stamp is the best answer there is.
+  const live = fromGit(projectRoot);
+  if (live.commit !== 'unknown' && live.commit !== leftover.commit) return null;
+  return leftover;
 }
 
 /** In a source tree there is no stamp, so ask git directly. */

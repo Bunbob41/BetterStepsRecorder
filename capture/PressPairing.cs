@@ -3,12 +3,12 @@ namespace BetterSteps.Capture;
 /// <summary>
 /// Whether a button going down and a button coming up are the same click.
 ///
-/// The recorder now does its work when the button goes DOWN, because that is
-/// the last moment the thing being clicked is still on screen: most controls
-/// act when the button comes up, and the ones that act on the way down - a
-/// menu bar - have not finished painting. Everything a step is made of comes
-/// from that moment, and the release only decides what kind of event it was
-/// (a click, a double-click, a drag) and whether it is worth keeping.
+/// The recorder does its work when the button goes DOWN. The picture is copied
+/// inside the hook, before the click reaches the application (see PressShot);
+/// the window and the name are resolved straight afterwards on the worker.
+/// Everything a step is made of comes from that moment, and the release only
+/// decides what kind of event it was (a click, a double-click, a drag) and
+/// whether it is worth keeping.
 ///
 /// So a press has to be matched to its release, and the match has to be able
 /// to fail: a recording paused between the two, a press in one application and

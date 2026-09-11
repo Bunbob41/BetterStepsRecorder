@@ -87,6 +87,12 @@ internal static class ScreenCapture
             g.CopyFromScreen(bounds.Location, System.Drawing.Point.Empty, bounds.Size);
         }
 
+        Encode(shot, path, options);
+    }
+
+    /// <summary>Writes a picture the way every capture is written, whatever took it.</summary>
+    private static void Encode(Bitmap shot, string path, CaptureOptions options)
+    {
         // Only dispose a downscaled copy: at the default scale `image` IS `shot`,
         // and declaring both with `using` disposed the same Bitmap twice.
         var scaled = options.Scale < 1.0 ? Downscale(shot, options.Scale) : null;
@@ -107,6 +113,58 @@ internal static class ScreenCapture
         {
             scaled?.Dispose();
         }
+    }
+
+    /// <summary>
+    /// The part of a frame the pixels copied at the press can supply, or null
+    /// when they cannot supply enough of it.
+    ///
+    /// A maximised window's frame overhangs its monitor by a few pixels of
+    /// invisible border - HYPACK reported 9,0 1922x1031 on a 1920-wide display -
+    /// so "entirely inside" would refuse the commonest window there is. The
+    /// overhang is trimmed instead. A window dragged half onto the next monitor
+    /// is another matter: half a dialog is not a picture of it, so below nine
+    /// tenths the caller captures the usual way.
+    /// </summary>
+    internal static Rectangle? PressCrop(Rectangle copied, Rectangle frame)
+    {
+        if (frame.Width <= 0 || frame.Height <= 0) return null;
+        var kept = frame;
+        kept.Intersect(copied);
+        if (kept.Width <= 0 || kept.Height <= 0) return null;
+        return (long)kept.Width * kept.Height * 10 >= (long)frame.Width * frame.Height * 9
+            ? kept
+            : null;
+    }
+
+    /// <summary>
+    /// Writes part of the pixels copied at the press. `copiedArea` is where on the
+    /// virtual screen they came from; a second monitor starts at 1920, not 0, and
+    /// forgetting that cuts the wrong rectangle without failing.
+    /// </summary>
+    internal static void SaveCrop(Bitmap copied, Rectangle copiedArea, Rectangle crop,
+                                  string path, CaptureOptions options)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var local = crop;
+        local.Offset(-copiedArea.X, -copiedArea.Y);
+        using var shot = copied.Clone(local, PixelFormat.Format32bppArgb);
+        Encode(shot, path, options);
+    }
+
+    /// <summary>
+    /// A frame widened to take in a popup that belongs to it. A menu hangs off
+    /// the bottom of a small window, and a dropdown can open past a dialog's
+    /// edge; framed as the window alone, the thing that was clicked is cut off.
+    /// </summary>
+    internal static Rectangle Including(Rectangle frame, IntPtr popup)
+    {
+        if (popup == IntPtr.Zero || !Win32.GetWindowRect(popup, out var r)) return frame;
+        var extra = FromRect(r);
+        if (extra.Width <= 0 || extra.Height <= 0) return frame;
+        var both = Rectangle.Union(frame, extra);
+        both.Intersect(SystemInformation.VirtualScreen);
+        return both;
     }
 
     /// <summary>

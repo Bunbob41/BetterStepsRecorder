@@ -171,7 +171,15 @@ console.log('\nno screenshot is written or edited behind the sharing rules:');
   const direct = [...recorder.matchAll(/ScreenCapture\.CaptureTo\(/g)];
   check('the engine captures in two places and no more', direct.length === 2,
         `${direct.length} direct calls to CaptureTo`);
-  check('one of them is the press', /private void Prepare[\s\S]{0,1400}ScreenCapture\.CaptureTo\(/.test(recorder));
+  {
+    const from = recorder.indexOf('private void PrepareFrom');
+    const prep = recorder.slice(from, recorder.indexOf('\n    }\n', from));
+    check('one of them is the press', from > 0 && /ScreenCapture\.CaptureTo\(/.test(prep));
+    // The copy taken inside the hook is what the press prefers; capturing at
+    // the worker is only for when it cannot supply the frame.
+    check('and the press prefers the pixels copied before the click',
+          prep.indexOf('SaveCrop') > 0 && prep.indexOf('SaveCrop') < prep.indexOf('ScreenCapture.CaptureTo('));
+  }
   check('and the other is the one that captures at the release',
         /CaptureOrReuse[\s\S]{0,600}ScreenCapture\.CaptureTo\(/.test(recorder));
   // Both routes end at Settle, which owns the comparison and the shared file.
@@ -205,12 +213,46 @@ console.log('\na step is made of what was on screen at the press:');
   // step that opened it - and long enough for a dialog dismissed by the click
   // to be gone, which left steps reading "Clicked" with no window at all.
   const down = hook.slice(hook.indexOf('WM_LBUTTONDOWN'), hook.indexOf('WM_LBUTTONUP'));
-  check('the hook offers a press on the way down', /OfferPress\(/.test(down));
+  check('the hook takes a press on the way down', /Press\(data\.pt, now\)/.test(down));
   check('and on the way down for the right button too',
-        /WM_RBUTTONDOWN[\s\S]{0,400}OfferPress\(/.test(hook));
+        /WM_RBUTTONDOWN[\s\S]{0,200}Press\(data\.pt, now\)/.test(hook));
   check('but a press never consumes a single-shot re-record',
-        /internal void OfferPress[\s\S]{0,400}RecordingOnce\) return;/.test(rec)
-        && !/internal void OfferPress[\s\S]{0,400}State = RecordingState\.Paused/.test(rec));
+        /internal bool OfferPress[\s\S]{0,400}RecordingOnce\) return false;/.test(rec)
+        && !/internal bool OfferPress[\s\S]{0,400}State = RecordingState\.Paused/.test(rec));
+
+  // The screen is copied INSIDE the hook: the one moment Windows guarantees
+  // comes before the application sees the click. A picture taken on the worker
+  // even a few milliseconds later showed tabs already switched.
+  const press = hook.slice(hook.indexOf('private void Press('),
+                           hook.indexOf('\n    }\n', hook.indexOf('private void Press(')));
+  check('the screen is copied inside the hook', /PressShots\.Take\(/.test(press));
+  check('and only while a recording wants it',
+        press.indexOf('WantsPress') >= 0 && press.indexOf('WantsPress') < press.indexOf('PressShots.Take('));
+  // Anything that can wait on another process does not belong in a hook: a hook
+  // that blocks is evicted, silently, for the whole desktop.
+  check('nothing in the hook can wait on another application',
+        !/RootWindowAt|WindowFromPoint|UiaResolver|\.Save\(|File\./.test(press));
+  check('a copy the hook did not hand over is given back', /shot\?\.Release\(\)/.test(press));
+
+  const shots = fsp.readFileSync(pathp.join(__dirname, '..', 'capture', 'PressShot.cs'), 'utf8');
+  check('a copy that is too slow switches press copies off', /_disabled = true/.test(shots));
+  check('and nothing is written from inside the hook to say so',
+        !/Protocol\./.test(shots));
+  check('the worker always gives the pixels back',
+        /try \{ PrepareFrom\(p\); \}\s*finally \{ p\.Shot\?\.Release\(\); \}/.test(rec));
+
+  // Framed as a sliver, a dropdown came out 224x51 with nothing around it.
+  check('a menu or a dropdown is framed as the window it belongs to',
+        /FrameWindowFor\(under, p\.Foreground\)/.test(rec));
+  check('and widened to take the popup in', /Including\(bounds, under\)/.test(rec));
+
+  const mainSrc = fsp.readFileSync(pathp.join(__dirname, '..', 'ui', 'src', 'main', 'main.js'), 'utf8');
+  const enter = mainSrc.slice(mainSrc.indexOf('function enterCompact'), mainSrc.indexOf('function leaveCompact'));
+  const leave = mainSrc.slice(mainSrc.indexOf('function leaveCompact'),
+                              mainSrc.indexOf('\n}\n', mainSrc.indexOf('function leaveCompact')));
+  check('the recording strip is left out of every screen copy', /setContentProtection\(true\)/.test(enter));
+  check('and put back in afterwards, or it vanishes from screen shares',
+        /setContentProtection\(false\)/.test(leave));
 
   // What the release does with it. Each of these is a field that used to be
   // read after the click and now comes from before it.

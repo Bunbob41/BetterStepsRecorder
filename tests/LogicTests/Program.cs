@@ -434,5 +434,106 @@ Console.WriteLine("\nmatching a release to the press it came from:");
         && !PressPairing.SameClick(dot(1, 1), pressedAt, dot(1, 1), pressedAt.AddMinutes(2)));
 }
 
+Console.WriteLine("\nhow much of a frame the press copy can supply:");
+{
+    var pressMonitor = new System.Drawing.Rectangle(0, 0, 1920, 1080);
+    Check("a dialog on the monitor is supplied whole",
+        ScreenCapture.PressCrop(pressMonitor, new System.Drawing.Rectangle(559, 159, 801, 692))
+            == new System.Drawing.Rectangle(559, 159, 801, 692));
+    // Measured from a real recording: HYPACK maximised reports 9,0 1922x1031.
+    var pressMaximised = ScreenCapture.PressCrop(pressMonitor, new System.Drawing.Rectangle(9, 0, 1922, 1031));
+    Check("a maximised window's overhang is trimmed rather than refused",
+        pressMaximised is System.Drawing.Rectangle pm && pm.Right == 1920 && pm.Width == 1911);
+    Check("half a window on the next monitor is refused - half a dialog is not a picture of it",
+        ScreenCapture.PressCrop(pressMonitor, new System.Drawing.Rectangle(1500, 100, 800, 600)) is null);
+    Check("a frame on another monitor entirely is refused",
+        ScreenCapture.PressCrop(pressMonitor, new System.Drawing.Rectangle(2000, 0, 800, 600)) is null);
+    Check("an empty frame is refused",
+        ScreenCapture.PressCrop(pressMonitor, System.Drawing.Rectangle.Empty) is null);
+}
+
+Console.WriteLine("\ncutting a frame out of the copied monitor:");
+{
+    // The copy comes from the SECOND monitor, which starts at 1920: a mistake in
+    // the offset cuts the wrong pixels rather than failing loudly.
+    var pressArea = new System.Drawing.Rectangle(1920, 0, 400, 300);
+    using var pressPixels = new System.Drawing.Bitmap(400, 300, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+    using (var g = System.Drawing.Graphics.FromImage(pressPixels))
+    {
+        g.Clear(System.Drawing.Color.Blue);
+        g.FillRectangle(System.Drawing.Brushes.Red, 100, 50, 60, 40);
+    }
+    var pressOut = Path.Combine(Path.GetTempPath(), $"bsr-presscrop-{Guid.NewGuid():N}.png");
+    try
+    {
+        ScreenCapture.SaveCrop(pressPixels, pressArea, new System.Drawing.Rectangle(2020, 50, 60, 40),
+                               pressOut, new CaptureOptions());
+        using (var back = new System.Drawing.Bitmap(pressOut))
+        {
+            Check("the cut is the size of the frame", back.Width == 60 && back.Height == 40);
+            var allRed = true;
+            for (var y = 2; y < back.Height - 2; y += 4)
+                for (var x = 2; x < back.Width - 2; x += 4)
+                {
+                    var c = back.GetPixel(x, y);
+                    if (c.R < 200 || c.B > 60) allRed = false;
+                }
+            Check("and they are the right pixels: the monitor's own offset is taken off", allRed);
+        }
+    }
+    finally { try { File.Delete(pressOut); } catch { } }
+}
+
+Console.WriteLine("\nwhat a menu or a dropdown is framed as:");
+{
+    // Real windows, created and never shown: styles and owners exist from the
+    // moment a window does, so nothing flashes on screen.
+    const int pressWsPopup = unchecked((int)0x80000000);
+    const int pressWsCaption = 0x00C00000;
+    const int pressWsOverlapped = 0x00CF0000;
+    System.Windows.Forms.NativeWindow MakeWindow(int style, IntPtr owner)
+    {
+        var w = new System.Windows.Forms.NativeWindow();
+        w.CreateHandle(new System.Windows.Forms.CreateParams
+        {
+            Style = style, Parent = owner, X = -32000, Y = -32000, Width = 200, Height = 120, Caption = "",
+        });
+        return w;
+    }
+
+    var appWindow = MakeWindow(pressWsOverlapped, IntPtr.Zero);
+    var dialogWindow = MakeWindow(pressWsPopup | pressWsCaption, appWindow.Handle);
+    var listWindow = MakeWindow(pressWsPopup, dialogWindow.Handle);
+    var looseWindow = MakeWindow(pressWsPopup, IntPtr.Zero);
+    try
+    {
+        Check("an application window is not a transient popup",
+            !WindowResolver.IsTransientPopup(appWindow.Handle));
+        Check("a dialog is not one either - it has a title bar, and it is the step",
+            !WindowResolver.IsTransientPopup(dialogWindow.Handle));
+        Check("an owned popup without a title bar - a dropdown list - is",
+            WindowResolver.IsTransientPopup(listWindow.Handle));
+        Check("a dropdown list is framed as the dialog it belongs to",
+            WindowResolver.FrameWindowFor(listWindow.Handle, IntPtr.Zero) == dialogWindow.Handle);
+        Check("not as the application that owns the dialog",
+            WindowResolver.FrameWindowFor(listWindow.Handle, IntPtr.Zero) != appWindow.Handle);
+        Check("a dialog is framed as itself",
+            WindowResolver.FrameWindowFor(dialogWindow.Handle, appWindow.Handle) == dialogWindow.Handle);
+        Check("an ordinary window is framed as itself",
+            WindowResolver.FrameWindowFor(appWindow.Handle, dialogWindow.Handle) == appWindow.Handle);
+        // Without a menu's class or an owner there is nothing to say it belongs to
+        // anything, and guessing would frame a splash screen as whatever was open.
+        Check("an unowned popup that is not a menu is framed as itself",
+            WindowResolver.FrameWindowFor(looseWindow.Handle, dialogWindow.Handle) == looseWindow.Handle);
+    }
+    finally
+    {
+        listWindow.DestroyHandle();
+        looseWindow.DestroyHandle();
+        dialogWindow.DestroyHandle();
+        appWindow.DestroyHandle();
+    }
+}
+
 Console.WriteLine($"\n{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;

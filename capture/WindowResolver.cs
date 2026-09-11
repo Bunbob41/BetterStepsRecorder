@@ -14,6 +14,67 @@ internal static class WindowResolver
         return root != IntPtr.Zero ? root : hwnd;
     }
 
+    /// <summary>
+    /// The window a step should be framed as, given the window under the pointer.
+    ///
+    /// Usually the same window. Not when that window is a menu or a dropdown
+    /// list: those are windows of their own, and framed by themselves they came
+    /// out as slivers - a dropdown 224 pixels by 51, a menu with no application
+    /// around it - which is no use in a procedure. Framed as the window they
+    /// belong to, they appear where they were, open, over it.
+    ///
+    /// Followed through OWNERS rather than parents, one popup at a time, and only
+    /// while the window is a popup: a dropdown in a dialog is framed as the
+    /// dialog, not as the application that owns the dialog.
+    /// </summary>
+    internal static IntPtr FrameWindowFor(IntPtr under, IntPtr foreground)
+    {
+        var current = under;
+        for (var hops = 0; hops < 8 && current != IntPtr.Zero && IsTransientPopup(current); hops++)
+        {
+            // A popup menu usually has no owner at all; the window that opened it
+            // is the one that was active when the button went down.
+            var owner = Win32.GetWindow(current, Win32.GW_OWNER);
+            if (owner == IntPtr.Zero) owner = foreground;
+            if (owner == IntPtr.Zero) break;
+
+            var root = Win32.GetAncestor(owner, Win32.GA_ROOT);
+            if (root == IntPtr.Zero) root = owner;
+            if (root == current) break;
+            current = root;
+        }
+        return current == IntPtr.Zero ? under : current;
+    }
+
+    /// <summary>
+    /// A window that exists to be dismissed: a menu, a dropdown list, a tooltip.
+    ///
+    /// Recognised by class where Windows gives it one, and otherwise by shape - a
+    /// popup that has an owner and no title bar. A dialog is ALSO an owned popup,
+    /// and it is the step rather than a decoration on it; the title bar is what
+    /// tells the two apart.
+    /// </summary>
+    internal static bool IsTransientPopup(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return false;
+
+        var cls = ClassOf(hwnd);
+        if (cls is "#32768" or "ComboLBox" or "tooltips_class32") return true;
+
+        var style = (long)Win32.GetWindowLongPtr(hwnd, Win32.GWL_STYLE);
+        var popup = (style & Win32.WS_POPUP) != 0;
+        var titled = (style & Win32.WS_CAPTION) == Win32.WS_CAPTION;
+        var owned = Win32.GetWindow(hwnd, Win32.GW_OWNER) != IntPtr.Zero;
+        return popup && owned && !titled;
+    }
+
+    private static string ClassOf(IntPtr hwnd)
+    {
+        var buffer = new char[256];
+        var len = Win32.GetClassName(hwnd, buffer, buffer.Length);
+        return len > 0 ? new string(buffer, 0, len) : "";
+    }
+
     internal static uint ProcessIdOf(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero) return 0;

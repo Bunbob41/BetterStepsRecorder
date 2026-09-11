@@ -207,4 +207,29 @@ internal static class Win32
         public uint dwFlags;
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string szDevice;
     }
+
+    // ---- copying the screen from inside the mouse hook ------------------------
+
+    /// <summary>The screen's device context. Released by the caller: one that is
+    /// not given back is a GDI handle leaked per click.</summary>
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetDC(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    internal static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+
+    [DllImport("gdi32.dll")]
+    internal static extern bool BitBlt(IntPtr hdcDest, int xDest, int yDest, int width, int height,
+                                       IntPtr hdcSrc, int xSrc, int ySrc, uint rop);
+
+    internal const uint SRCCOPY = 0x00CC0020;
+
+    // ---- telling a menu from a dialog ------------------------------------------
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+    internal const uint GW_OWNER = 4;
+    internal const long WS_POPUP = 0x80000000L;
+    internal const long WS_CAPTION = 0x00C00000L;
 }

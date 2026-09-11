@@ -5,14 +5,18 @@ Notable changes, newest first. The reasoning behind each decision lives in
 
 ## Unreleased
 
-- Fixed: **the screenshots were one step behind the words.** Click Options and
-  then Settings, and the picture filed under *"Click Options"* showed the menu
-  that clicking Options had just opened. Everything about a step — the picture,
-  the window it names and the control it names — was worked out 60 to 260
-  milliseconds *after* the click had already been delivered, which is ample time
-  for a menu to open, a dialog to draw, or the thing you clicked to disappear.
-  It is all done as the button goes **down** now, while what you are clicking is
-  still on screen.
+- Fixed: **the screenshots were one step behind the words.** Click through a
+  row of tabs, or Options and then Settings, and each picture showed what the
+  click had already done — the tab already switched, the menu already open.
+  Everything about a step was worked out 60 to 260 milliseconds *after* the click
+  had been delivered. The picture is now copied as the button goes **down**,
+  before Windows has even passed the click to the program, so it cannot show
+  anything the click did.
+- **An open menu or dropdown appears in place in its window**, rather than
+  being left out of the picture.
+- **The recording strip never appears in a screenshot**, whether a step frames
+  one window, a whole monitor or every screen. It used to show up in the last
+  two.
 - Fixed: **a click on OK or Open often produced a step that said only
   "Clicked"** — no control, no window, no application. Those clicks close the
   dialog, and by the time the recorder looked, there was nothing left to

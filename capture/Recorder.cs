@@ -19,7 +19,8 @@ internal readonly record struct RawEvent(
 /// nothing but hand this over. See <see cref="PressPairing"/> for why the
 /// press is the moment that matters.
 /// </summary>
-internal readonly record struct RawPress(Win32.POINT Point, DateTime Utc);
+internal readonly record struct RawPress(
+    Win32.POINT Point, DateTime Utc, PressShot? Shot, IntPtr Foreground);
 
 internal sealed class Recorder : IDisposable
 {
@@ -115,6 +116,10 @@ internal sealed class Recorder : IDisposable
             (uint)Environment.ProcessId,
         };
         Directory.CreateDirectory(Path.Combine(_sessionDir, "steps"));
+        // Before recording starts, not on the first click: a slow machine gets a
+        // fresh chance, and the first press does not pay for starting the copy up.
+        PressShots.Enable();
+        PressShots.Warm(CursorPoint());
         State = RecordingState.Recording;
     }
 
@@ -125,6 +130,7 @@ internal sealed class Recorder : IDisposable
     internal void ArmOnce(string replaceId)
     {
         _replaceId = replaceId;
+        PressShots.Enable();
         State = RecordingState.RecordingOnce;
     }
 
@@ -148,11 +154,26 @@ internal sealed class Recorder : IDisposable
     /// not clicking, and a press that never becomes a release must leave the
     /// arm where it was.
     /// </summary>
-    internal void OfferPress(RawPress p)
+    internal bool OfferPress(RawPress p)
     {
         var state = State;
-        if (state != RecordingState.Recording && state != RecordingState.RecordingOnce) return;
-        if (!_queue.IsAddingCompleted) _queue.Add(p);
+        if (state != RecordingState.Recording && state != RecordingState.RecordingOnce) return false;
+        if (_queue.IsAddingCompleted) return false;
+        try { _queue.Add(p); return true; }
+        catch (InvalidOperationException) { return false; }   // closed between the check and the add
+    }
+
+    /// <summary>
+    /// Whether a press is worth copying the screen for. Asked by the hook before
+    /// it spends twenty milliseconds on a click nobody is recording.
+    /// </summary>
+    internal bool WantsPress
+    {
+        get
+        {
+            var state = State;
+            return state == RecordingState.Recording || state == RecordingState.RecordingOnce;
+        }
     }
 
     /// <summary>
@@ -366,6 +387,20 @@ internal sealed class Recorder : IDisposable
     /// </summary>
     private void Prepare(RawPress p)
     {
+        // The borrowed pixels go back for the next click whatever happens here.
+        try { PrepareFrom(p); }
+        finally { p.Shot?.Release(); }
+
+        if (PressShots.TakeSlowReport() is double slow)
+        {
+            Protocol.Error("PRESS_COPY_SLOW",
+                $"Copying the screen at a click took {slow:0}ms, so for the rest of this "
+                + "recording the picture is taken just after each click instead.");
+        }
+    }
+
+    private void PrepareFrom(RawPress p)
+    {
         // One press at a time. A second means the first never became a step.
         _pending?.Discard();
         _pending = null;
@@ -375,11 +410,17 @@ internal sealed class Recorder : IDisposable
         // before the click has changed anything.
         FlushTyping();
 
-        var hwnd = WindowResolver.RootWindowAt(p.Point);
+        // The window under the pointer may be a menu or a dropdown list - a window
+        // of its own, and a sliver of one. Framed by itself it came out 224 pixels
+        // by 51 with nothing around it; framed as the window it belongs to, it
+        // appears in place, open, over it.
+        var under = WindowResolver.RootWindowAt(p.Point);
+        var hwnd = WindowResolver.FrameWindowFor(under, p.Foreground);
         if (!InScope(WindowResolver.ProcessIdOf(hwnd))) return;
 
         var asking = UiaResolver.Begin(p.Point.X, p.Point.Y);
         var bounds = ScreenCapture.ResolveBounds(hwnd, p.Point, _options.Frame);
+        if (under != hwnd) bounds = ScreenCapture.Including(bounds, under);
 
         // Into a temporary name: at this point nobody knows whether this press
         // will become a step at all, let alone which number it is. The dot
@@ -388,7 +429,23 @@ internal sealed class Recorder : IDisposable
             _sessionDir, "steps", $".press-{DateTime.UtcNow.Ticks:x}.{_options.Extension}");
         try
         {
-            ScreenCapture.CaptureTo(bounds, picture, _options, hwnd);
+            // The pixels copied inside the hook, before the click was delivered,
+            // whenever they can show this frame truthfully. Only when the window
+            // was the active one: a click that activates a window behind another
+            // would otherwise be pictured with the other window across it, and
+            // asking that window to draw itself is the better picture there.
+            var area = p.Shot is not null && ShowsItself(hwnd, p.Foreground)
+                ? ScreenCapture.PressCrop(p.Shot.Area, bounds)
+                : null;
+            if (area is Rectangle fromPress)
+            {
+                bounds = fromPress;
+                ScreenCapture.SaveCrop(p.Shot!.Pixels, p.Shot.Area, fromPress, picture, _options);
+            }
+            else
+            {
+                ScreenCapture.CaptureTo(bounds, picture, _options, hwnd);
+            }
         }
         catch (Exception ex)
         {
@@ -409,6 +466,18 @@ internal sealed class Recorder : IDisposable
             Window = WindowResolver.Describe(hwnd, bounds),
             Target = UiaResolver.End(asking),
         };
+    }
+
+    /// <summary>
+    /// Whether a copy of the screen at the press shows this window, rather than
+    /// whatever was in front of it. True when it was the active window - which a
+    /// menu or a dropdown does not change, since neither takes activation.
+    /// </summary>
+    private static bool ShowsItself(IntPtr frame, IntPtr foreground)
+    {
+        if (frame == IntPtr.Zero || foreground == IntPtr.Zero) return false;
+        var active = Win32.GetAncestor(foreground, Win32.GA_ROOT);
+        return (active != IntPtr.Zero ? active : foreground) == frame;
     }
 
     /// <summary>The press that belongs to this release, if there is one.</summary>

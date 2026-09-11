@@ -226,6 +226,110 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-71 - The picture is copied inside the hook, before the click is delivered
+`(this change)` - [capture/PressShot.cs](../capture/PressShot.cs),
+[capture/MouseHook.cs](../capture/MouseHook.cs),
+[capture/Recorder.cs](../capture/Recorder.cs),
+[capture/WindowResolver.cs](../capture/WindowResolver.cs)
+
+D-70 was tested against the application it was written for and the verdict was
+"not any better - somehow might be worse". Both halves were true.
+
+**Not better: tabs and menus still came out one step behind.** A step labelled
+*"Clicked the Seabed ID tab"* showed Seabed ID already selected. D-70 moved the
+work to the press, but did it on the worker thread - and a tab switches, and a
+menu opens, when the button goes DOWN. Windows delivers the press to the
+application the instant the hook returns; by the time any other thread has woken
+up, resolved a window and asked for a picture, the application has handled it.
+D-70's own text predicted a race here "which they will lose far more often than
+they win". They lost every time.
+
+**Worse: popups became the frame.** At the press, a menu or a dropdown list that
+the click is about to dismiss is still on screen, and it is a top-level window
+of its own - so the window under the pointer was the popup, and the frame was
+the popup. One step came out 224x51: the dropdown's own rectangle, recorded two
+steps earlier when it opened, with a click on the tab strip beside it. A menu
+came out as the menu with no application around it. At the release the popup
+had always already closed, which is why this never happened before D-70.
+
+**The fix for the first is to copy the screen inside the hook.** Windows does
+not deliver a click until every low-level hook has returned, so pixels copied
+there cannot show anything the click did. This is the one moment that is
+guaranteed to come first, and D-70's claim that a real fix "does not have to be
+inside the hook" was wrong.
+
+What made it acceptable was measuring it rather than assuming a hook has no time:
+
+    BitBlt, whole 1920x1080 monitor, reused bitmap   median 20.0ms  p90 23.0ms  max 33.2ms
+    BitBlt, 800x700 region                            median  7.3ms  p90  8.6ms  max  8.9ms
+
+- **Only the pixels.** The hook copies the monitor under the pointer into a
+  reused buffer and hands it to the worker. No window lookup - `WindowFromPoint`
+  can wait on a hung application - no UI Automation, no encoding, no file, and
+  nothing written to the protocol. An invariant pins that list.
+- **Nothing at all unless a recording wants it.** The hook asks `WantsPress`
+  before spending twenty milliseconds on a click nobody is recording.
+- **Two reused buffers.** A monitor's worth of pixels allocated on every click
+  would hand the garbage collector a pause to take in the one place it must
+  not. Warmed when recording starts, so the first click does not pay for
+  compiling the code and starting GDI+.
+- **A slow copy switches itself off.** Windows evicts a hook that is too slow,
+  silently, and a recording then captures nothing while looking healthy. Any
+  copy over 150ms - several times the worst measured - stops press copies for
+  the rest of the recording; the worker reports it and falls back to capturing
+  just after the press.
+- **Used only when the window was the active one.** A click that activates a
+  window behind another would otherwise be pictured with the other window
+  across it; there, asking the window to draw itself is still the better
+  picture.
+- **Trimmed, not refused, at a monitor's edge.** A maximised window's frame
+  overhangs its monitor by its invisible border - HYPACK reported 9,0 1922x1031
+  on a 1920-wide display - so a frame is supplied if nine tenths of it is on
+  the copied monitor, and captured the old way if not.
+
+**The fix for the second is to frame a popup as the window it belongs to.**
+`WindowResolver.FrameWindowFor` follows OWNERS, one popup at a time: a dropdown
+list in a dialog is framed as the dialog, not as the application that owns the
+dialog. A popup is recognised by class where Windows gives it one (`#32768` for
+a menu, `ComboLBox` for a dropdown) and otherwise by shape - owned, popup, no
+title bar. A dialog is also an owned popup, and it is the step rather than a
+decoration on it; the title bar is what tells them apart. An unowned popup menu
+is framed as the window that was active at the press. The frame is widened to
+take the popup in, because a menu hangs off the bottom of a small window.
+
+And because the picture now comes from the screen rather than from the window
+drawing itself, the open menu or dropdown is in it, in place.
+
+**That reverses a decision, so the reason it was made has to be answered.**
+Window framing asked the window to draw itself precisely because a screen copy
+took whatever sat on top - and this application's recording strip is always on
+top, so it landed in the middle of the pictures. The strip is now marked with
+`setContentProtection(true)` while it floats, which on Windows 10 2004 and later
+is `WDA_EXCLUDEFROMCAPTURE`. Measured on this machine rather than taken from the
+documentation, because this file once recorded it as a black rectangle:
+
+    ordinary window      : magenta 100%  black 0%
+    excluded from capture: magenta   0%  black 6%    => left out, what is behind it copied
+
+It is switched off again when the strip returns to the editor, or the editor
+would vanish from somebody's screen share. A screen copy does still include
+OTHER applications' windows on top - a notification toast arriving at the moment
+of a click - which asking the window to draw itself excluded. That is accepted:
+a toast is rare and visible, and a picture a step behind its words was neither.
+
+**The dev build also lied about which build it was.** `npm start` from a tree
+three commits past 0.2.1 reported "Build 117 - 0.2.1 - c1c588c", because
+packaging 0.2.1 had left its stamp in `ui/`, and the recording made with D-70's
+engine was reported as having been made with the release. A stamp found in a
+source tree is now believed only while the tree is still at the commit it
+describes.
+
+Verified: `PressCrop` and `SaveCrop` in LogicTests, including the second
+monitor's offset; popup framing against real, never-shown windows (an owned
+captionless popup framed as its dialog, not its application); and invariants
+for everything above that is a property of the code rather than of arithmetic.
+The rest is the user's to confirm in the application it was reported from.
+
 ### D-70 - A step is made at the press, not at the release
 `(this change)` - [capture/MouseHook.cs](../capture/MouseHook.cs),
 [capture/Recorder.cs](../capture/Recorder.cs),
@@ -274,11 +378,12 @@ hook, it has to be before the RELEASE.
 
 Details worth keeping:
 
-- **The hook still does nothing expensive.** `WindowFromPoint` sends
+- **The hook still does nothing that can wait.** `WindowFromPoint` sends
   `WM_NCHITTEST`, which can block on a hung application, and a low-level hook
-  that blocks is evicted from the chain for the whole desktop. So the press is
-  enqueued exactly like a release and the window lookup happens on the worker -
-  microseconds later rather than 150ms later.
+  that blocks is evicted from the chain for the whole desktop. So the window
+  lookup happens on the worker. *Superseded in part by D-71: the hook now copies
+  the screen, which cannot wait on anybody, because the worker was too late for
+  tabs and menus.*
 - **A press is matched to its release** by point and by clock
   ([PressPairing](../capture/PressPairing.cs)), and matching can fail: a
   recording paused between the two, a press whose release never came. An
@@ -305,7 +410,9 @@ Details worth keeping:
 
 Menus still race, because they act on the way down - but the gap is a few
 milliseconds instead of a hundred and fifty, which they will lose far more often
-than they win.
+than they win. *They did not. Tested in HYPACK, tabs and menus came out a step
+behind exactly as before, and pressing while a popup was open framed the popup;
+both are D-71.*
 
 Verified where it can be: the pairing rule in LogicTests, and invariants that
 pin the hook offering a press, the release preferring what the press took, and
@@ -2710,11 +2817,11 @@ waits out because it waits for the engine's `ready`.
   is covered is covered honestly; most of the interface is not covered.
 - **No automated coverage of the installed artefact.** The installer is verified
   by hand.
-- **Monitor and full-screen framing still capture the recording strip.** They
-  read the desktop, so there is no window to ask. The options are to hide the
-  strip for the duration of each capture, which costs a round trip and a visible
-  flicker per step, or to accept `setContentProtection`'s black rectangle.
-  Neither is obviously right, and window framing — the default — is now clean.
+- ~~**Monitor and full-screen framing still capture the recording strip.**~~
+  Closed by D-71. The black rectangle this note feared is what older Windows
+  does; on Windows 10 2004 and later `setContentProtection` leaves the window
+  out entirely, measured, and every framing now copies the screen with the
+  strip excluded.
 - **The size notice is advisory only.** It cannot offer to re-encode the
   recording it is describing, because that would rewrite screenshots on disk —
   and those are the record. A user who takes the advice gets the benefit on
@@ -2747,12 +2854,10 @@ waits out because it waits for the engine's `ready`.
   ignored by an older build at all, and only the second kind needs the refusal.
   There is no rule written down yet, only a test that asks.
 - ~~**A click that changes the interface is named after what replaced it.**~~
-  Answered by D-70: the lookup, the window and the picture all happen at the
-  press now, while the thing being clicked is still on screen. What remains
-  open is the narrower case of a control that acts on button-DOWN - a menu bar
-  - where the recorder is racing the application by a few milliseconds instead
-  of losing to it by a hundred and fifty. Whether that race is ever lost in
-  practice needs a real recording to say.
+  Answered by D-70 and D-71: the window and the name are resolved at the press,
+  and the picture is copied inside the hook before the click is delivered at
+  all. The race D-70 left for controls that act on button-DOWN was lost in
+  practice, which is why D-71 exists.
 - **Transparent always-on-top overlays poison the lookup.** In the same
   recording one step resolved to "NVIDIA GeForce Overlay": UIA hit-testing finds
   the topmost window at the point, and an invisible full-screen overlay is
