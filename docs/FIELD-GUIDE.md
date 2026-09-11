@@ -365,6 +365,13 @@ click on *Tracklines* was written down as *Charts*. The picture and the arrow
 were right; only the words were wrong. The recorder now asks about each control
 in the program's own terms, so the name matches what you clicked.
 
+**Programs run as administrator cannot be recorded** unless Steps Recorder is
+run as administrator too. Windows keeps an ordinary program from watching what
+you do in an administrator one, so the clicks never reach the recorder: you get
+no steps from that program at all, and no message saying why. HYPACK's title
+bar says *(Administrator)*, but that is HYPACK's own user mode, not Windows
+administrator rights — started the normal way, it records fine.
+
 Taken any later, a guide comes out subtly wrong in three ways at once: the
 picture for *"Click Options"* shows the menu that clicking Options opened, the
 step gets named after a control in the window that appeared, and a click on

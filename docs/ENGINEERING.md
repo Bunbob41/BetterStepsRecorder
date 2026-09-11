@@ -293,13 +293,17 @@ Details worth keeping:
   target, converts each tab's centre to real pixels, and asks the resolver.
   It skips on a display at 100%, where there is nothing to get wrong.
 
-Open: HYPACK runs as Administrator and the recorder, launched normally, does
-not. The reproduction here was without elevation, and the fix changes only the
-thread's mode and the point, not the route the question takes - but whether it
-holds against an elevated HYPACK is for a real recording to confirm. A
-system-aware application on a monitor that differs from the system DPI goes wrong
-by the same mechanism and is covered by the same fix, but cannot be reproduced on
-a machine whose monitors all match its system DPI, as this one's do.
+A correction to how this entry was first written. It said HYPACK "runs as
+Administrator", read off a title bar that says `(Administrator) HYPACK`. That
+is HYPACK's own user mode, not Windows elevation: every HYPACK recording in
+this file was made by a recorder running normally. Taking the note literally,
+the user started HYPACK with *Run as administrator* - and the recorder recorded
+nothing at all from it. See the known gap on elevated programs.
+
+A system-aware application on a monitor that differs from the system DPI goes
+wrong by the same mechanism and is covered by the same fix, but cannot be
+reproduced on a machine whose monitors all match its system DPI, as this one's
+do.
 
 ### D-72 - A problem a recording survives does not end it
 `(this change)` - [ui/src/main/sidecar.js](../ui/src/main/sidecar.js),
@@ -2958,6 +2962,15 @@ waits out because it waits for the engine's `ready`.
   is covered is covered honestly; most of the interface is not covered.
 - **No automated coverage of the installed artefact.** The installer is verified
   by hand.
+- **A program run as administrator cannot be recorded by a recorder that is
+  not.** Windows withholds a higher-privilege program's input from a
+  lower-privilege program's hooks (User Interface Privilege Isolation), so the
+  clicks never reach the engine: no step, no picture, no error, nothing in the
+  log. Found by starting HYPACK with *Run as administrator*; two recordings
+  came out with no HYPACK steps at all. Running Steps Recorder as administrator
+  as well should put both at the same level, but that is untested. The recorder
+  does not yet notice the situation or say so, which makes it look broken
+  rather than blocked.
 - ~~**Monitor and full-screen framing still capture the recording strip.**~~
   Closed by D-71. The black rectangle this note feared is what older Windows
   does; on Windows 10 2004 and later `setContentProtection` leaves the window
