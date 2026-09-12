@@ -227,6 +227,56 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-87 - The steps column says less, better
+`(this change)` - [ui/src/renderer/appname.js](../ui/src/renderer/appname.js),
+[ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
+[ui/src/renderer/styles.css](../ui/src/renderer/styles.css)
+
+Reported from use, with a screenshot of the home screen: "the steps column
+needs polish and its just slopped". Every item was something the column or the
+names around it said that nobody needed.
+
+- **With nothing open, the column is gone.** It had nothing to list and spent a
+  third of the window saying "No steps yet." beside a `+ Add` and a `0`. Not
+  folded to the rail either: a fold with `0` beside it is the same nothing,
+  smaller. `body.nothing-open` is set only when idle with nothing open and no
+  steps, so the moment a recording opens or starts, the column is back.
+  Deliberately NOT when a recording is open and the library is showing - there
+  the list is the way back in (see `showLibrary`).
+- **The header starts on the rows' edge.** *Steps 8* on the left, `+ Add` and the
+  fold at the far end. It used to put the fold left of a centred label and push
+  the rest right with auto margins left over from an older layout. The count is
+  now `countSteps`, the number the circles count up to, not the number of rows.
+- **Rows stop repeating their window.** Generated wording ends
+  `in "Window title"`, so a recording in one dialog repeated the dialog on every
+  row - and the list truncates from the right, so the useful part was what got
+  cut. `rowTitle` drops that suffix when the previous recorded step was in the
+  same window. Only in the list: the recording and every export keep the full
+  text. Never on wording a person wrote, and never when what is left would say
+  nothing ("Double-clicked").
+- **The sub-line is in a person's words and names the app where it changes.**
+  It printed the engine's identifiers, `leftClick` and `keyPress`, and the same
+  application under every row. `actionWord` maps the known actions and turns any
+  newer identifier into words rather than showing it raw.
+- **"No recording open"** in the name field, disabled, with nothing open. It
+  said "Untitled recording", which reads as being inside one.
+- **Auto-names carry no step count** (amends D-78). *HYPACK Shell - 37 steps*
+  repeated the count the library card already prints, and became the title of
+  an exported guide, where nobody heads a procedure with its length. Recordings
+  already named that way keep their names: a stored name is somebody's data.
+
+**The mangled HYPACK name is HYPACK's, not ours - and this record says so
+because the first diagnosis said otherwise.** A library card read
+*HYPACK\u00ef\u00bf\u00bd 64 Bit Single Beam Editor*. It was called a
+capture-engine bug. It is not: the engine writes UTF-8 and reads
+FileVersionInfo, and `C:\HYPACK 2025\x64\SBMAX64.exe`'s own FileDescription and
+ProductName carry U+00EF U+00BF U+00BD, read straight off the file. The engine
+reports it faithfully. So `friendly()` - which every row, card, auto-name and
+export goes through - removes that sequence and bare U+FFFD for display,
+leaving the recording exactly as Windows reported it. Removed, not replaced
+with a guessed (R) or (TM): a wrong symbol would be a new error. A genuine
+trademark sign is untouched, and tested to be.
+
 ### D-86 - A recording can be finished
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
 [ui/src/main/main.js](../ui/src/main/main.js)

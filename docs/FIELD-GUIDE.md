@@ -593,6 +593,31 @@ what the window becomes while recording, along with the step count and the time
 elapsed. There is nothing to press in the main window while a recording is
 running, because the main window is not on screen then.
 
+### Reading the step list
+
+Each row is one thing you did, numbered. The count at the top — *Steps 12* —
+matches the last number in the list; notes and section headings are rows but
+not steps, so they are not counted.
+
+The list is written to be read quickly, so it leaves out what the row above has
+already told you:
+
+- **The window is named once.** If ten clicks happened in the same dialog, the
+  first row says *in "Region"* and the next nine do not. When you move to a
+  different window, it is named again. Exports always keep the full wording.
+- **The program is named where it changes**, in the grey line under a row, along
+  with what you did — *Click*, *Double-click*, *Keyboard*, *Drag*.
+
+If you rewrite a step's wording yourself, the list shows your words exactly.
+
+When nothing is open, the list is not shown at all — the window is just your
+recordings. It comes back as soon as you open one or start recording.
+
+Some programs ship with a damaged name built in. HYPACK's single-beam editor
+calls itself *HYPACK� 64 Bit…* inside its own executable; Steps Recorder shows
+it as *HYPACK 64 Bit Single Beam Editor* and leaves the recording itself
+untouched.
+
 ### Finishing a recording
 
 Everything you record is saved the moment it happens, so there is no Save button
@@ -994,10 +1019,10 @@ it even if this page does not.
 check that it does:
 
 1. **Name the recording** — or let it name itself. If you never type a name, the
-   recording is called after what it recorded when you stop it: *HYPACK Shell -
-   37 steps*. That name is the heading of the exported guide and the caption
-   under every figure, so it is worth typing something better when the procedure
-   has a proper title. Type one at any point and it is left alone.
+   recording is called after the program it recorded when you stop it: *HYPACK
+   Shell*. That name is the heading of the exported guide and the caption under
+   every figure, so it is worth typing something better when the procedure has a
+   proper title. Type one at any point and it is left alone.
 2. **Export → LaTeX.** You get `Your name.tex` and a folder `Your name-images`
    beside it.
 3. **Upload both** into the project: drag the `.tex` and the whole images folder

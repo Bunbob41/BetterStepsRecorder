@@ -15,6 +15,18 @@ Notable changes, newest first. The reasoning behind each decision lives in
   recording; *Continue this recording* adds to the one that is open.
 - Fixed: stopping with the stop hotkey left the recording out of the list until
   something else refreshed it.
+- **A tidier step list.** Rows no longer repeat the window the row above already
+  named, the grey line under each row says *Click* or *Keyboard* instead of the
+  recorder's internal names, and the program is named only where it changes.
+  The header reads *Steps 12* on the left with its buttons on the right.
+- **The home screen is just your recordings.** With nothing open, the empty
+  steps column is gone, and the name box says *No recording open*.
+- **Recordings name themselves without a step count** — *HYPACK Shell* rather
+  than *HYPACK Shell - 37 steps*. The count is already shown beside it, and the
+  name becomes the title of an exported guide. Existing names are unchanged.
+- Fixed: **program names with damaged characters built in** — HYPACK's
+  single-beam editor ships calling itself *HYPACK� 64 Bit…* — are shown cleaned
+  up in the list, the library and exports. Recordings keep what Windows reported.
 
 ## 0.2.3
 

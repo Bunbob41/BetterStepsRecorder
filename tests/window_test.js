@@ -2924,9 +2924,27 @@ app.whenReady().then(async () => {
       closeHidden: $('btn-close').hidden,
       finishedHidden: $('finished').hidden,
       libraryShown: document.querySelectorAll('#library-list .lib-row').length > 0,
+      // Nothing open: the column has nothing to list, and the name field has
+      // no recording to name.
+      columnHidden: getComputedStyle(document.querySelector('.steps')).display === 'none',
+      placeholder: $('session-name').placeholder,
+      nameDisabled: $('session-name').disabled,
     };
 
-    return { stopped, kept, byHotkey, setupOpen, closed,
+    // Opening one brings the column straight back.
+    const again = document.querySelector('#library-list .lib-row');
+    if (again) { again.click(); await sleep(300); }
+    const reopened = {
+      columnShown: getComputedStyle(document.querySelector('.steps')).display !== 'none',
+      placeholder: $('session-name').placeholder,
+      nameDisabled: $('session-name').disabled,
+      // Left to right as a person reads it: what it is, then what to do.
+      headOrder: [...document.querySelector('.steps-head').children]
+        .map((e) => e.id || e.className),
+      subs: [...document.querySelectorAll('#step-list .step .sub')].map((e) => e.textContent),
+    };
+
+    return { stopped, kept, byHotkey, setupOpen, closed, reopened,
              labels: { record: $('btn-record').textContent.trim(),
                        cont: $('btn-continue').textContent.trim() } };
   })()`);
@@ -2950,6 +2968,22 @@ app.whenReady().then(async () => {
   check('nothing is offered to be continued', done.closed.continueHidden);
   check('nor to be closed again', done.closed.closeHidden);
   check('and the list of recordings is what is on screen', done.closed.libraryShown);
+  check('with no steps column beside it', done.closed.columnHidden);
+  check('and the name field says nothing is open',
+        done.closed.placeholder === 'No recording open' && done.closed.nameDisabled,
+        done.closed.placeholder);
+
+  check('opening a recording brings the column back', done.reopened.columnShown);
+  check('and the name field back to a field',
+        done.reopened.placeholder === 'Untitled recording' && !done.reopened.nameDisabled);
+  check('the header reads what it is first and what to do last',
+        done.reopened.headOrder[0] === 'steps-title'
+        && done.reopened.headOrder[done.reopened.headOrder.length - 1] === 'btn-steps-collapse',
+        done.reopened.headOrder.join(' | '));
+  // The engine's identifiers - leftClick, keyPress - are not a person's words.
+  const identifiers = done.reopened.subs.filter((t) => /\b[a-z]+[A-Z][A-Za-z]*\b/.test(t));
+  check(`no row speaks the engine's language (${done.reopened.subs.length} rows)`,
+        done.reopened.subs.length > 0 && identifiers.length === 0, identifiers.join(' / '));
 
   check('the button that starts a recording says it is a new one',
         done.labels.record === 'New recording', done.labels.record);

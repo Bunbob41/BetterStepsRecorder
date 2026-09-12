@@ -430,6 +430,9 @@ body.compact { overflow: hidden; }
 .close-rec:hover:not(:disabled) { color: var(--text); background: var(--panel-2); }
 .session-name:hover { border-color: var(--line); background: var(--panel-2); }
 .session-name:focus { outline: none; background: var(--panel-2); border-color: var(--accent); }
+/* Nothing open: there is no name to type, so it does not look like a field. */
+.session-name:disabled { color: var(--muted); cursor: default; }
+.session-name:disabled:hover { border-color: transparent; background: transparent; }
 
 .detail-empty { margin: 0 auto; width: 100%; max-width: 620px; text-align: left; }
 .library { padding: 30px 8px; }
@@ -1068,3 +1071,25 @@ body.steps-collapsed main { grid-template-columns: 30px 1fr; }
    that bug happens. */
 body.steps-collapsed .steps > *:not(.steps-rail) { display: none; }
 body.steps-collapsed .steps-rail { display: flex; }
+
+/* The steps header on one left edge - the rows' - with the count beside the
+   word and the actions at the far end. Stated once, here, after the older
+   rules it replaces: those pushed + Add and the count right with auto margins
+   meant for a different layout, and a global rule on every tiny button added
+   margins of its own. Scoped to .steps so that global rule still holds
+   everywhere else. */
+.steps .steps-head { justify-content: flex-start; align-items: center; gap: 6px;
+                     padding: 10px 12px 10px 16px; }
+.steps .steps-title { margin-right: auto; display: inline-flex; align-items: baseline;
+                      gap: 8px; }
+.steps .steps-title .count { color: var(--muted); font-variant-numeric: tabular-nums;
+                             letter-spacing: 0; }
+.steps .steps-head .insert { margin: 0; }
+.steps .steps-head button.tiny { margin: 0; }
+.steps .steps-head #btn-steps-collapse { padding: 2px 7px; }
+
+/* Nothing open. Last, so it wins over the folded column's own grid: with the
+   column gone the picture pane takes the whole width, rather than sitting in a
+   320px first column beside nothing. */
+body.nothing-open main { grid-template-columns: 1fr; }
+body.nothing-open .steps { display: none; }

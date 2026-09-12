@@ -593,5 +593,20 @@ console.log('\nheadings are not counted as steps:');
         survivors.map(([f, n]) => `${f}: ${n}`).join(', '));
 }
 
+console.log('\nthe step list uses the wording rules, not the raw fields:');
+{
+  // rowTitle and actionWord are tested on their own in appname_test. What
+  // nothing else can see is whether the list still calls them: put s.text and
+  // s.action back in renderList and every unit test stays green while the list
+  // repeats its window on every row and prints leftClick under it.
+  const at = renderer.indexOf('function renderList()');
+  const body = renderer.slice(at, renderer.indexOf('\n}\n', at));
+  check('a row title comes from rowTitle', /BsrAppName\.rowTitle\(s, recordedBefore\(i\)\)/.test(body));
+  check('the action is put into words', /BsrAppName\.actionWord\(s\.action\)/.test(body));
+  check('and the program is named only where it changes', /appChangedAt\(i\) \?/.test(body));
+  check('the step before is found with isStep, the one definition of a step',
+        /function recordedBefore[\s\S]{0,200}BsrSections\.isStep\(p\)/.test(renderer));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

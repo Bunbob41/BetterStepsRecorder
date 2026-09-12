@@ -58,13 +58,35 @@
   }
 
   /**
+   * A product name with the damage its own program shipped with taken out.
+   *
+   * Not hypothetical. Read straight off C:\\HYPACK 2025\\x64\\SBMAX64.exe, its
+   * FileDescription is "HYPACK" followed by U+00EF U+00BF U+00BD - the bytes of
+   * a replacement character, re-read in the wrong code page by whatever built
+   * it - where a trademark sign should be. The engine copies it faithfully, and
+   * it then appeared on every row, every library card and every exported guide.
+   *
+   * Cleaned here, where names are shown, rather than in the recording: the
+   * recording keeps exactly what Windows reported. Removed rather than guessed
+   * at, because it could as easily have been a TM as an R, and a wrong symbol
+   * would be a new mistake rather than the removal of an old one. A real
+   * trademark sign is left alone.
+   */
+  function clean(name) {
+    return String(name || '')
+      .replace(/\u00ef\u00bf\u00bd|\ufffd/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  /**
    * The best name available for one application.
    *
    * `product` is what the executable calls itself, and wins whenever it is
    * there - it is Windows' own answer rather than our guess.
    */
   function friendly(process, product) {
-    const named = String(product || '').trim();
+    const named = clean(product);
     if (named) return named;
 
     const key = String(process || '').trim().toLowerCase();
@@ -115,10 +137,11 @@
    * started, a thirty-seven step procedure carries "9/11/2026, 3:42:26 PM"
    * thirty-seven times, which says nothing about anything.
    *
-   * The application and the size are what a person recognises a recording by in
-   * a list of forty - the same two things the library card shows. `count` is
-   * passed in rather than counted here, because what counts as a step is
-   * sections.js's business and this module is about names.
+   * The application, and only the application. It used to carry the step count
+   * as well - "HYPACK Shell - 37 steps" - and that was a mistake in two places:
+   * the library card printed the count again beside it, and an exported guide
+   * took the name as its title, where nobody heads a procedure with its length.
+   * `count` still decides whether there is anything to name at all.
    *
    * Empty when there is nothing to say: a recording with no window in it has no
    * application to be named after, and "0 steps" is not a name. The caller keeps
@@ -127,8 +150,59 @@
   function label(steps, count) {
     const app = forRecording(steps);
     if (!app || !count) return '';
-    return `${app} - ${count} step${count === 1 ? '' : 's'}`;
+    return app;
   }
 
-  return { KNOWN, tidy, friendly, dominant, forRecording, label };
+  /**
+   * What an action is called on screen.
+   *
+   * The step list printed the engine's own identifiers - leftClick, keyPress -
+   * under every row. Those are the recorder's words for its protocol, not a
+   * person's words for what they did.
+   */
+  const ACTIONS = {
+    leftClick: 'Click',
+    rightClick: 'Right-click',
+    doubleClick: 'Double-click',
+    drag: 'Drag',
+    keyPress: 'Keyboard',
+    photo: 'Photo',
+  };
+
+  function actionWord(action) {
+    const a = String(action || '');
+    if (ACTIONS[a]) return ACTIONS[a];
+    // The engine is newer than any list here. An action nobody has named yet
+    // still reads as words rather than as an identifier.
+    const spaced = a.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+    return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : '';
+  }
+
+  /**
+   * A step's wording for the list, without the window the row above named.
+   *
+   * Generated wording ends ' in "Window title"', so a recording made in one
+   * dialog repeated that dialog's name on every row - and the list truncates
+   * from the right, so it cut each title off exactly where it started saying
+   * something. Dropped only when the previous recorded step was in the same
+   * window, so the first row, and every row where the window changes, keeps it.
+   *
+   * Only ever for the list. The recording and every export keep the full text.
+   * Left whole when the result would say nothing ("Double-clicked" with its
+   * window taken away), and never touched when a person wrote the wording.
+   */
+  function rowTitle(step, prev) {
+    const text = String((step && step.text) || '');
+    if (!text || step.textEdited) return text;
+    const here = step.window && step.window.title;
+    const before = prev && prev.window && prev.window.title;
+    if (!here || here !== before) return text;
+    const tail = ` in "${here}"`;
+    if (!text.endsWith(tail)) return text;
+    const rest = text.slice(0, -tail.length);
+    return rest.includes('"') ? rest : text;
+  }
+
+  return { KNOWN, tidy, clean, friendly, dominant, forRecording, label,
+           actionWord, rowTitle };
 }));

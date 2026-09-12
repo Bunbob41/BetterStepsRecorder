@@ -96,10 +96,12 @@
         <span class="chev">›</span>
         <span id="rail-count" class="rail-count">0</span>
       </button>
+      <!-- One left edge, the rows' edge: what this is and how many on the left,
+           what you can do with it on the right. The fold used to sit left of a
+           centred label, with + Add and the count pushed right, so nothing in
+           the header lined up with anything under it. -->
       <div class="steps-head">
-        <button id="btn-steps-collapse" class="tiny ghost"
-                title="Hide the steps (Ctrl+B)" aria-label="Hide the steps">‹</button>
-        <span>Steps</span>
+        <span class="steps-title">Steps <span id="count" class="count">0</span></span>
         <span class="insert">
           <!-- One button, three things it can add. All three are also on the
                right-click menu of a step, which is where two of them already
@@ -107,7 +109,8 @@
           <button id="btn-add" class="tiny"
                   title="Add a note, a section heading, or photographs">+ Add</button>
         </span>
-        <span id="count" class="count">0</span>
+        <button id="btn-steps-collapse" class="tiny ghost"
+                title="Hide the steps (Ctrl+B)" aria-label="Hide the steps">‹</button>
       </div>
       <div id="findbar" class="findbar" hidden>
         <div class="findrow">

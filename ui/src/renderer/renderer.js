@@ -227,6 +227,16 @@ function paintStatus() {
  * buttons for one act.
  */
 function paintContinue() {
+  // Nothing open and nothing recording: the home screen. The steps column has
+  // nothing to list there, and used to spend a third of the window saying so.
+  // The rail is not left behind either - a fold with "0" beside it is the same
+  // nothing, smaller.
+  const nothingOpen = state === 'idle' && !openDir && steps.length === 0;
+  document.body.classList.toggle('nothing-open', nothingOpen);
+  // "Untitled recording" over an empty window read as being inside one.
+  el.sessionName.placeholder = nothingOpen ? 'No recording open' : 'Untitled recording';
+  el.sessionName.disabled = nothingOpen;
+
   el.continueBtn.hidden = !(state === 'idle' && openDir && steps.length > 0);
   // Something open, and nothing recording: the only time there is a recording
   // to put away. Mid-recording the window is the strip, and closing would pull
@@ -234,10 +244,33 @@ function paintContinue() {
   el.closeBtn.hidden = !(state === 'idle' && openDir);
 }
 
+/**
+ * The recorded step before row i - skipping notes and headings, which name no
+ * window - for deciding what a row can leave unsaid.
+ */
+function recordedBefore(i) {
+  for (let j = i - 1; j >= 0; j--) {
+    const p = steps[j];
+    if (BsrSections.isStep(p)) return p;
+  }
+  return null;
+}
+
+/** Whether row i is in a different application from the recorded step before it. */
+function appChangedAt(i) {
+  const s = steps[i];
+  const prev = recordedBefore(i);
+  if (!prev) return true;
+  return BsrAppName.friendly(s.window?.process, s.window?.product)
+      !== BsrAppName.friendly(prev.window?.process, prev.window?.product);
+}
+
 function renderList() {
   paintContinue();
   paintStatus();
-  el.count.textContent = String(steps.length);
+  // The number the circles count up to, so the header and the last row agree.
+  // Notes and headings are rows, not steps.
+  el.count.textContent = String(BsrSections.countSteps(steps));
   // Adding a note to nothing, or checking nothing, are not actions.
   // + Add stays live on an empty recording: the first thing in one can be a
   // photograph or a written step, and there is nothing to add them after.
@@ -288,7 +321,8 @@ function renderList() {
       ? (s.text || '').trim() || 'Untitled section'
       // A photograph with no caption yet shows the name its camera gave it,
       // which is the only thing distinguishing thirty of them in a list.
-      : s.text || (s.action === 'photo' ? s.source || 'Photo' : s.action);
+      : BsrAppName.rowTitle(s, recordedBefore(i))
+        || (s.action === 'photo' ? s.source || 'Photo' : BsrAppName.actionWord(s.action));
 
     const v = s.verify;
     const stale = v && (v.status === 'missing');
@@ -305,8 +339,11 @@ function renderList() {
          : '')
       : isNote
       ? (s.excluded ? 'note · excluded' : 'note')
-      : [BsrAppName.friendly(s.window?.process, s.window?.product),
-         s.action, s.excluded ? 'excluded' : null]
+      // The application only where it changes - a recording in one program
+      // printed that program's name under every single row - and what was
+      // done in a person's words rather than the engine's.
+      : [appChangedAt(i) ? BsrAppName.friendly(s.window?.process, s.window?.product) : null,
+         BsrAppName.actionWord(s.action), s.excluded ? 'excluded' : null]
           .filter(Boolean).join(' · ');
 
     if (v && !isNote) {
