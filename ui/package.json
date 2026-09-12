@@ -15,6 +15,7 @@
     "dist:release": "npm run stamp && npm run build:capture && electron-builder",
     "dist:dir": "npm run stamp && npm run build:capture && electron-builder --dir",
     "stamp": "node ../scripts/stamp-build.js",
+    "shots": "electron ../scripts/shots.js",
     "test": "node ../scripts/run-tests.js",
     "test:window": "electron ../tests/window_test.js",
     "test:composite": "electron ../tests/composite_test.js",

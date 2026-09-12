@@ -21,8 +21,9 @@ nothing leaves your machine
 </div>
 
 <img src="docs/images/hero.png" alt="A recording open in Steps Recorder: eight
-numbered steps down the left, each naming the control that was clicked, and the
-screenshot for the selected step on the right with the click marked on it.">
+numbered steps down the left, each naming the control that was clicked. The
+selected step shows a dropdown standing open in the recorded application, with a
+red ring on the option that was chosen.">
 
 ---
 
@@ -40,8 +41,9 @@ no network use of any kind.
 ### And this is what comes out
 
 <img src="docs/images/exported-guide.png" alt="The same recording exported as an
-HTML guide: a title, a numbered step reading 'Click the Short date: dropdown in
-Region', and the screenshot beneath it with a red ring around the control.">
+HTML guide: a title, a numbered step reading 'Click the Calibration tab in
+Meridian Sensor Setup', and the screenshot beneath it with a red ring around the
+tab that was clicked.">
 
 One portable HTML file with the images embedded — or PDF, Markdown, Word, or
 your organisation's own SOP template. The wording is rewritten as instructions:

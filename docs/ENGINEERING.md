@@ -227,6 +227,47 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-85 - The screenshots are generated, not taken
+`(this change)` - [scripts/shots.js](../scripts/shots.js)
+
+The four pictures in `docs/images` were captured by hand on 8 September and were
+wrong within four days. The README's hero showed separate Recordings and Open
+buttons, a Pause and a Stop in the toolbar, and "Idle" in the corner - none of
+which exist any more. A picture of the product is documentation, and
+documentation nobody can regenerate is documentation that rots.
+
+`npm run shots` (from `ui/`) rebuilds all four. It runs the REAL page - the real
+`index.html`, `renderer.js` and stylesheet - against a stubbed bridge, and
+captures it with `capturePage()`. The exported guide is built with the real
+`buildHtml`, so the picture cannot promise a document the exporter does not
+produce.
+
+- **The recording it shows is fiction.** A made-up application, made-up steps,
+  and screenshots this script draws. The alternative was a real recording off
+  this machine, and real recordings are somebody's actual work: this repo is
+  public, so they are precisely what must not go in it. The invented application
+  also avoids putting a real vendor's product in a screenshot that advertises
+  something else.
+- **The click points are measured against the drawn dialog**, not guessed. The
+  marker is placed as a percentage of the frame, so a point that misses its
+  control produces a picture in which this application looks broken.
+- **The frame is read off the captured picture.** `capturePage` returns the
+  display's scaling, not the size the dialog was laid out at, and the step line
+  prints those numbers - a frame that disagreed with the picture would be a
+  caption stating a size the picture is not.
+- **The path along the bottom is a plausible one, not the real temp folder.**
+  The fixture lives in `%TEMP%`, and the window prints the path it is given.
+- **The exported guide is captured in light.** Its stylesheet is light with a
+  dark override for a reader who asks for one; left to the machine, the picture
+  would show whichever theme the build box was in.
+
+Two things this needed that are worth knowing. Destroying the drawing window
+leaves no windows open, and Electron's default `window-all-closed` quits the
+app - which cancelled the next load and reported it as the page failing to
+load, which is not what happened. And the `bsr://` scheme must be registered as
+privileged before ready, exactly as the application does it, or the page's
+content policy refuses every screenshot.
+
 ### D-84 - What a review of D-81 to D-83 found
 `(this change)` - [ui/src/main/main.js](../ui/src/main/main.js),
 [ui/src/main/session.js](../ui/src/main/session.js),
