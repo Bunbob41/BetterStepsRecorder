@@ -2616,7 +2616,11 @@ app.whenReady().then(async () => {
       scope: document.getElementById('btn-scope').textContent,
       name: document.getElementById('session-name').value,
       said: document.getElementById('notice-text').textContent,
-      stopEnabled: !document.getElementById('btn-stop').disabled,
+      stopOnStrip: !document.getElementById('c-stop').disabled,
+      // The toolbar's copy was removed: it could only ever be seen disabled,
+      // because every state that enabled it also hid the toolbar.
+      noStopInToolbar: !document.getElementById('btn-stop'),
+      noPauseInToolbar: !document.getElementById('btn-pause'),
       steps: document.querySelectorAll('#step-list li.step').length,
     };
   })()`);
@@ -2625,7 +2629,9 @@ app.whenReady().then(async () => {
   // up, it sits there claiming to be idle while the engine records.
   check('the window catches up with a recording it did not start',
         /Recording/i.test(started.state));
-  check('Stop becomes available', started.stopEnabled);
+  check('Stop is offered, on the recording strip', started.stopOnStrip);
+  check('and the toolbar keeps no copy to leave disabled',
+        started.noStopInToolbar && started.noPauseInToolbar);
   check('the scope it chose is shown', /Google Chrome/.test(started.scope));
   check('and the recording is named', started.name === 'Hotkey recording');
   check('with the previous recording cleared out', started.steps === 0);
@@ -2718,10 +2724,12 @@ app.whenReady().then(async () => {
   const carried = await win.webContents.executeJavaScript(`(async () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const btn = document.getElementById('btn-continue');
-    const stop = document.getElementById('btn-stop');
+    const stop = document.getElementById('c-stop');
 
-    // Whatever the tests above left running, this starts from idle.
-    if (!stop.disabled) { stop.click(); await sleep(150); }
+    // Whatever the tests above left running, this starts from idle. Stopping
+    // when nothing is recording costs nothing, so it is not worth asking first.
+    stop.click();
+    await sleep(150);
 
     // Open a recording, so there is something to carry on.
     const row = document.querySelector('#library-list .lib-row');
@@ -2758,6 +2766,61 @@ app.whenReady().then(async () => {
   check('nothing offers to be carried on while it is recording',
         carried.during.hidden);
   check('and the offer comes back when it stops', carried.backAfterStop);
+
+  // ---- the status line ------------------------------------------------------
+  // It said "Idle" whenever it could be read, which is always: the two states
+  // that make it say anything else also hide this toolbar behind the strip.
+  console.log('\nthe status line says what is open:');
+
+  const line = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const text = () => document.getElementById('status-text').textContent.trim();
+    const dot = () => document.getElementById('dot').className;
+    const stop = document.getElementById('c-stop');
+
+    stop.click();
+    await sleep(150);
+    const row = document.querySelector('#library-list .lib-row');
+    if (row) { row.click(); await sleep(200); }
+
+    const open = { said: text(), dot: dot(),
+                   name: document.getElementById('session-name').value.trim(),
+                   strip: document.getElementById('c-count').textContent.trim() };
+
+    document.getElementById('btn-continue').click();
+    await sleep(200);
+    const recording = { said: text(), dot: dot() };
+
+    stop.click();
+    await sleep(200);
+    const after = { said: text(),
+                    name: document.getElementById('session-name').value.trim(),
+                    strip: document.getElementById('c-count').textContent.trim() };
+    return { open, recording, after };
+  })()`);
+
+  check('with a recording open it names it instead of saying Idle',
+        line.open.said !== 'Idle' && line.open.said.length > 0, line.open.said);
+  check('it says how many steps, in the words the strip uses',
+        line.open.said.startsWith(line.open.strip),
+        `"${line.open.said}" vs strip "${line.open.strip}"`);
+  check('and it says which recording', line.open.name.length > 0
+        && line.open.said.includes(line.open.name), line.open.said);
+  // The dot carries the one thing that must never be ambiguous, so that the
+  // words beside it are free to say something else.
+  check('the dot is grey while nothing is being recorded',
+        /\bidle\b/.test(line.open.dot), line.open.dot);
+  check('and red once something is', /\brec\b/.test(line.recording.dot),
+        line.recording.dot);
+  check('the words give way to Recording while it records',
+        line.recording.said === 'Recording', line.recording.said);
+  // Not "the same words as before": carrying on can legitimately change the
+  // name, when the recording was named after what it recorded and there is now
+  // more of it. What must hold is that the line agrees with the recording it is
+  // describing - the count the strip shows, and the name in the box.
+  check('and go back to naming what is open when it stops',
+        line.after.said === `${line.after.strip} · ${line.after.name}`,
+        `"${line.after.said}" vs "${line.after.strip} · ${line.after.name}"`);
 
   console.log('\nno field you type into is wearing the platform colours:');
 

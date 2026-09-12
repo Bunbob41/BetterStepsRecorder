@@ -75,6 +75,9 @@ button.primary:hover:not(:disabled) { background: #3d7ded; }
 button.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
 
 .status { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--muted); }
+/* A recording's name can be long, and the toolbar's buttons must not be pushed
+   off the end by it: the name gives way first. */
+#status-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 30ch; }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
 .dot.rec { background: var(--rec); animation: pulse 1.4s ease-in-out infinite; }
 .dot.paused { background: #d6a02a; }

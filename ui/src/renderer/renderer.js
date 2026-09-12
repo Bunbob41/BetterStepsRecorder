@@ -1,7 +1,7 @@
 const $ = (id) => document.getElementById(id);
 
 const el = {
-  record: $('btn-record'), pause: $('btn-pause'), stop: $('btn-stop'),
+  record: $('btn-record'),
   recordings: $('btn-recordings'),
   dot: $('dot'), status: $('status-text'), list: $('step-list'), count: $('count'),
   empty: $('empty'), detailEmpty: $('detail-empty'), detailBody: $('detail-body'),
@@ -85,8 +85,7 @@ function setState(next) {
   el.cState.textContent = next === 'paused' ? 'Paused' : 'Recording';
   el.cPause.textContent = next === 'paused' ? 'Resume' : 'Pause';
   el.dot.className = 'dot ' + (next === 'recording' ? 'rec' : next === 'paused' ? 'paused' : 'idle');
-  el.status.textContent =
-    next === 'recording' ? 'Recording' : next === 'paused' ? 'Paused' : 'Idle';
+  paintStatus();
 
   el.record.disabled = next !== 'idle';
   if (next === 'idle') stopElapsed();
@@ -97,9 +96,6 @@ function setState(next) {
     window.bsr.restoreWindow();
   }
   paintContinue();
-  el.pause.disabled = next === 'idle';
-  el.stop.disabled = next === 'idle';
-  el.pause.textContent = next === 'paused' ? 'Resume' : 'Pause';
   // Opening one while recording is not on; the menu says so item by item.
   el.recordings.disabled = next !== 'idle';
   el.scopeBtn.disabled = next !== 'idle';
@@ -195,6 +191,31 @@ el.stepsResize.addEventListener('dblclick', () => setStepsWidth(WIDTH_DEFAULT));
 
 
 /**
+ * What the status line says.
+ *
+ * The dot beside it carries the one thing that must never be ambiguous - grey
+ * is not recording - so the words are free to say something useful. They used
+ * to say "Idle", which was true, permanent, and therefore unread: the only
+ * states that make it say anything else also hide this toolbar behind the
+ * recording strip.
+ *
+ * Open a recording and it names it instead. The count is the one the strip
+ * shows, not the number of rows: a heading is not a step, and two numbers for
+ * the same recording would be worse than one uninteresting word.
+ */
+function paintStatus() {
+  if (state === 'recording') { el.status.textContent = 'Recording'; return; }
+  if (state === 'paused') { el.status.textContent = 'Paused'; return; }
+
+  const recorded = BsrSections.countSteps(steps);
+  if (!openDir || !recorded) { el.status.textContent = 'Idle'; return; }
+
+  const count = `${recorded} step${recorded === 1 ? '' : 's'}`;
+  const name = (el.sessionName.value || '').trim();
+  el.status.textContent = name ? `${count} · ${name}` : count;
+}
+
+/**
  * Whether there is a recording to carry on.
  *
  * Only when one is open, has something in it, and nothing is recording. An
@@ -207,6 +228,7 @@ function paintContinue() {
 
 function renderList() {
   paintContinue();
+  paintStatus();
   el.count.textContent = String(steps.length);
   // Adding a note to nothing, or checking nothing, are not actions.
   // + Add stays live on an empty recording: the first thing in one can be a
@@ -880,16 +902,23 @@ el.continueBtn.addEventListener('click', async () => {
   recordingBegan(r);
 });
 
-el.pause.addEventListener('click', async () => {
+/**
+ * Pause, or resume. Plain functions rather than buttons, because the only
+ * controls for either are on the recording strip and a button is a poor place
+ * to keep behaviour: the strip's Pause used to work by clicking a hidden
+ * toolbar button, which was disabled whenever the window thought it was idle.
+ * That is exactly how the strip's Stop came to do nothing at all.
+ */
+async function pauseOrResume() {
   if (state === 'paused') { await window.bsr.resumeRecording(); setState('recording'); }
   else { await window.bsr.pauseRecording(); setState('paused'); }
-});
+}
 
-el.stop.addEventListener('click', async () => {
+async function stopRecording() {
   await window.bsr.stopRecording();
   setState('idle');
   renderLibrary();
-});
+}
 
 async function openFromDisk() {
   const r = await window.bsr.openSession();
@@ -1086,7 +1115,7 @@ window.bsr.onBlocked(paintBlocked);
 // A recording that nobody named has just named itself, on stopping. Shown in
 // the box it would have been typed into, so it is a name the person can see and
 // change rather than one that only exists on disk.
-window.bsr.onRenamed(({ name }) => { el.sessionName.value = name || ''; });
+window.bsr.onRenamed(({ name }) => { el.sessionName.value = name || ''; paintStatus(); });
 window.bsr.onLog((m) => console.log('[capture]', m.level, m.message));
 
 // ---- re-record ----------------------------------------------------------------
@@ -2411,15 +2440,8 @@ window.bsr.onMode(({ compact }) => {
   // was never wrong.
 });
 
-el.cPause.addEventListener('click', () => { if (!el.pause.disabled) el.pause.click(); });
-
-el.cStop.addEventListener('click', async () => {
-  // Not el.stop.click(): the toolbar button is disabled while idle, so
-  // delegating to it left the strip with a Stop that did nothing.
-  await window.bsr.stopRecording();
-  setState('idle');
-  renderLibrary();
-});
+el.cPause.addEventListener('click', pauseOrResume);
+el.cStop.addEventListener('click', stopRecording);
 
 window.bsr.onHotkey(({ action, session, error }) => {
   if (action === 'paused') setState('paused');

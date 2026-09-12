@@ -227,6 +227,52 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-83 - Two controls nobody could press, and a word nobody read
+`(this change)` - [ui/src/renderer/index.html](../ui/src/renderer/index.html),
+[ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)
+
+Noticed from use: "the pause and stop are kinda useless", and before that, what
+the grey dot and *Idle* were for.
+
+Both come from the same fact. Starting a recording shrinks the window to the
+compact strip (D-24), so **every state that enables Pause and Stop also hides
+them**. In the toolbar they could only ever be seen disabled, and the status
+line beside them could only ever be read as *Idle*.
+
+**They were not dead code, which is what made this worth doing.** They held the
+handlers, and the strip's Pause reached them by clicking the hidden button:
+
+```js
+el.cPause.addEventListener('click', () => { if (!el.pause.disabled) el.pause.click(); });
+```
+
+The strip's Stop carried a comment recording where that leads - *"Not
+el.stop.click(): the toolbar button is disabled while idle, so delegating to it
+left the strip with a Stop that did nothing."* The same defect was still armed
+on Pause, working only because `setState('recording')` happens to run first.
+
+So: `pauseOrResume()` and `stopRecording()` are plain functions, the strip calls
+them directly, and the toolbar's copies are gone. Behaviour belongs in a
+function, not in a button another button clicks.
+
+**The status line now names what is open** - *37 steps · HYPACK Shell* - and
+falls back to *Idle* only when nothing is. The count is
+`BsrSections.countSteps`, the same number the strip shows, because two different
+counts for one recording would be worse than one uninteresting word.
+
+- **The dot keeps carrying the one unambiguous thing.** Grey is not recording.
+  That is a privacy statement about a program that watches the screen - the
+  reason a webcam has a light - and it is why the words beside it were free to
+  change. Both halves are checked: grey while idle, red once recording.
+- **A long name gives way before the buttons do**, with `max-width: 30ch` and an
+  ellipsis on the status text. A toolbar pushed off its own end by a recording's
+  title would be a worse bug than the one being fixed.
+
+The window test's "Stop becomes available" check had to be restated rather than
+repointed: what it now asserts is that Stop is offered on the strip AND that the
+toolbar keeps no copy to leave disabled. The second half is what holds the
+removal in place.
+
 ### D-81 - A recording that stopped is not finished
 `(this change)` - [ui/src/main/main.js](../ui/src/main/main.js),
 [ui/src/main/session.js](../ui/src/main/session.js),

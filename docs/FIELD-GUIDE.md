@@ -575,6 +575,23 @@ keeps the previous shortcut rather than leaving you with one that silently does
 nothing, and any shortcut that fails to register is marked **in use elsewhere**
 in the list.
 
+### The dot in the corner
+
+The small circle at the right of the toolbar says whether anything is being
+recorded, and it is the one thing in the window that never means anything else:
+
+- **grey** - nothing is being recorded
+- **red, pulsing** - recording
+- **amber** - recording, but paused
+
+Beside it, when nothing is recording, is whatever recording you have open —
+*37 steps · Pump changeover*. When there is nothing open it says *Idle*.
+
+Pause and Stop are not in the toolbar. They are on the recording strip, which is
+what the window becomes while recording, along with the step count and the time
+elapsed. There is nothing to press in the main window while a recording is
+running, because the main window is not on screen then.
+
 ### Picking a recording back up
 
 A recording that has stopped is not finished. Open it and, as long as nothing

@@ -10,6 +10,12 @@ Notable changes, newest first. The reasoning behind each decision lives in
   in the same folder, under the same name. For when a recording ended before the
   job did: you stopped it early, the recorder fell over, or you closed the app.
   Start recording still makes a separate one.
+- **The status line says what is open** — *37 steps · Pump changeover* — instead
+  of always saying *Idle*. The dot beside it still means exactly one thing: grey
+  is not recording, red is recording, amber is paused.
+- **Pause and Stop have gone from the toolbar.** They could never be pressed
+  there: starting a recording shrinks the window to the strip, which has both.
+  In the toolbar they were only ever visible greyed out.
 - **A recording that ends now says why, in the log.** Only the start was ever
   written down, so a recording that cut out left no trace of what ended it.
   Stopping, the stop hotkey, the capture engine failing or exiting, and quitting
