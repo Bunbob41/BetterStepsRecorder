@@ -226,6 +226,39 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-76 - A LaTeX export that stands on its own, beside the one that does not
+`(this change)` - [ui/src/main/latex.js](../ui/src/main/latex.js)
+
+Asked for after watching a fragment go into Overleaf: "can we make our recording
+export as its own latex file? start to finish?"
+
+The fragment is right for a procedure joining an existing manual (D-44) and
+wrong for a procedure being handed to somebody on its own, which needs a class,
+a preamble and a title before it is anything at all. Both are real; this is a
+second format in the export list rather than a change to the first, because
+nothing about the fragment was wrong.
+
+What the complete document does differently, and why:
+
+- **Its headings sit one level up.** The procedure IS the document, so a
+  recording's own section headings become `\section`, not `\subsubsection`
+  hanging under a `\subsection` that is now the title block.
+- **The title becomes a title block** (`\title` + `\maketitle`), not a heading.
+  The `\label{sec:...}` goes with it: a label with no sectioning command to
+  attach to is a dangling reference, so the fragment keeps it and the document
+  does not.
+- **Figures are pinned, `[H]`, not floated.** In a procedure the picture belongs
+  beside the step it is about; a figure that drifts to the next page is worse
+  than one that leaves white space. A fragment cannot do this - `float` has to be
+  loaded in a preamble it does not own - which is exactly why its header explains
+  how to turn it on.
+- **It loads what it needs and no more**: `fontenc`, `geometry`, `graphicx`,
+  `float`. A bare TeX install compiles it.
+
+Proved by compiling it: `latex_compile_test.js` already built the fragment
+inside the smallest wrapper that could receive it; the document is handed to
+pdfTeX with no wrapper at all, which is the whole claim being made about it.
+
 ### D-75 - The fragment says the line that includes it
 `(this change)` - [ui/src/main/latex.js](../ui/src/main/latex.js),
 [ui/src/main/main.js](../ui/src/main/main.js)

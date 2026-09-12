@@ -97,7 +97,8 @@ function slugify(text, fallback = 'steps') {
 }
 
 /**
- * Turns a recording into a `\subsection` somebody can paste.
+ * Turns a recording into a `\subsection` somebody can paste - or, with
+ * `standalone`, into a document that compiles on its own.
  *
  * `imageRef(step)` gives the path to write into `\includegraphics`, relative to
  * the `.tex` file, or null for a step with no picture. It is a hook for the
@@ -107,6 +108,7 @@ function slugify(text, fallback = 'steps') {
  */
 function buildLatex(session, { title, voice = 'imperative', legend = [],
                                imageRef = () => null, inputName = null,
+                               standalone = false,
                                imageDir = null, width = 0.85 } = {}) {
   const steps = exportable(session);
   const slug = slugify(title);
@@ -117,30 +119,61 @@ function buildLatex(session, { title, voice = 'imperative', legend = [],
   // put in front of the person who needs them.
   out.push(`% ${escape(title)} - recorded with Steps Recorder.`);
   out.push('%');
-  out.push('% A FRAGMENT: paste it into your document, inside \\begin{document}.');
-  out.push('% It declares no class and loads no packages - yours already has them.');
-  out.push('%');
-  out.push('% Assumes \\usepackage{graphicx} in your preamble.');
-  if (imageDir) out.push(`% Screenshots are in ./${imageDir}/ - upload that folder too.`);
-  if (inputName) {
-    // The step everything else depends on, and the one nobody thinks to
-    // mention. Watched for real: both files uploaded to Overleaf, graphicx
-    // already in the preamble, and nothing appeared - because no line in the
-    // document included this file. A fragment cannot include itself, so the
-    // least it can do is say how.
-    //
-    // Quoted when the name has a space in it: \input{my guide} is an error,
-    // and the name comes from whatever the file was saved as.
-    const called = /\s/.test(inputName) ? `"${inputName}"` : inputName;
-    out.push(`% To include it without pasting: \\input{${called}}`);
-  }
-  out.push('% Figures are floats [htbp]. To pin each one exactly where it appears,');
-  out.push('% add \\usepackage{float} to your preamble and change [htbp] to [H].');
-  out.push('');
 
-  out.push(`\\subsection{${escape(title)}}`);
-  out.push(`\\label{sec:${slug}}`);
-  out.push('');
+  if (standalone) {
+    // A document, not a fragment: it owns its class, its margins and its
+    // packages, and there is nothing to paste it into.
+    out.push('% A COMPLETE DOCUMENT: it compiles on its own, with nothing around it.');
+    if (imageDir) out.push(`% Upload it together with ./${imageDir}/ - the pictures live there.`);
+    out.push('% In Overleaf, set this as the main document if the project has more than one.');
+    out.push('');
+    out.push('\\documentclass[11pt,a4paper]{article}');
+    out.push('\\usepackage[T1]{fontenc}');
+    out.push('\\usepackage[margin=2.5cm]{geometry}');
+    out.push('\\usepackage{graphicx}');
+    // Pinned rather than floating. In a procedure the picture belongs beside the
+    // step it is about, and a figure that drifts onto the next page is worse
+    // than one that leaves white space. A fragment cannot do this - `float` has
+    // to be loaded in a preamble it does not own - which is why its own header
+    // explains how to turn it on.
+    out.push('\\usepackage{float}');
+    out.push('');
+    out.push(`\\title{${escape(title)}}`);
+    out.push('\\date{}');
+    out.push('');
+    out.push('\\begin{document}');
+    out.push('\\maketitle');
+    out.push('');
+  } else {
+    out.push('% A FRAGMENT: paste it into your document, inside \\begin{document}.');
+    out.push('% It declares no class and loads no packages - yours already has them.');
+    out.push('%');
+    out.push('% Assumes \\usepackage{graphicx} in your preamble.');
+    if (imageDir) out.push(`% Screenshots are in ./${imageDir}/ - upload that folder too.`);
+    if (inputName) {
+      // The step everything else depends on, and the one nobody thinks to
+      // mention. Watched for real: both files uploaded to Overleaf, graphicx
+      // already in the preamble, and nothing appeared - because no line in the
+      // document included this file. A fragment cannot include itself, so the
+      // least it can do is say how.
+      //
+      // Quoted when the name has a space in it: \input{my guide} is an error,
+      // and the name comes from whatever the file was saved as.
+      const called = /\s/.test(inputName) ? `"${inputName}"` : inputName;
+      out.push(`% To include it without pasting: \\input{${called}}`);
+    }
+    out.push('% Figures are floats [htbp]. To pin each one exactly where it appears,');
+    out.push('% add \\usepackage{float} to your preamble and change [htbp] to [H].');
+    out.push('');
+
+    // The procedure is a subsection of somebody else's document, and its label
+    // goes with that heading. A document of its own has a title block instead,
+    // and a label with no sectioning command to attach to is a dangling
+    // reference, so it does not get one.
+    out.push(`\\subsection{${escape(title)}}`);
+    out.push(`\\label{sec:${slug}}`);
+    out.push('');
+  }
 
   if (legend.length) {
     out.push('\\noindent\\textbf{What the highlighting means}');
@@ -175,8 +208,10 @@ function buildLatex(session, { title, voice = 'imperative', legend = [],
     if (sections.isSection(step)) {
       closeList();
       // One level down from the procedure itself, so a recording with phases in
-      // it nests correctly wherever the subsection is pasted.
-      out.push(`\\subsubsection{${escape(step.text || '')}}`);
+      // it nests correctly wherever the subsection is pasted - and one level up
+      // in a document of its own, where the procedure IS the document rather
+      // than a subsection of one.
+      out.push(`\\${standalone ? 'section' : 'subsubsection'}{${escape(step.text || '')}}`);
       out.push('');
       continue;
     }
@@ -204,7 +239,7 @@ function buildLatex(session, { title, voice = 'imperative', legend = [],
 
     const ref = imageRef(step);
     if (ref) {
-      out.push('  \\begin{figure}[htbp]');
+      out.push(`  \\begin{figure}[${standalone ? 'H' : 'htbp'}]`);
       out.push('    \\centering');
       out.push(`    \\includegraphics[width=${width}\\linewidth]{${ref}}`);
       // Not the instruction again. Repeating the item's own sentence directly
@@ -219,6 +254,10 @@ function buildLatex(session, { title, voice = 'imperative', legend = [],
   }
 
   closeList();
+  if (standalone) {
+    out.push('');
+    out.push('\\end{document}');
+  }
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
 }
 

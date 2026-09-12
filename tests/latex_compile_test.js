@@ -157,6 +157,45 @@ check('a second pass settles the references', second.status === 0
       && !/Warning: There were undefined references/.test(log2),
       log2.split('\n').filter((l) => /undefined/i.test(l)).slice(0, 3).join('\n        '));
 
+// And the same recording as a document of its own, handed to the engine with no
+// wrapper at all. The fragment above is compiled inside the smallest document
+// that could receive it; this one IS the document, and if it needed anything
+// around it the format would be a lie.
+const alone = buildLatex(session, {
+  title: 'Filing a 50% claim & closing it',
+  imageDir: 'images',
+  standalone: true,
+  imageRef: (s) => (s.screenshot ? 'images/shot.png' : null),
+});
+fs.writeFileSync(path.join(dir, 'alone.tex'), alone, 'utf8');
+
+const solo = spawnSync(engine,
+                       ['-interaction=nonstopmode', '-halt-on-error', 'alone.tex'],
+                       { cwd: dir, encoding: 'utf8', timeout: 180000 });
+const soloLog = fs.existsSync(path.join(dir, 'alone.log'))
+  ? fs.readFileSync(path.join(dir, 'alone.log'), 'utf8') : (solo.stdout || '');
+const soloErrors = soloLog.split('\n').filter((l) => l.startsWith('! '));
+
+check('the complete document compiles with nothing around it',
+      solo.status === 0 && soloErrors.length === 0,
+      soloErrors.slice(0, 3).join('\n        ') || `exit ${solo.status}`);
+check('and produces a PDF of its own', fs.existsSync(path.join(dir, 'alone.pdf')));
+
+const soloMissing = soloLog.split('\n').filter((l) => /Missing character/.test(l));
+check('with no character silently dropped from it', soloMissing.length === 0,
+      soloMissing.slice(0, 3).join('\n        '));
+
+const soloWritten = soloLog.match(/Output written on alone\.pdf \((\d+) pages?, (\d+) bytes\)/);
+check('and the engine reports pages written for it',
+      Boolean(soloWritten) && Number(soloWritten[1]) >= 1 && Number(soloWritten[2]) > 1000,
+      soloWritten ? soloWritten[0] : 'no "Output written" line in the log');
+
+// The packages it loads are its own claim: a machine with a bare TeX install
+// and none of them would fail above, not here.
+check('and it loaded a class and packages itself, not the wrapper\'s',
+      alone.includes(String.fromCharCode(92) + 'documentclass')
+      && !alone.includes(String.fromCharCode(92) + 'input{fragment}'));
+
 fs.rmSync(dir, { recursive: true, force: true });
 
 console.log(`\n${pass} passed, ${fail} failed`);

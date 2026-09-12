@@ -1188,6 +1188,7 @@ async function runExport({ format, title }) {
     html: [{ name: 'Web page', extensions: ['html'] }],
     md: [{ name: 'Markdown', extensions: ['md'] }],
     tex: [{ name: 'LaTeX fragment', extensions: ['tex'] }],
+    texdoc: [{ name: 'LaTeX document', extensions: ['tex'] }],
     pdf: [{ name: 'PDF', extensions: ['pdf'] }],
     template: templateForSession.toLowerCase().endsWith('.docx')
       ? [{ name: 'Word document', extensions: ['docx'] }]
@@ -1196,7 +1197,9 @@ async function runExport({ format, title }) {
 
   const chosen = await dialog.showSaveDialog(win, {
     title: 'Export steps',
-    defaultPath: path.join(settings.values.saveRoot, `${slug}.${format}`),
+    // Both LaTeX exports are .tex files; only one of them is called that.
+    defaultPath: path.join(settings.values.saveRoot,
+                           `${slug}.${format === 'texdoc' ? 'tex' : format}`),
     filters,
   });
   if (chosen.canceled || !chosen.filePath) return { ok: false, cancelled: true };
@@ -1228,7 +1231,10 @@ async function runExport({ format, title }) {
       }), 'utf8');
       log.info(`markdown export copied ${copied} images`);
 
-    } else if (format === 'tex') {
+    } else if (format === 'tex' || format === 'texdoc') {
+      // The same procedure either way; the difference is whether it brings a
+      // class and a preamble with it.
+      const standalone = format === 'texdoc';
       // The marker has to be IN the pixels, for the same reason it does in
       // Word: \includegraphics embeds a picture and LaTeX has nothing to lay
       // over it. So this takes the composite path, not the CSS one.
@@ -1264,9 +1270,10 @@ async function runExport({ format, title }) {
         voice: voiceFor(session),
         legend: legendFor(session),
         imageDir,
+        standalone,
         // What the file ended up being called, so the header can say the line
-        // that includes it.
-        inputName: base,
+        // that includes it. A complete document is not included in anything.
+        inputName: standalone ? null : base,
         // Forward slashes whatever this platform uses: a Windows separator
         // inside \includegraphics is an escape character to TeX, and these are
         // pasted into a document that is compiled on Overleaf.
@@ -1282,8 +1289,12 @@ async function runExport({ format, title }) {
         ok: true,
         file: out,
         warning: [
-          `Upload both to Overleaf - this file and the ${imageDir} folder beside `
-          + `it - then add \\input{${base}} where the procedure belongs.`,
+          standalone
+            ? `Upload both to Overleaf - this file and the ${imageDir} folder beside `
+              + `it - and compile. Set it as the main document if the project has more `
+              + `than one.`
+            : `Upload both to Overleaf - this file and the ${imageDir} folder beside `
+              + `it - then add \\input{${base}} where the procedure belongs.`,
           marks.shared
             ? `${marks.shared} step(s) share a screenshot; it carries the first `
               + `step's marker.`

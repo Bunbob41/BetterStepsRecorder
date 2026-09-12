@@ -149,6 +149,36 @@ check('and where the pictures went', tex.includes('invoice-images'));
         !unnamed.includes('To include it'));
 }
 
+// "can we make our recording export as its own latex file? start to finish?"
+console.log('\nand the same recording as a document of its own:');
+{
+  const steps = { steps: [{ id: 'h', action: 'section', text: 'Phase two' },
+                          { id: 's', action: 'leftClick', text: 'Clicked Save' }] };
+  const doc = buildLatex(steps, { title: 'Halifax survey', imageDir: 'halifax-images',
+                                  standalone: true,
+                                  imageRef: () => 'halifax-images/0001.png' });
+
+  check('it declares a class', doc.includes(B + 'documentclass'));
+  check('opens and closes the document',
+        doc.includes(B + 'begin{document}') && doc.includes(B + 'end{document}'));
+  check('and loads the packages it needs itself',
+        doc.includes(B + 'usepackage{graphicx}') && doc.includes(B + 'usepackage{float}'));
+  check('the recording is the title, not a subsection of something else',
+        doc.includes(B + 'title{Halifax survey}') && doc.includes(B + 'maketitle')
+        && !doc.includes(B + 'subsection{Halifax survey}'));
+  check('its own headings sit one level up', doc.includes(B + 'section{Phase two}'));
+  check('the figures are pinned where they appear, not floated',
+        doc.includes(B + 'begin{figure}[H]') && !doc.includes('[htbp]'));
+  check('it says at the top what it is', doc.includes('% A COMPLETE DOCUMENT'));
+  // A label with no sectioning command to attach to is a dangling reference.
+  check('and carries no section label, having no section', !doc.includes(B + 'label{sec:'));
+
+  const fragment = buildLatex(steps, { title: 'Halifax survey' });
+  check('while a fragment still declares no class', !fragment.includes(B + 'documentclass'));
+  check('keeps its headings a level down', fragment.includes(B + 'subsubsection{Phase two}'));
+  check('and still labels its subsection', fragment.includes(B + 'label{sec:'));
+}
+
 console.log('\nthe procedure itself:');
 check('the steps are an enumerate', tex.includes(B + 'begin{enumerate}'));
 check('written as instructions', tex.includes(B + 'item Click the ``Save'));

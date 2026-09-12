@@ -875,11 +875,23 @@ convert them first.
 
 ### LaTeX, for a manual in Overleaf
 
-If your team writes its manuals in LaTeX, this exports the procedure as a
-**fragment**: a `\subsection`, a numbered list, and the screenshots in between.
-Not a whole document, and that is deliberate — your manual already has a
-preamble, a class and a house style, and a complete document would have to be
-taken apart before any of it could be used.
+If your team writes its manuals in LaTeX, there are two exports, and which you
+want depends on where the procedure is going:
+
+- **LaTeX — a fragment to paste into Overleaf.** A `\subsection`, a numbered
+  list, and the screenshots in between. No class, no preamble, nothing your
+  manual already has. This is the one for a procedure that belongs inside an
+  existing manual, and the rest of this section is about it.
+- **LaTeX — a complete document.** The same procedure, wrapped in a document
+  that compiles on its own: its own class, margins and packages, the recording's
+  name as the title, and the pictures **pinned where they appear** rather than
+  floating. Upload it with its images folder, and it builds. Nothing to paste
+  and nothing to have already. Use it for a standalone guide — one procedure,
+  handed to somebody.
+
+A complete document is not a fragment with a lid on it: its headings sit one
+level higher, since the procedure is the document rather than a subsection of
+one.
 
 So you paste it in. Two things travel with it:
 

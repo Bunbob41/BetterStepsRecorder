@@ -33,6 +33,12 @@ Notable changes, newest first. The reasoning behind each decision lives in
   recorded as *Charts* and one on *Planned Lines* as *3D Options and Levels*,
   while the picture and the arrow showed the right tab. Buttons, checkboxes and
   radio buttons were never affected.
+- **A LaTeX export that stands on its own.** Alongside the fragment, Export now
+  offers *LaTeX — a complete document*: the same procedure wrapped in a document
+  that compiles by itself, with its own margins and packages, the recording's
+  name as the title, and the screenshots pinned where they appear instead of
+  floating. Upload it with its images folder and it builds — nothing to paste
+  into, nothing to already have.
 - **The LaTeX export tells you how to include it.** Its header now carries the
   one line that puts it into your document — `\input{your file}`, with the name
   it was saved as — and the message after exporting says it too. Uploading both

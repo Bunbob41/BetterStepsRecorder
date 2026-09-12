@@ -56,7 +56,7 @@ const offered = [...html.matchAll(/<option value="([^"]+)"[^>]*>/g)]
   .map((m) => m[1])
   // The Format select is the only one with these values; the others are
   // settings, matched out by looking only at what runExport knows about.
-  .filter((v) => /^(html|pdf|md|tex|template|docx|latex)$/.test(v));
+  .filter((v) => /^(html|pdf|md|tex|texdoc|template|docx|latex)$/.test(v));
 const filters = main.match(/const filters = \{([\s\S]*?)\}\[format\];/);
 const produced = new Set(
   filters ? [...filters[1].matchAll(/^\s*(\w+):/gm)].map((m) => m[1]) : []);
