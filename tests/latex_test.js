@@ -26,7 +26,7 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { buildLatex, escape, slugify, writeImages } = require('../ui/src/main/latex');
+const { buildLatex, escape, slugify, gatherImages, writeImages } = require('../ui/src/main/latex');
 
 let pass = 0, fail = 0;
 const check = (n, c, extra) => {
@@ -320,6 +320,46 @@ console.log('\nthe pictures it names are the pictures on disk:');
         `missing: ${missing.join(', ')}`);
 
   fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// One naming rule, two destinations. The zip export arrived carrying a second
+// copy of it, and a name that differs between them is a figure that compiles to
+// an empty box - which is not an error anybody sees.
+console.log('\nthe folder and the zip agree about what a picture is called:');
+{
+  const bench = fs.mkdtempSync(path.join(os.tmpdir(), 'bsr-gather-'));
+  const shot = path.join(bench, '0001.png');
+  const other = path.join(bench, '0002.png');
+  fs.writeFileSync(shot, Buffer.from('one'));
+  fs.writeFileSync(other, Buffer.from('two'));
+
+  // The first was re-encoded on the way out; the second was not.
+  const encoded = new Map([[shot, { ext: '.jpg', data: Buffer.from('re-encoded') }]]);
+  // The same screenshot twice, as two steps sharing one.
+  const gathered = gatherImages({ files: [shot, other, shot], images: encoded });
+
+  check('a re-encoded screenshot is named by what it now is',
+        gathered.names.get(shot) === '0001.jpg');
+  check('an untouched one keeps the name it had',
+        gathered.names.get(other) === '0002.png');
+  check('a screenshot two steps share is gathered once', gathered.bytes.size === 2);
+  check('and carries the re-encoded bytes, not the original',
+        gathered.bytes.get('0001.jpg').toString() === 're-encoded');
+
+  const folder = path.join(bench, 'images');
+  const written = writeImages({ dir: folder, gathered });
+  check('writing them to a folder uses those very names',
+        written.get(shot) === '0001.jpg' && written.get(other) === '0002.png');
+  check('and puts exactly those files in it',
+        fs.readdirSync(folder).sort().join(',') === '0001.jpg,0002.png');
+
+  const again = writeImages({ files: [shot, other], images: encoded,
+                              dir: path.join(bench, 'again') });
+  check('and gathering inside writeImages gives the same answer',
+        again.get(shot) === gathered.names.get(shot)
+        && again.get(other) === gathered.names.get(other));
+
+  fs.rmSync(bench, { recursive: true, force: true });
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

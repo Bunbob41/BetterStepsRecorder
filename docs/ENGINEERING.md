@@ -226,6 +226,45 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-77 - One file to upload
+`(this change)` - [ui/src/main/texzip.js](../ui/src/main/texzip.js),
+[ui/src/main/main.js](../ui/src/main/main.js)
+
+Asked after rating the Overleaf import at eight out of ten and saying what the
+missing two were. Both were the same thing: a LaTeX export is a document PLUS a
+folder, so it is two drags and one rule nobody is told - keep the folder's name,
+because the paths inside the document go through it. Get it wrong and there is
+no error, only empty boxes where the screenshots were.
+
+A zip removes the rule. Overleaf takes one as a whole project and unpacks one
+dropped into an existing project, so the import becomes: export, upload, compile.
+
+Decisions worth keeping:
+
+- **What goes in it is the complete document** (D-76), never the fragment.
+  A zip is for uploading and compiling; there is nothing inside a zip to paste
+  a fragment into.
+- **JSZip, which is already here** for reading .docx templates - zips of XML.
+  No new dependency. Deliberately NOT `Compress-Archive` through a shell: this
+  application records the screen and hooks input on machines whose security
+  software watches for exactly that shape, and a recorder that spawns
+  powershell.exe is a conversation nobody needs.
+- **The pictures are gathered once and then either written or zipped.** The
+  folder-and-file export and the zip must not diverge into two ways of naming a
+  screenshot - the naming IS the join between the document's paths and the files
+  (D-44), and two of them would drift.
+- **Every path the document asks for is checked against what is being handed
+  over**, and a mismatch is logged and told to the person. In LaTeX that failure
+  is silent: a path naming nothing sets an empty box, and the guide has holes in
+  it that no error mentions. `missingFrom` is the one thing in this arc that
+  could not be checked by compiling, because a missing figure compiles fine.
+
+Checked by building a zip and reading it back: the entries are the document and
+every picture and nothing else, the document inside is the standalone one, its
+paths point into the folder that is in the zip, a picture comes back byte for
+byte, a screenshot two steps share is one file rather than two, and a folder
+renamed underneath the paths is reported rather than shipped.
+
 ### D-76 - A LaTeX export that stands on its own, beside the one that does not
 `(this change)` - [ui/src/main/latex.js](../ui/src/main/latex.js)
 

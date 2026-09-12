@@ -11,7 +11,8 @@ const { buildHtml, buildMarkdown, copyImages, exportable,
         markerPosition } = require('./export');
 const composite = require('./composite');
 const photos = require('./photos');
-const { buildLatex, writeImages } = require('./latex');
+const { buildLatex, gatherImages, writeImages } = require('./latex');
+const texzip = require('./texzip');
 const screenshots = require('./screenshots');
 const { toJpeg } = require('./transcode');
 const annotate = require('../renderer/annotate');
@@ -1189,6 +1190,7 @@ async function runExport({ format, title }) {
     md: [{ name: 'Markdown', extensions: ['md'] }],
     tex: [{ name: 'LaTeX fragment', extensions: ['tex'] }],
     texdoc: [{ name: 'LaTeX document', extensions: ['tex'] }],
+    texzip: [{ name: 'Zip for Overleaf', extensions: ['zip'] }],
     pdf: [{ name: 'PDF', extensions: ['pdf'] }],
     template: templateForSession.toLowerCase().endsWith('.docx')
       ? [{ name: 'Word document', extensions: ['docx'] }]
@@ -1197,9 +1199,10 @@ async function runExport({ format, title }) {
 
   const chosen = await dialog.showSaveDialog(win, {
     title: 'Export steps',
-    // Both LaTeX exports are .tex files; only one of them is called that.
+    // The LaTeX exports are .tex files whatever they are called; the zip is a
+    // .zip, and `format` is the name of neither.
     defaultPath: path.join(settings.values.saveRoot,
-                           `${slug}.${format === 'texdoc' ? 'tex' : format}`),
+                           `${slug}.${{ texdoc: 'tex', texzip: 'zip' }[format] || format}`),
     filters,
   });
   if (chosen.canceled || !chosen.filePath) return { ok: false, cancelled: true };
@@ -1231,14 +1234,18 @@ async function runExport({ format, title }) {
       }), 'utf8');
       log.info(`markdown export copied ${copied} images`);
 
-    } else if (format === 'tex' || format === 'texdoc') {
-      // The same procedure either way; the difference is whether it brings a
-      // class and a preamble with it.
-      const standalone = format === 'texdoc';
+    } else if (format === 'tex' || format === 'texdoc' || format === 'texzip') {
+      // The same procedure every way. The differences: whether it brings a class
+      // and a preamble with it, and whether it lands as a file beside a folder
+      // or as one zip to upload.
+      const zipped = format === 'texzip';
+      // A zip is for uploading and compiling, so what goes in it is the document
+      // that compiles. Nothing to paste it into inside a zip.
+      const standalone = format === 'texdoc' || zipped;
       // The marker has to be IN the pixels, for the same reason it does in
       // Word: \includegraphics embeds a picture and LaTeX has nothing to lay
       // over it. So this takes the composite path, not the CSS one.
-      const base = path.basename(out, '.tex');
+      const base = path.basename(out, zipped ? '.zip' : '.tex');
       const imageDir = `${base}-images`;
       const prep = screenshots.prepare(shotFiles(session), { transcode: toJpeg });
       const marks = await composite.markAll(markableShots(session), {
@@ -1249,23 +1256,23 @@ async function runExport({ format, title }) {
       });
 
       // Written beside the .tex rather than embedded: there is no such thing as
-      // an embedded image in LaTeX, and Overleaf takes a folder.
+      // an embedded image in LaTeX, and Overleaf takes a folder. A zip carries
+      // the same folder inside itself, so the pictures are gathered rather than
+      // written, and nothing is left on disk beside the zip.
       const imagesDir = path.join(path.dirname(out), imageDir);
-      const names = writeImages({
-        files: shotFiles(session),
-        images: marks.images,
-        dir: imagesDir,
-      });
+      const gathered = gatherImages({ files: shotFiles(session), images: marks.images });
+      const names = gathered.names;
 
-      // How big the folder came out, for the advice below. A name can appear
-      // twice when two steps share a screenshot, and it is one file.
+      // The same answer either way: written into a folder beside the document,
+      // or carried inside the zip.
+      if (!zipped) writeImages({ dir: imagesDir, gathered });
+
+      // How big the pictures came out, for the advice below. A name appears once
+      // however many steps share it, and it is one file.
       let imageBytes = 0;
-      for (const name of new Set(names.values())) {
-        try { imageBytes += fs.statSync(path.join(imagesDir, name)).size; }
-        catch { /* advice, not the export */ }
-      }
+      for (const data of gathered.bytes.values()) imageBytes += data.length;
 
-      fs.writeFileSync(out, buildLatex(session, {
+      const tex = buildLatex(session, {
         title: safeTitle,
         voice: voiceFor(session),
         legend: legendFor(session),
@@ -1282,19 +1289,39 @@ async function runExport({ format, title }) {
           const abs = path.join(session.dir, step.screenshot);
           return names.has(abs) ? `${imageDir}/${names.get(abs)}` : null;
         },
-      }), 'utf8');
+      });
 
-      log.info(`exported latex to ${out} with ${names.size} screenshots`);
+      // Every picture the document asks for has to be in what is handed over.
+      // A path that names nothing compiles to an empty box: no error, and a
+      // reader sees a guide with holes in it.
+      const missing = texzip.missingFrom(tex, imageDir, gathered.bytes.keys());
+      if (missing.length) {
+        log.warn(`latex export is missing ${missing.length} picture(s): `
+                 + missing.slice(0, 3).join(', '));
+      }
+
+      if (zipped) {
+        fs.writeFileSync(out, await texzip.buildZip({
+          tex, texName: `${base}.tex`, imageDir, images: gathered.bytes,
+        }));
+      } else {
+        fs.writeFileSync(out, tex, 'utf8');
+      }
+
+      log.info(`exported latex to ${out} with ${gathered.bytes.size} screenshots`);
       return {
         ok: true,
         file: out,
         warning: [
-          standalone
-            ? `Upload both to Overleaf - this file and the ${imageDir} folder beside `
-              + `it - and compile. Set it as the main document if the project has more `
-              + `than one.`
-            : `Upload both to Overleaf - this file and the ${imageDir} folder beside `
-              + `it - then add \\input{${base}} where the procedure belongs.`,
+          zipped
+            ? `Upload this to Overleaf: New Project, Upload Project. It holds the `
+              + `document and its screenshots, and compiles as it is.`
+            : standalone
+              ? `Upload both to Overleaf - this file and the ${imageDir} folder beside `
+                + `it - and compile. Set it as the main document if the project has more `
+                + `than one.`
+              : `Upload both to Overleaf - this file and the ${imageDir} folder beside `
+                + `it - then add \\input{${base}} where the procedure belongs.`,
           marks.shared
             ? `${marks.shared} step(s) share a screenshot; it carries the first `
               + `step's marker.`
@@ -1302,6 +1329,10 @@ async function runExport({ format, title }) {
           // Measured in Overleaf: 37 full-size PNGs came to 14MB and took a free
           // project to the edge of its compile timeout. Better said here than
           // discovered as a build that never finishes.
+          missing.length
+            ? `${missing.length} screenshot(s) the document asks for are not in the `
+              + `export; those figures will be empty.`
+            : null,
           imageBytes > 8 * 1024 * 1024
             ? `The screenshots come to ${Math.round(imageBytes / 1048576)}MB - a free `
               + `Overleaf project may run out of compile time on that many. Settings, `

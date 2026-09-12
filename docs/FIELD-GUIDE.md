@@ -888,6 +888,10 @@ want depends on where the procedure is going:
   floating. Upload it with its images folder, and it builds. Nothing to paste
   and nothing to have already. Use it for a standalone guide — one procedure,
   handed to somebody.
+- **LaTeX — a zip for Overleaf.** That same document and its pictures in one
+  file. In Overleaf, *New Project → Upload Project*, choose the zip, and it is
+  a working project; dropped into an existing project, it unpacks in place.
+  **This is the easy one**: one file, one upload, nothing to keep track of.
 
 A complete document is not a fragment with a lid on it: its headings sit one
 level higher, since the procedure is the document rather than a subsection of
@@ -915,7 +919,8 @@ check that it does:
 3. **Upload both** into the project: drag the `.tex` and the whole images folder
    into Overleaf's file list, at the top level. **Keep the folder's name** — the
    pictures are referenced through it, and renaming it turns every figure into a
-   missing file.
+   missing file. (The zip export exists to make this step impossible to get
+   wrong: one file, and the folder inside it is already named correctly.)
 4. **Add one line** where the procedure belongs, inside `\begin{document}`:
    `\input{Your name}`. The exported file's header gives you that line with the
    right name already in it. Pasting the file's contents there instead works

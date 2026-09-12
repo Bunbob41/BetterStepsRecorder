@@ -33,6 +33,12 @@ Notable changes, newest first. The reasoning behind each decision lives in
   recorded as *Charts* and one on *Planned Lines* as *3D Options and Levels*,
   while the picture and the arrow showed the right tab. Buttons, checkboxes and
   radio buttons were never affected.
+- **A LaTeX export as one zip.** *Export → LaTeX — a zip for Overleaf* gives a
+  single file holding the document and its screenshots. In Overleaf, *New
+  Project → Upload Project* and it compiles as it is — no folder to drag in
+  alongside it and no folder name to preserve. The export also checks that every
+  picture the document asks for is really in what it hands you, because a
+  missing one compiles to an empty box rather than an error.
 - **A LaTeX export that stands on its own.** Alongside the fragment, Export now
   offers *LaTeX — a complete document*: the same procedure wrapped in a document
   that compiles by itself, with its own margins and packages, the recording's

@@ -262,31 +262,49 @@ function buildLatex(session, { title, voice = 'imperative', legend = [],
 }
 
 /**
- * Writes the screenshots a fragment refers to, and says what each is called.
+ * What each screenshot is called in the folder, and the bytes that belong there.
+ *
+ * Split out from writing them because there are two places they can go now: a
+ * folder beside the document, and a zip. The NAME is the join between the
+ * document's `\includegraphics` paths and the files, so it is decided here,
+ * once, and both destinations are handed the answer. Two implementations of it
+ * would drift, and the drift would show as empty boxes in somebody's manual
+ * rather than as an error.
  *
  * LaTeX has no embedded image: `\includegraphics` names a file, and that file
  * has to be somewhere the compiler can find it - so unlike HTML this export is
- * always a document plus a folder, and Overleaf takes the folder.
+ * always a document plus a folder, and Overleaf takes the folder, or a zip with
+ * the folder inside it (D-77).
  *
- * The naming is the whole point of this being one function rather than two.
- * A screenshot that was re-encoded on the way out is a .jpg with a .png name in
- * the recording, and a fragment that referred to it by its original extension
- * would compile with every figure missing - the failure would be a stack of
- * empty boxes in somebody's manual, not an error anyone here would see. The
- * name is decided ONCE, here, and both the file and the reference come from it.
+ * A screenshot re-encoded on the way out is a .jpg with a .png name in the
+ * recording, and a document that referred to it by its original extension would
+ * compile with every figure missing - a stack of empty boxes in somebody's
+ * manual, not an error anyone here would see.
  */
-function writeImages({ files, images, dir }) {
-  fs.mkdirSync(dir, { recursive: true });
-  const names = new Map();
+function gatherImages({ files, images }) {
+  const names = new Map();   // screenshot on disk -> what it is called in the folder
+  const bytes = new Map();   // what it is called -> what to write there
+
   for (const file of files) {
     const encoded = images && images.get(file);
     const name = path.basename(file, path.extname(file))
                + (encoded ? encoded.ext : path.extname(file));
-    fs.writeFileSync(path.join(dir, name),
-                     encoded ? encoded.data : fs.readFileSync(file));
     names.set(file, name);
+    // Two steps can share a screenshot (D-47). One file in the folder, named
+    // once and read once - not the same bytes twice under two names.
+    if (!bytes.has(name)) {
+      bytes.set(name, encoded ? encoded.data : fs.readFileSync(file));
+    }
   }
+
+  return { names, bytes };
+}
+
+function writeImages({ files, images, dir, gathered = null }) {
+  fs.mkdirSync(dir, { recursive: true });
+  const { names, bytes } = gathered || gatherImages({ files, images });
+  for (const [name, data] of bytes) fs.writeFileSync(path.join(dir, name), data);
   return names;
 }
 
-module.exports = { buildLatex, escape, slugify, writeImages };
+module.exports = { buildLatex, escape, slugify, gatherImages, writeImages };
