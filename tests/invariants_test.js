@@ -606,6 +606,12 @@ console.log('\nthe step list uses the wording rules, not the raw fields:');
   check('and the program is named only where it changes', /appChangedAt\(i\) \?/.test(body));
   check('the step before is found with isStep, the one definition of a step',
         /function recordedBefore[\s\S]{0,200}BsrSections\.isStep\(p\)/.test(renderer));
+  // The line over the picture said the same things the list used to: the
+  // engine's word for the action, and a row index where a step number belongs.
+  check('the detail line puts the action into words',
+        /BsrAppName\.actionWord\(step\.action\)/.test(renderer));
+  check('and numbers the step the way the list does',
+        /filter\(\(s\) => BsrSections\.isStep\(s\)\)\.length;\s*\n\s*el\.meta\.textContent/.test(renderer));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

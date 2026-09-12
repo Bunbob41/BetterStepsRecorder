@@ -19,6 +19,9 @@ Notable changes, newest first. The reasoning behind each decision lives in
   named, the grey line under each row says *Click* or *Keyboard* instead of the
   recorder's internal names, and the program is named only where it changes.
   The header reads *Steps 12* on the left with its buttons on the right.
+- Fixed: the line above a step's screenshot numbered it by row, so a step below
+  a note or heading showed a different number from the list, and it named the
+  action with the recorder's internal word. It matches the list now.
 - **The home screen is just your recordings.** With nothing open, the empty
   steps column is gone, and the name box says *No recording open*.
 - **Recordings name themselves without a step count** — *HYPACK Shell* rather

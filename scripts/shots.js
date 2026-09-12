@@ -407,7 +407,17 @@ async function main() {
     // place, which is the behaviour hardest to believe without seeing it.
     const rows = document.querySelectorAll('#step-list li.step');
     rows[2].click();
-    await sleep(500);
+    // Wait for THIS step's picture and its marker rather than a fixed time. A
+    // half-second sleep once captured the pane before the new screenshot had
+    // loaded: step 3's words over another step's picture, with no marker -
+    // the one thing the hero exists to show.
+    for (let i = 0; i < 120; i++) {
+      const img = document.getElementById('shot');
+      const marker = document.querySelector('#indicator .bsr-marker');
+      if (img.complete && img.naturalWidth > 0 && img.src.includes('0003.png') && marker) break;
+      await sleep(50);
+    }
+    await sleep(250);
   })()`);
   await sleep(400);
   if (process.env.BSR_SHOTS_DEBUG) {

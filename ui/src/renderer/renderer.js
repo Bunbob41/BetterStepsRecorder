@@ -424,9 +424,14 @@ async function select(id) {
     return;
   }
 
+  // Numbered as the list numbers it - notes and headings are rows, not steps,
+  // so the row index put "Step 5" over the step the list calls 3 - and the
+  // action in a person's words, not the engine's.
+  const rowIndex = steps.indexOf(step);
+  const stepNumber = steps.slice(0, rowIndex + 1).filter((s) => BsrSections.isStep(s)).length;
   el.meta.textContent = [
-    `Step ${steps.indexOf(step) + 1}`,
-    step.action,
+    `Step ${stepNumber}`,
+    BsrAppName.actionWord(step.action),
     step.window?.title ? `"${step.window.title}"` : null,
     step.point ? `${step.point.x}, ${step.point.y}` : null,
     step.monitor ? `${Math.round(step.monitor.scale * 100)}% scaling` : null,
