@@ -226,6 +226,44 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-78 - The two steps before the upload
+`(this change)` - [ui/src/renderer/appname.js](../ui/src/renderer/appname.js),
+[ui/src/main/main.js](../ui/src/main/main.js),
+[ui/src/main/transcode.js](../ui/src/main/transcode.js)
+
+With the zip (D-77) the upload itself is one file and one action. What was left
+was everything before it, and there were exactly two things.
+
+**A recording nobody named was called the time it started.** That name is the
+heading of the exported guide and the caption under every figure in it, so a
+thirty-seven step procedure carried "9/11/2026, 3:42:26 PM" thirty-seven times.
+The application and the size are what a person recognises a recording by - the
+same two things the library card already shows - so `appName.label` builds that
+name and a recording takes it when it stops.
+
+- **At the stop, not at the start.** At the start there are no steps to be named
+  after; the dominant application is a fact about what was recorded.
+- **Only when nobody chose a name.** The name this application picked at the
+  start is remembered in memory for exactly this comparison. Deliberately NOT
+  stored in `session.json`: a name in the file is a name somebody may have
+  typed, and adding a field to say otherwise would be a format change (D-69)
+  for a fact that only matters while the application is running. An app
+  restarted mid-recording simply keeps the timestamp.
+- **Nothing to say means say nothing.** A recording with no window in it has no
+  application to be named after, and "0 steps" is not a name; it keeps what it
+  had.
+
+**Screenshots went into LaTeX at the size they came off the screen.** Measured:
+37 full-size PNGs, 14MB, a free Overleaf project at the edge of its compile
+timeout. The copies inside a document do not need to be bigger than the page can
+print - 1600px is wider than 0.85 of a text line at any sensible resolution - so
+they are sized on the way out. The recording keeps its originals; this is the
+copy going into the document.
+
+The sizing happens AFTER the marker is drawn into the pixels (D-31), so the
+marker shrinks with the picture it is on. `transcode.toJpegFrom` exists because
+of that order: by then a marked screenshot is a buffer that never had a file.
+
 ### D-77 - One file to upload
 `(this change)` - [ui/src/main/texzip.js](../ui/src/main/texzip.js),
 [ui/src/main/main.js](../ui/src/main/main.js)

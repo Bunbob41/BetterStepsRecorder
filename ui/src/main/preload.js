@@ -93,5 +93,6 @@ contextBridge.exposeInMainWorld('bsr', {
   onUndoDepth: (fn) => ipcRenderer.on('undo:depth', (_e, m) => fn(m)),
   onNotice: (fn) => ipcRenderer.on('notice', (_e, m) => fn(m)),
   onBlocked: (fn) => ipcRenderer.on('capture:blocked', (_e, m) => fn(m)),
+  onRenamed: (fn) => ipcRenderer.on('session:renamed', (_e, m) => fn(m)),
   getBuild: () => ipcRenderer.invoke('app:build'),
 });

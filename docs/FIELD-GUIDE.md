@@ -911,9 +911,11 @@ it even if this page does not.
 **Getting it into Overleaf.** This order works, and was done start to finish to
 check that it does:
 
-1. **Name the recording before exporting.** The name becomes the `\subsection`
-   heading and the caption under every figure. Left alone, all thirty-seven
-   captions read *9/11/2026, 3:42:26 PM*.
+1. **Name the recording** — or let it name itself. If you never type a name, the
+   recording is called after what it recorded when you stop it: *HYPACK Shell -
+   37 steps*. That name is the heading of the exported guide and the caption
+   under every figure, so it is worth typing something better when the procedure
+   has a proper title. Type one at any point and it is left alone.
 2. **Export → LaTeX.** You get `Your name.tex` and a folder `Your name-images`
    beside it.
 3. **Upload both** into the project: drag the `.tex` and the whole images folder
@@ -931,10 +933,12 @@ check that it does:
 preamble can already have `graphicx`, and nothing appears — because nothing in
 the document includes the fragment. Nothing is wrong and nothing says so.
 
-**A long recording can outrun a free Overleaf project.** Thirty-seven
-full-size PNG screenshots came to 14MB and took that project to the edge of the
-free plan's compile time limit. Settings → Screenshots → JPEG at 85% cuts that
-to roughly a quarter and looks the same on a printed page.
+**Screenshots are sized for the page on the way into LaTeX.** A recording keeps
+its full-size pictures; the copies inside the document are at most 1600 pixels
+wide, which is more than 0.85 of a text line can show. This is why a
+thirty-seven step procedure is a few megabytes rather than fourteen — the size
+that took a free Overleaf project to the edge of its compile time limit before
+this was done for you.
 
 **Numbering.** Each recording becomes one `\subsection`; section headings inside
 it become `\subsubsection`. A note or a heading between two steps breaks the

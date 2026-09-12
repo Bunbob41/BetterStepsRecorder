@@ -984,6 +984,11 @@ function paintBlocked(m) {
 }
 
 window.bsr.onBlocked(paintBlocked);
+
+// A recording that nobody named has just named itself, on stopping. Shown in
+// the box it would have been typed into, so it is a name the person can see and
+// change rather than one that only exists on disk.
+window.bsr.onRenamed(({ name }) => { el.sessionName.value = name || ''; });
 window.bsr.onLog((m) => console.log('[capture]', m.level, m.message));
 
 // ---- re-record ----------------------------------------------------------------

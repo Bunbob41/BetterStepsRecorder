@@ -33,6 +33,16 @@ Notable changes, newest first. The reasoning behind each decision lives in
   recorded as *Charts* and one on *Planned Lines* as *3D Options and Levels*,
   while the picture and the arrow showed the right tab. Buttons, checkboxes and
   radio buttons were never affected.
+- **A recording names itself.** Stop a recording you never named and it is
+  called after what it recorded — *HYPACK Shell - 37 steps* — instead of the time
+  it started. The name is the heading of an exported guide and the caption under
+  every figure, so this is the difference between a guide titled *HYPACK Shell*
+  and one titled *9/11/2026, 3:42:26 PM*. Type a name at any point and it is left
+  alone.
+- **Screenshots are sized for the page in LaTeX exports.** At most 1600 pixels
+  wide — wider than the text line can print — which turns a fourteen-megabyte
+  procedure into a few megabytes and keeps a free Overleaf project well inside
+  its compile time. Your recording keeps its full-size screenshots.
 - **A LaTeX export as one zip.** *Export → LaTeX — a zip for Overleaf* gives a
   single file holding the document and its screenshots. In Overleaf, *New
   Project → Upload Project* and it compiles as it is — no folder to drag in

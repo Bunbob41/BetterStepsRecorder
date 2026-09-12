@@ -174,6 +174,31 @@ app.whenReady().then(async () => {
   }
 
   fs.rmSync(dir, { recursive: true, force: true });
-  console.log(`\n${pass} passed, ${fail} failed`);
+  console.log('\nsizing a picture that is already in hand:');
+{
+  // What a LaTeX export ships is the marked screenshot, which is a buffer and
+  // never had a file of its own.
+  const { toJpegFrom } = require('../ui/src/main/transcode');
+  const { solidPngDataUrl } = require('./png-fixture');
+  const wide = Buffer.from(solidPngDataUrl(2400, 1000).split(',')[1], 'base64');
+
+  const sized = toJpegFrom(wide, { maxWidth: 1600, quality: 85 });
+  check('a picture in hand comes back re-encoded', Boolean(sized && sized.data.length));
+  check('as a JPEG, named as one', sized.ext === '.jpg' && sized.mime === 'image/jpeg');
+  const back = nativeImage.createFromBuffer(sized.data);
+  check('sized down to the page width', back.getSize().width === 1600,
+        `${back.getSize().width}px`);
+  check('and not stretched taller', back.getSize().height < 1000);
+
+  const small = Buffer.from(solidPngDataUrl(800, 600).split(',')[1], 'base64');
+  const left = toJpegFrom(small, { maxWidth: 1600 });
+  check('one already narrower than the page is not enlarged',
+        nativeImage.createFromBuffer(left.data).getSize().width === 800);
+
+  check('and something that is not a picture at all costs nothing',
+        toJpegFrom(Buffer.from('not a picture')) === null);
+}
+
+console.log(`\n${pass} passed, ${fail} failed`);
   app.exit(fail ? 1 : 0);
 });

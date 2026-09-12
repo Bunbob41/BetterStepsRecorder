@@ -107,5 +107,28 @@
     return best ? friendly(best.process, best.product) : '';
   }
 
-  return { KNOWN, tidy, friendly, dominant, forRecording };
+  /**
+   * What to call a recording nobody named.
+   *
+   * The name is not decoration: it becomes the heading of an exported guide and
+   * the caption under every figure in it. Left as the time the recording
+   * started, a thirty-seven step procedure carries "9/11/2026, 3:42:26 PM"
+   * thirty-seven times, which says nothing about anything.
+   *
+   * The application and the size are what a person recognises a recording by in
+   * a list of forty - the same two things the library card shows. `count` is
+   * passed in rather than counted here, because what counts as a step is
+   * sections.js's business and this module is about names.
+   *
+   * Empty when there is nothing to say: a recording with no window in it has no
+   * application to be named after, and "0 steps" is not a name. The caller keeps
+   * whatever it had.
+   */
+  function label(steps, count) {
+    const app = forRecording(steps);
+    if (!app || !count) return '';
+    return `${app} - ${count} step${count === 1 ? '' : 's'}`;
+  }
+
+  return { KNOWN, tidy, friendly, dominant, forRecording, label };
 }));

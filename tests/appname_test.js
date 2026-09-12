@@ -84,5 +84,25 @@ console.log('\nawkward recordings:');
   check('a tie still produces a name', ['A', 'B'].includes(a.forRecording(tied)));
 }
 
+console.log('\nwhat to call a recording nobody named:');
+{
+  const hypack = (n) => Array.from({ length: n }, (_, i) => ({
+    id: `s${i}`, action: 'leftClick',
+    window: { process: 'Hypack64.exe', product: 'HYPACK Shell' },
+  }));
+
+  check('it is named after what it recorded, and how much',
+        a.label(hypack(37), 37) === 'HYPACK Shell - 37 steps');
+  check('one step is a step, not steps', a.label(hypack(1), 1) === 'HYPACK Shell - 1 step');
+  // The product name is Windows' own answer; the filename is the fallback.
+  check('an application that will not say its name is named by its file',
+        a.label([{ id: 'a', window: { process: 'hypack64.exe', product: '' } }], 4)
+        === 'Hypack64 - 4 steps');
+  // Nothing to say beats saying nothing usefully: the caller keeps its own name.
+  check('a recording with no window in it is not named', a.label([], 0) === '');
+  check('nor is one with windows but no steps counted',
+        a.label(hypack(3), 0) === '');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

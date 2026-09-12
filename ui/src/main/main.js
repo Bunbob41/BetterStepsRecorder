@@ -14,7 +14,7 @@ const photos = require('./photos');
 const { buildLatex, gatherImages, writeImages } = require('./latex');
 const texzip = require('./texzip');
 const screenshots = require('./screenshots');
-const { toJpeg } = require('./transcode');
+const { toJpeg, toJpegFrom } = require('./transcode');
 const annotate = require('../renderer/annotate');
 const sections = require('../renderer/sections');
 const find = require('../renderer/find');
@@ -344,6 +344,12 @@ const COMPACT = { width: 360, height: 132 };
 let fullBounds = null;
 let engineBuild = null;
 
+// The name this application chose when a recording started, kept only in memory.
+// If the recording still has it when it stops, nobody typed one, and it can be
+// named after what it recorded. Not stored: a name in session.json is a name
+// somebody may have chosen, and this is the one fact that says otherwise.
+let autoNamedAs = null;
+
 function enterCompact() {
   if (!win || fullBounds) return;
   fullBounds = win.getBounds();
@@ -465,7 +471,11 @@ async function beginRecording(intent = {}) {
   log.info(`creating session at ${dir}`);
   closeSession();
   session = new Session(dir);
-  session.rename(intent.name || new Date().toLocaleString());
+  // Named by when it started for now, so the strip and the library have
+  // something to show. Remembered, so stopping can tell whether it was ever
+  // named by a person.
+  autoNamedAs = intent.name ? null : new Date().toLocaleString();
+  session.rename(intent.name || autoNamedAs);
 
   // Decided before recording, not at export: it changes how the steps are
   // worded on the way out, and the person starting knows what they are making.
@@ -576,6 +586,19 @@ function finishRecording() {
   recordingPaused = false;
   leaveCompact();
   sidecar.stop();
+
+  // Only now can a recording be named after what it recorded: at the start there
+  // are no steps to look at. Only when the name is still the one this
+  // application chose - anything else was somebody's decision.
+  if (session && autoNamedAs && session.name === autoNamedAs) {
+    const named = appName.label(session.steps, sections.countSteps(session.steps));
+    if (named) {
+      autoNamedAs = null;
+      session.rename(named);
+      send('session:renamed', { name: session.name });
+      log.info(`named the recording "${session.name}"`);
+    }
+  }
 
   // Said after the recording rather than during it: mid-recording the user is
   // inside the application they are documenting, and the window is a strip.
@@ -1259,8 +1282,30 @@ async function runExport({ format, title }) {
       // an embedded image in LaTeX, and Overleaf takes a folder. A zip carries
       // the same folder inside itself, so the pictures are gathered rather than
       // written, and nothing is left on disk beside the zip.
+      // Sized for the page they are going on rather than for the screen they
+      // came off. Measured in Overleaf: 37 full-size PNGs came to 14MB and took
+      // a free project to the edge of its compile timeout, and 1600px is wider
+      // than 0.85 of a text line can show at any sensible print resolution. The
+      // recording keeps its full-size screenshots; this is the copy going into
+      // the document.
+      //
+      // After the marker is drawn, so the marker is shrunk with the picture it
+      // is on rather than drawn at a size the picture no longer is.
+      const PAGE_WIDTH = 1600;
+      const forPage = new Map();
+      for (const file of shotFiles(session)) {
+        const marked = marks.images && marks.images.get(file);
+        const sized = marked
+          ? toJpegFrom(marked.data, { maxWidth: PAGE_WIDTH, quality: 85 })
+          : toJpeg(file, { maxWidth: PAGE_WIDTH, quality: 85 });
+        // A picture that will not re-encode keeps whatever it had: a big figure
+        // beats a missing one.
+        if (sized) forPage.set(file, sized);
+        else if (marked) forPage.set(file, marked);
+      }
+
       const imagesDir = path.join(path.dirname(out), imageDir);
-      const gathered = gatherImages({ files: shotFiles(session), images: marks.images });
+      const gathered = gatherImages({ files: shotFiles(session), images: forPage });
       const names = gathered.names;
 
       // The same answer either way: written into a folder beside the document,

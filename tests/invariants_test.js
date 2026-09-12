@@ -125,6 +125,53 @@ console.log('\nthe bridge is wired end to end:');
   const undefinedCalls = called.filter((u) => !exposed.includes(u));
   check('every bsr.* the page calls is exposed', undefinedCalls.length === 0,
         'not on the bridge: ' + undefinedCalls.join());
+
+  // The other direction, which nothing checked. An invoke that goes nowhere
+  // throws where somebody sees it; a send that goes nowhere is silent - the
+  // window simply never hears about it, which is the same shape as the feature
+  // not working and gives no clue why.
+  const sent = [...new Set([...main.matchAll(/\bsend\('([\w:]+)'/g)].map((m) => m[1]))];
+  const heard = [...preload.matchAll(/ipcRenderer\.on\('([\w:]+)'/g)].map((m) => m[1]);
+  const unheard = sent.filter((c) => !heard.includes(c));
+  check('every channel main pushes is listened for', unheard.length === 0,
+        'nobody listens for: ' + unheard.join());
+}
+
+console.log('\na recording nobody named is named after what it recorded:');
+{
+  // The name is the heading of an exported guide and the caption under every
+  // figure in it, so getting this wrong is not cosmetic.
+  const at = main.indexOf('function finishRecording');
+  const body = main.slice(at, main.indexOf('\n}', at) + 2);
+
+  check('the naming happens when the recording stops', /appName\.label\(/.test(body));
+  // At the start there are no steps to be named after.
+  check('and not when it starts',
+        !/appName\.label\(/.test(main.slice(0, at)));
+  check('only when the name is still the one this application chose',
+        /session\.name === autoNamedAs/.test(body));
+  check('and what the application chose is never written to the recording',
+        !/autoNamedAs/.test(read('ui/src/main/session.js')));
+  check('the window is told, so the name shows in the box it is typed into',
+        /send\('session:renamed'/.test(body));
+}
+
+console.log('\nscreenshots are sized for the page they are going on:');
+{
+  const at = main.indexOf('const PAGE_WIDTH');
+  check('a LaTeX export sizes its pictures', at > 0);
+
+  // Sizing after the marker is drawn shrinks the marker with the picture it is
+  // on. Sizing before would draw a marker for a picture that no longer exists.
+  check('after the marker is drawn into them',
+        main.indexOf('marks.images', at) > at);
+  // The names come from the bytes: gather first and the .png names would be
+  // handed to files that are now .jpg, and every figure would be an empty box.
+  check('and before the names are decided',
+        at < main.indexOf('gatherImages({ files: shotFiles(session), images: forPage })'));
+  check('the recording itself keeps its full-size screenshots',
+        !/rewriteScreenshot|writeFileSync/.test(
+          main.slice(at, main.indexOf('const imagesDir', at))));
 }
 
 console.log('\nexcluded steps do not leak into a document:');
