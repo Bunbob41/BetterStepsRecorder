@@ -103,9 +103,16 @@ internal sealed class Recorder : IDisposable
         _worker.Start();
     }
 
+    /// <param name="seqFrom">
+    /// The highest screenshot number already written in this folder. Zero for a
+    /// new recording. Non-zero when a recording is being carried on: the
+    /// numbering continues past what is there instead of starting again at
+    /// 0001 and overwriting the pictures of the steps already recorded.
+    /// </param>
     internal void StartSession(string sessionDir, IEnumerable<uint>? ignoredPids = null,
                                CaptureOptions? options = null,
-                               IEnumerable<uint>? allowedPids = null)
+                               IEnumerable<uint>? allowedPids = null,
+                               int seqFrom = 0)
     {
         // An empty allow-list means "record everything". A populated one scopes
         // the recording to chosen applications, so documenting one system does
@@ -121,6 +128,9 @@ internal sealed class Recorder : IDisposable
             (uint)Environment.ProcessId,
         };
         Directory.CreateDirectory(Path.Combine(_sessionDir, "steps"));
+        // Never backwards: a caller that miscounts must not be able to make the
+        // engine overwrite pictures it has already written.
+        _seq = Math.Max(0, seqFrom);
         // Before recording starts, not on the first click: a slow machine gets a
         // fresh chance, and the first press does not pay for starting the copy up.
         PressShots.Enable();

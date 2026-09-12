@@ -3,6 +3,20 @@
 Notable changes, newest first. The reasoning behind each decision lives in
 [docs/ENGINEERING.md](docs/ENGINEERING.md); this is the short version.
 
+## Unreleased
+
+- **A recording that stopped can be picked back up.** Open it and press
+  **Continue recording** — the new steps are added to the end of that recording,
+  in the same folder, under the same name. For when a recording ended before the
+  job did: you stopped it early, the recorder fell over, or you closed the app.
+  Start recording still makes a separate one.
+- **A recording that ends now says why, in the log.** Only the start was ever
+  written down, so a recording that cut out left no trace of what ended it.
+  Stopping, the stop hotkey, the capture engine failing or exiting, and quitting
+  the app are all recorded now, with the step count and how long it ran —
+  and pausing is written down too, so a recording that was paused can be told
+  apart from one that stopped by itself.
+
 ## 0.2.2
 
 ### Recording

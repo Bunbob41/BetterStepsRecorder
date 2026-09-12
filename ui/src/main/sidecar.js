@@ -95,6 +95,11 @@ class Sidecar extends EventEmitter {
     return true;
   }
 
+  /**
+   * `image.seqFrom` continues the screenshot numbering instead of restarting
+   * it, which is what makes resuming a recording safe: without it the engine
+   * writes 0001 again over the picture of the first step already recorded.
+   */
   startSession(sessionDir, ignorePids = [], image = {}) {
     return this.send({ type: 'start', sessionDir, ignorePids, ...image });
   }

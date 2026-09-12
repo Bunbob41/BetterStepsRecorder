@@ -227,6 +227,51 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-81 - A recording that stopped is not finished
+`(this change)` - [ui/src/main/main.js](../ui/src/main/main.js),
+[ui/src/main/session.js](../ui/src/main/session.js),
+[capture/Recorder.cs](../capture/Recorder.cs)
+
+Starting a recording always did `session = new Session(dir)`, so a recording
+that ended - stopped early, or with the engine dying under it - was finished
+whether or not the job was. Opening one from the library put it in the editor
+for marking up; Start still made a new folder. Reported from real use: "it cut
+out mid way, there's no way to resume or pick up a recording."
+
+`beginRecording({ resume: true })` carries on the session already open. The same
+function deliberately: resuming differs from starting in three particulars - the
+folder, the numbering, and what is kept - and everything else about getting a
+recording under way must not be free to drift between two copies.
+
+**The numbering is the dangerous part.** The engine writes `steps/0001.png`,
+`0002.png` from a counter that starts at zero every run, so recording again into
+an existing folder overwrites the pictures of the steps already there. No error,
+no crash - just the wrong pictures under the right words, which is the worst
+shape a defect can have. So the start command carries `seqFrom`, the engine
+seeds its counter with it, and `Math.Max(0, seqFrom)` means a caller that
+miscounts can never make it go backwards.
+
+- **`seqFrom` is read off the folder, not counted from the steps.** A deleted
+  step leaves a gap; counting would hand back a number already written.
+  `Session.lastShotSeq()` takes the highest `NNNN` in `steps/`. Photographs are
+  skipped for free - they are named `photo-<stamp>` precisely so they cannot
+  collide (see `addPhoto`).
+- **Nothing is closed or reset on the way back in.** `closeSession()` clears the
+  undo stack and purges the trash; both belong to the recording being continued.
+- **The auto-name gets another chance.** If the name is still exactly what
+  `appName.label` would generate for the steps it has, nobody typed it, so
+  `autoNamedAs` is set to it and the next stop re-generates with the new count.
+  A name a person typed is untouched. This is the same "is it still what we
+  chose?" comparison as D-78, applied to a name from an earlier leg.
+- **No setup dialog.** Purpose, template and name were settled at the first
+  start; asking again invites an answer that contradicts the folder.
+
+The invariant added with D-78 - "a name is never generated when the recording
+starts" - failed on this, correctly by its own words and wrongly in spirit:
+resuming *consults* `appName.label` to compare, which is not naming. Sharpened
+to "a name is never generated from steps except at the stop", which is the rule
+that was always meant.
+
 ### D-80 - A field with no colours of its own gets the platform's
 `(this change)` - [ui/src/renderer/styles.css](../ui/src/renderer/styles.css),
 [tests/window_test.js](../tests/window_test.js)
@@ -258,6 +303,33 @@ field keeping its own size and spacing. `.label-input` stays deliberately white
 That check found five of the eight. A one-off probe I wrote first found only
 three, because it loaded the page without a working bridge and the legend rows
 are built at runtime - a reminder that a page which has not run is not the page.
+
+### D-82 - A recording that ends says why
+`(this change)` - [ui/src/main/main.js](../ui/src/main/main.js)
+
+`recording:start` was written to the log and nothing else was. Every recording
+in the log simply trails off, so "it stopped and I do not know why" had no
+answer after the fact - not even "it did not, you stopped it". This was already
+the wall hit when a recording ended mid-game (D-72); it was hit again the moment
+somebody asked why a real recording cut out.
+
+`logRecordingEnd(reason)` is the single place, called from every way a recording
+can end: the Stop button, the stop hotkey, a fatal engine error, the engine
+exiting, and the application quitting. It writes the reason, the step count, the
+screenshot count and the duration.
+
+- **`recordingSince` is the flag, not `session`.** A session outlives its
+  recording - stopping leaves it open in the editor - so `session` cannot answer
+  "was a recording under way". Quitting with a recording merely open must not
+  log an ending.
+- **The engine exiting is logged at error level.** That is the case that left no
+  trace at all, and it is the literal meaning of "it cut out": nobody asked for
+  it to end.
+- **Pause and resume are logged too.** A recording that was paused and one that
+  died look identical afterwards - no new steps - and the pause hotkey is easy
+  to hit by accident. The log has to be able to tell them apart.
+- **Written last in `finishRecording`**, so the count and the name are the ones
+  the recording actually ended with, after the auto-name has run.
 
 ### D-79 - The steps column is dragged, not decreed
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),

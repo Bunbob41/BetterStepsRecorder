@@ -167,10 +167,18 @@ internal static class Program
                                 if (v.TryGetUInt32(out var pid)) allowed.Add(pid);
                         }
 
+                        // Where the screenshot numbering is already up to, for a
+                        // recording being carried on. Absent or 0 starts at 0001.
+                        var seqFrom = root.TryGetProperty("seqFrom", out var sf)
+                                      && sf.TryGetInt32(out var sfv) ? sfv : 0;
+
                         _recorder!.StartSession(dir, ignored,
                             CaptureOptions.Clamp(fmt, q, sc,
                                 root.TryGetProperty("imageFrame", out var fr) ? fr.GetString() : null),
-                            allowed);
+                            allowed, seqFrom);
+
+                        if (seqFrom > 0)
+                            Protocol.Log("info", $"continuing from screenshot {seqFrom}");
 
                         if (allowed.Count > 0)
                             Protocol.Log("info", $"scoped to pids {string.Join(",", allowed)}");

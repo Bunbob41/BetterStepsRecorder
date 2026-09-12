@@ -575,6 +575,30 @@ keeps the previous shortcut rather than leaving you with one that silently does
 nothing, and any shortcut that fails to register is marked **in use elsewhere**
 in the list.
 
+### Picking a recording back up
+
+A recording that has stopped is not finished. Open it and, as long as nothing
+else is recording, the toolbar offers **Continue recording** beside Start. Press
+it and the new steps are added to the end of that recording, in the same folder,
+under the same name.
+
+Use it when a recording ended before the job did — you stopped it early, the
+capture engine fell over, or you closed the app and came back. Use **Start
+recording** when you want a separate recording; Continue never makes a new one.
+
+It does not ask you anything. What the recording is for, which template it uses
+and what it is called were settled when it was first started, and asking again
+would only invite an answer that contradicts what is already in the folder.
+
+You will not see the button when nothing is open, when the recording is empty —
+that is a Start, not a Continue — or while something is already recording.
+
+> **Do not try to do this by hand.** Two recordings cannot be merged by copying
+> folders together: screenshots are numbered from 0001 each time a recording
+> starts, so the second set would overwrite the first. Continue exists because
+> that is the only safe way to do it — it tells the recorder where the numbering
+> has already got to.
+
 ### Making the step list wider
 
 The line between the step list and the screenshot can be dragged. Put the

@@ -28,6 +28,10 @@
       <div class="group" role="group" aria-label="Recording">
         <button id="btn-scope">Capture: Everything</button>
         <button id="btn-record" class="primary">Start recording</button>
+        <!-- Only for a recording that is open and idle: it adds to that one
+             rather than making another. Hidden the rest of the time, because
+             "continue" with nothing open has nothing to continue. -->
+        <button id="btn-continue" hidden>Continue recording</button>
         <button id="btn-pause" disabled>Pause</button>
         <button id="btn-stop" disabled>Stop</button>
       </div>

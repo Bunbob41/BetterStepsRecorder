@@ -145,15 +145,73 @@ console.log('\na recording nobody named is named after what it recorded:');
   const body = main.slice(at, main.indexOf('\n}', at) + 2);
 
   check('the naming happens when the recording stops', /appName\.label\(/.test(body));
-  // At the start there are no steps to be named after.
-  check('and not when it starts',
-        !/appName\.label\(/.test(main.slice(0, at)));
+  check('and that generated name is what the stop renames to',
+        /const named = appName\.label\(/.test(body) && /session\.rename\(named\)/.test(body));
+  // The label may be CONSULTED before the stop - carrying a recording on
+  // compares the name it already has against it, to work out whether a person
+  // ever typed one - but a recording is never NAMED from it early, because at
+  // the start there are no steps to be named after.
+  check('and a name is never generated from steps anywhere else',
+        !/rename\(\s*appName\.label/.test(main));
   check('only when the name is still the one this application chose',
         /session\.name === autoNamedAs/.test(body));
   check('and what the application chose is never written to the recording',
         !/autoNamedAs/.test(read('ui/src/main/session.js')));
   check('the window is told, so the name shows in the box it is typed into',
         /send\('session:renamed'/.test(body));
+}
+
+// The engine numbers screenshots 0001, 0002 ... from zero on every run. Two
+// recordings into one folder therefore means the second one writing over the
+// first one's pictures - silently, because nothing fails.
+console.log('\na recording carried on does not overwrite what it already has:');
+{
+  const at = main.indexOf('async function beginRecording');
+  const body = main.slice(at, main.indexOf('\nipcMain.handle(\'recording:start\'', at));
+
+  check('carrying on reuses the folder that is open', /dir = session\.dir/.test(body));
+  check('and makes no new session while doing it',
+        /} else {[\s\S]*new Session\(dir\)/.test(body));
+  check('the engine is told where the numbering is up to',
+        /seqFrom: resuming \? session\.lastShotSeq\(\) : 0/.test(body));
+  // Read off the folder, not counted from the steps: a deleted step leaves a
+  // gap and counting would reuse a number already written.
+  check('and that number is read off the folder',
+        /readdirSync\(path\.join\(this\.dir, 'steps'\)\)/
+          .test(read('ui/src/main/session.js')));
+  check('the engine never lets it go backwards',
+        /_seq = Math\.Max\(0, seqFrom\)/.test(read('capture/Recorder.cs')));
+  // Nothing is discarded on the way back in: the trash, the undo stack and the
+  // steps already recorded all belong to the recording being continued.
+  const resumingHalf = body.slice(0, body.indexOf('} else {'));
+  check('carrying on does not clear the recording it is adding to',
+        resumingHalf.length > 0 && !resumingHalf.includes('closeSession()'));
+}
+
+console.log('\nthe end of a recording is written down:');
+{
+  // Only the start was ever logged, so every recording in the log trailed off
+  // and "why did it cut out?" had no answer.
+  check('there is one place that records the ending',
+        /function logRecordingEnd\(reason\)/.test(main));
+  check('it is silent when nothing was being recorded',
+        /if \(!recordingSince\) return;/.test(main));
+  check('the clock starts only once recording is genuinely under way',
+        main.indexOf('recordingSince = Date.now();') > main.indexOf('if (!started)'));
+
+  // Every way a recording can end has to say so, or the one that goes
+  // unrecorded is the one that gets asked about.
+  for (const [what, near] of [
+    ['the Stop button', "finishRecording('the Stop button')"],
+    ['the stop hotkey', "finishRecording('the stop hotkey')"],
+    ['the engine exiting', 'the capture engine exited (code'],
+    ['a fatal engine error', 'the engine reported ${m.code}'],
+    ['the application quitting', "logRecordingEnd('the application quit')"],
+  ]) {
+    check(`${what} says so`, main.includes(near), near);
+  }
+  check('and pausing is told apart from stopping',
+        /log\.info\('recording paused'\)/.test(main));
 }
 
 console.log('\nscreenshots are sized for the page they are going on:');

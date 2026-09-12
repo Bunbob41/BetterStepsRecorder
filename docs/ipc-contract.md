@@ -9,10 +9,15 @@ Every message: { "v": 1, "type": "<name>", "id": "<uuid>", ...payload }
 ## UI -> Sidecar (commands)
 
 start        { "sessionDir": "...", "ignorePids": [1234],
-               "recordKeyboard": true }                begin hooking input
+               "recordKeyboard": true, "seqFrom": 0 }  begin hooking input
              recordKeyboard: when false the keyboard hook is not installed at
              all, rather than installed and ignored.
              allowPids: when non-empty, ONLY these processes are recorded.
+             seqFrom: the highest screenshot number already in the folder.
+             Absent or 0 numbers from 0001. Sent when a recording is being
+             carried on, so the engine continues past the pictures that are
+             there instead of writing over them. The engine never lets it go
+             backwards.
              Exclusion always wins: ignorePids is checked first, so a scope
              choice can never drag the recorder's own windows back in.
              hotkeys: chord labels ("Ctrl+Shift+F9") the UI has claimed

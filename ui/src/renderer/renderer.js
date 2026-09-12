@@ -43,6 +43,7 @@ const el = {
   scopeBtn: $('btn-scope'), scopeDlg: $('scopedlg'), scopeList: $('scope-list'),
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
   add: $('btn-add'),
+  continueBtn: $('btn-continue'),
   stepsCollapse: $('btn-steps-collapse'), stepsExpand: $('btn-steps-expand'),
   stepsResize: $('steps-resize'),
   railCount: $('rail-count'),
@@ -95,6 +96,7 @@ function setState(next) {
   if (next === 'idle' && document.body.classList.contains('compact')) {
     window.bsr.restoreWindow();
   }
+  paintContinue();
   el.pause.disabled = next === 'idle';
   el.stop.disabled = next === 'idle';
   el.pause.textContent = next === 'paused' ? 'Resume' : 'Pause';
@@ -192,7 +194,19 @@ el.stepsResize.addEventListener('dblclick', () => setStepsWidth(WIDTH_DEFAULT));
 // A dragged-away column is fiddly to put back by hand.
 
 
+/**
+ * Whether there is a recording to carry on.
+ *
+ * Only when one is open, has something in it, and nothing is recording. An
+ * empty recording is a Start, not a Continue, and offering both would be two
+ * buttons for one act.
+ */
+function paintContinue() {
+  el.continueBtn.hidden = !(state === 'idle' && openDir && steps.length > 0);
+}
+
 function renderList() {
+  paintContinue();
   el.count.textContent = String(steps.length);
   // Adding a note to nothing, or checking nothing, are not actions.
   // + Add stays live on an empty recording: the first thing in one can be a
@@ -833,9 +847,14 @@ el.suGo.addEventListener('click', async () => {
  * window claiming to be idle while the engine was recording.
  */
 function recordingBegan(r) {
-  steps = [];
-  selectedId = null;
-  marked.clear();
+  // Carrying on keeps what is already recorded; starting clears it. This is the
+  // whole difference in the window, and getting it the wrong way round would
+  // empty the list in front of somebody who asked to add to it.
+  if (!r.resumed) {
+    steps = [];
+    selectedId = null;
+    marked.clear();
+  }
   el.sessionName.value = r.name || '';
   el.scopeBtn.textContent = `Capture: ${r.scope}`;
   el.notice.hidden = true;
@@ -847,6 +866,19 @@ function recordingBegan(r) {
   setState('recording');
   startElapsed();
 }
+
+/**
+ * Adds to the recording that is open instead of starting another.
+ *
+ * No setup dialog: its purpose, template and name were settled when it was
+ * first started, and asking again would invite answers that contradict what is
+ * already in the folder.
+ */
+el.continueBtn.addEventListener('click', async () => {
+  const r = await window.bsr.continueRecording();
+  if (!r.ok) { alert(r.error); return; }
+  recordingBegan(r);
+});
 
 el.pause.addEventListener('click', async () => {
   if (state === 'paused') { await window.bsr.resumeRecording(); setState('recording'); }

@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 // the filesystem or the capture process stays in the main process.
 contextBridge.exposeInMainWorld('bsr', {
   startRecording: (intent) => ipcRenderer.invoke('recording:start', intent),
+  continueRecording: (intent) => ipcRenderer.invoke('recording:continue', intent),
   listTemplates: () => ipcRenderer.invoke('templates:list'),
   effectiveTemplate: () => ipcRenderer.invoke('templates:effective'),
   revealTemplates: () => ipcRenderer.invoke('templates:reveal'),

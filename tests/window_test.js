@@ -111,6 +111,9 @@ const SETTINGS = {
   stepsCollapsed: false, stepsWidth: 320,
 };
 
+// Every time the page asked to carry a recording on.
+const CONTINUED = [];
+
 const ANSWERS = {
   // Every key the page reads, with the names the real settings file uses.
   // A half-answered stub painted "undefined" into the save path, "NaN%" into
@@ -120,6 +123,11 @@ const ANSWERS = {
   setSettings: (patch) => {
     Object.assign(SETTINGS, patch || {});
     return { ...SETTINGS };
+  },
+  continueRecording: () => {
+    CONTINUED.push(true);
+    return { ok: true, resumed: true, dir: 'C:\\recordings\\one',
+             name: 'A recording', scope: 'Everything', steps: 3 };
   },
   getShortcuts: () => KEYS.state(),
   // The real one releases the global hotkeys, so the chord being replaced can
@@ -259,6 +267,7 @@ for (const name of NAMES) {
     : async (...args) => (ANSWERS[name] ? ANSWERS[name](...args) : { ok: true });
 }
 bridge.__lastCrop = async () => LAST_CROP;
+bridge.__continued = async () => CONTINUED.length;
 // The hotkey arrives as an event from the main process, so the stub has to
 // hold the page's listener and be able to fire it.
 let onHotkey = () => {};
@@ -2701,6 +2710,55 @@ app.whenReady().then(async () => {
   // set layout and never appearance, and an input with no background of its own
   // is handed the operating system's - a white box in a dark window. Reading
   // the stylesheet cannot see this; only a rendered page can.
+  // ---- carrying a recording on ---------------------------------------------
+  // Starting always made a new folder, so a recording that stopped early was
+  // finished whether or not the job was. Continue adds to the one that is open.
+  console.log('\na recording that stopped can be carried on:');
+
+  const carried = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const btn = document.getElementById('btn-continue');
+    const stop = document.getElementById('btn-stop');
+
+    // Whatever the tests above left running, this starts from idle.
+    if (!stop.disabled) { stop.click(); await sleep(150); }
+
+    // Open a recording, so there is something to carry on.
+    const row = document.querySelector('#library-list .lib-row');
+    if (row) { row.click(); await sleep(200); }
+
+    const steps = () => document.querySelectorAll('#step-list li.step').length;
+    const openWithSteps = { shown: !btn.hidden, steps: steps() };
+
+    const before = steps();
+    btn.click();
+    await sleep(200);
+    const during = {
+      hidden: btn.hidden,
+      steps: steps(),
+      recording: document.getElementById('status-text').textContent,
+      asked: await window.bsr.__continued(),
+    };
+
+    stop.click();
+    await sleep(200);
+    return { openWithSteps, before, during, backAfterStop: !btn.hidden };
+  })()`);
+
+  check('a recording open and idle offers to be carried on',
+        carried.openWithSteps.shown, JSON.stringify(carried.openWithSteps));
+  check('and it had steps to carry on from', carried.openWithSteps.steps > 0);
+  check('pressing it asks to continue, not to start', carried.during.asked === 1);
+  // The whole point: the steps already recorded stay where they are.
+  check('the steps already recorded are kept',
+        carried.during.steps === carried.before,
+        `${carried.before} before, ${carried.during.steps} after`);
+  check('and the window says it is recording again',
+        carried.during.recording === 'Recording');
+  check('nothing offers to be carried on while it is recording',
+        carried.during.hidden);
+  check('and the offer comes back when it stops', carried.backAfterStop);
+
   console.log('\nno field you type into is wearing the platform colours:');
 
   const fields = await win.webContents.executeJavaScript(`

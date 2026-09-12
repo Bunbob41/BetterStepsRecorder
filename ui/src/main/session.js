@@ -42,6 +42,29 @@ class Session {
     return this.name;
   }
 
+  /**
+   * The highest screenshot number the engine has already used here.
+   *
+   * Read off the folder rather than counted from the steps: a deleted step
+   * leaves a gap, and counting would hand the engine a number it has already
+   * written. Resuming with the wrong number does not fail - it silently
+   * overwrites the pictures of the steps already recorded, which is the worst
+   * shape a bug can have.
+   *
+   * Photographs are skipped: they are named `photo-...` for exactly this reason
+   * (see addPhoto), so they cannot collide with the engine's sequence.
+   */
+  lastShotSeq() {
+    let top = 0;
+    try {
+      for (const name of fs.readdirSync(path.join(this.dir, 'steps'))) {
+        const m = /^(\d+)\./.exec(name);
+        if (m) top = Math.max(top, Number(m[1]));
+      }
+    } catch { /* no steps folder yet: nothing has been written */ }
+    return top;
+  }
+
   get metaPath() { return path.join(this.dir, 'session.json'); }
   get trashDir() { return path.join(this.dir, '.trash'); }
 

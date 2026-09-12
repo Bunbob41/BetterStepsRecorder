@@ -189,6 +189,7 @@ function wireSidecar() {
     // the person afterwards, in the notice bar, which stays out of sight while
     // the strip is up. The engine was still recording through all of them.
     if (isFatal(m.code)) {
+      logRecordingEnd(`the engine reported ${m.code}`);
       leaveCompact();
       send('sidecar:error', m);
       return;
@@ -226,6 +227,15 @@ function wireSidecar() {
   });
 
   sidecar.on('exit', (code) => {
+    // The engine going away underneath a live recording IS the recording
+    // cutting out, and it is the case that left no trace at all: no stop, no
+    // error, nothing. Said at error level because nobody asked for it to end.
+    if (recordingSince) {
+      log.error(`capture engine exited (code ${code}) while recording - `
+                + 'the recording ends here, and nothing after this was captured');
+    }
+    logRecordingEnd(`the capture engine exited (code ${code})`);
+
     // Without this, an engine killed by antivirus or a crash leaves the window
     // as a floating strip with every other control hidden and no way back.
     leaveCompact();
@@ -293,8 +303,7 @@ function registerHotkeys() {
       send('hotkey', { action: 'idle' });
       return;
     }
-    finishRecording();
-    log.info('hotkey: stopped');
+    finishRecording('the stop hotkey');
     send('hotkey', { action: 'stopped' });
   });
 
@@ -329,6 +338,7 @@ app.on('window-all-closed', () => {
 
 // A global mouse hook must never outlive the UI.
 app.on('before-quit', () => {
+  logRecordingEnd('the application quit');
   if (sidecar) sidecar.stop();
   closeSession();
 });
@@ -349,6 +359,34 @@ let engineBuild = null;
 // named after what it recorded. Not stored: a name in session.json is a name
 // somebody may have chosen, and this is the one fact that says otherwise.
 let autoNamedAs = null;
+
+// When the current recording began, or null when nothing is being recorded.
+// This is also the answer to "was a recording under way", which `session`
+// cannot give: a session outlives its recording, because stopping leaves it
+// open in the editor.
+let recordingSince = null;
+
+/**
+ * Write down that a recording ended, and what ended it.
+ *
+ * Only the start was ever logged, so every recording in the log trails off and
+ * a person asking "why did it cut out?" could not be answered - not even with
+ * "it did not, you stopped it". The count and the duration are here because the
+ * first thing worth knowing is whether the recording that ended is the one the
+ * person thinks ended.
+ *
+ * Silent when nothing was being recorded: quitting the application with a
+ * recording open in the editor has not ended anything.
+ */
+function logRecordingEnd(reason) {
+  if (!recordingSince) return;
+  const secs = Math.round((Date.now() - recordingSince) / 1000);
+  recordingSince = null;
+  const steps = session ? sections.countSteps(session.steps) : 0;
+  const shots = session ? shotFiles(session).length : 0;
+  log.info(`recording ended (${reason}): ${steps} steps, ${shots} screenshots, `
+           + `after ${Math.floor(secs / 60)}m ${secs % 60}s`);
+}
 
 function enterCompact() {
   if (!win || fullBounds) return;
@@ -451,9 +489,19 @@ ipcMain.handle('templates:reveal', () => {
  * do exactly this without a window involved - and a second implementation of
  * "start a recording" is how the two come to disagree about scope, intent or
  * which pids are excluded.
+ *
+ * `intent.resume` carries on the recording already open instead of making a new
+ * one. Same path deliberately: resuming differs from starting in three
+ * particulars - the folder, the numbering and what is kept - and everything
+ * else about getting a recording under way must not be able to drift between
+ * them.
  */
 async function beginRecording(intent = {}) {
-  log.info('recording:start invoked');
+  const resuming = Boolean(intent.resume);
+  log.info(resuming ? 'recording:continue invoked' : 'recording:start invoked');
+  if (resuming && !session) {
+    return { ok: false, error: 'There is no recording open to carry on.' };
+  }
   const exe = Sidecar.resolveExe(PROJECT_ROOT);
   log.info(`capture engine: ${exe}`);
   if (!exe) {
@@ -466,26 +514,45 @@ async function beginRecording(intent = {}) {
     return { ok: false, error: `Cannot write to ${settings.values.saveRoot}: ${writable.error}` };
   }
 
-  const dir = path.join(settings.values.saveRoot,
-    `session-${new Date().toISOString().replace(/[:.]/g, '-')}`);
-  log.info(`creating session at ${dir}`);
-  closeSession();
-  session = new Session(dir);
-  // Named by when it started for now, so the strip and the library have
-  // something to show. Remembered, so stopping can tell whether it was ever
-  // named by a person.
-  autoNamedAs = intent.name ? null : new Date().toLocaleString();
-  session.rename(intent.name || autoNamedAs);
+  let dir;
+  if (resuming) {
+    dir = session.dir;
+    log.info(`continuing the recording at ${dir} `
+             + `(${sections.countSteps(session.steps)} steps already)`);
+    // Its purpose and template were chosen when it was first started, and its
+    // history and trash belong to it: nothing is closed or reset here.
+    //
+    // The name, though, may have been this application's own summary of what
+    // was recorded - and there is about to be more of it. If the name is still
+    // exactly what would be generated for the steps it has, nobody typed it,
+    // so let it be generated again when this leg stops.
+    autoNamedAs = session.name
+      && session.name === appName.label(session.steps,
+                                        sections.countSteps(session.steps))
+      ? session.name
+      : null;
+  } else {
+    dir = path.join(settings.values.saveRoot,
+      `session-${new Date().toISOString().replace(/[:.]/g, '-')}`);
+    log.info(`creating session at ${dir}`);
+    closeSession();
+    session = new Session(dir);
+    // Named by when it started for now, so the strip and the library have
+    // something to show. Remembered, so stopping can tell whether it was ever
+    // named by a person.
+    autoNamedAs = intent.name ? null : new Date().toLocaleString();
+    session.rename(intent.name || autoNamedAs);
 
-  // Decided before recording, not at export: it changes how the steps are
-  // worded on the way out, and the person starting knows what they are making.
-  session.setIntent({
-    purpose: intent.purpose || 'sop',
-    templatePath: intent.purpose === 'sop'
-      ? templatesLib.defaultFor(PROJECT_ROOT, app.getPath('userData'),
-                                intent.templatePath || settings.values.templatePath)
-      : '',
-  });
+    // Decided before recording, not at export: it changes how the steps are
+    // worded on the way out, and the person starting knows what they are making.
+    session.setIntent({
+      purpose: intent.purpose || 'sop',
+      templatePath: intent.purpose === 'sop'
+        ? templatesLib.defaultFor(PROJECT_ROOT, app.getPath('userData'),
+                                  intent.templatePath || settings.values.templatePath)
+        : '',
+    });
+  }
 
   if (Array.isArray(intent.scopePids)) {
     scopePids = intent.scopePids;
@@ -503,6 +570,9 @@ async function beginRecording(intent = {}) {
     imageFrame: settings.values.imageFrame,
     recordKeyboard: settings.values.recordKeyboard,
     allowPids: scopePids,
+    // Carry on past the pictures already in the folder. Starting fresh, this is
+    // 0 and the engine numbers from 0001 as it always has.
+    seqFrom: resuming ? session.lastShotSeq() : 0,
     // So pressing the stop hotkey is not itself the final recorded step.
     hotkeys: shortcuts.engineChords(settings.values),
   });
@@ -512,16 +582,22 @@ async function beginRecording(intent = {}) {
   }
 
   // Only once recording is genuinely under way: shrinking for a start that
-  // failed leaves the user in a strip with nothing recording.
+  // failed leaves the user in a strip with nothing recording. The clock starts
+  // here for the same reason - a start that failed ended nothing.
+  recordingSince = Date.now();
+
   enterCompact();
-  send('session:saved', { dir, count: 0 });
+  send('session:saved', { dir, count: session.steps.length });
   return {
     ok: true, dir, scope: scopeLabel, name: session.name,
     purpose: session.purpose, templatePath: session.templatePath,
+    resumed: resuming, steps: session.steps.length,
   };
 }
 
 ipcMain.handle('recording:start', (_e, intent = {}) => beginRecording(intent));
+ipcMain.handle('recording:continue', (_e, intent = {}) =>
+  beginRecording({ ...intent, resume: true }));
 
 /**
  * Starts a recording of whatever application is in front, from the hotkey.
@@ -574,15 +650,28 @@ async function startFromHotkey() {
 // that happen to know about the capture engine.
 ipcMain.handle('ui:restore', () => { leaveCompact(); return { ok: true }; });
 
-ipcMain.handle('recording:pause',  () => { recordingPaused = true;  sidecar.pause();  return { ok: true }; });
-ipcMain.handle('recording:resume', () => { recordingPaused = false; sidecar.resume(); return { ok: true }; });
+ipcMain.handle('recording:pause', () => {
+  recordingPaused = true;
+  sidecar.pause();
+  // A recording that was paused and a recording that stopped by itself look
+  // the same afterwards: no new steps. The pause hotkey is easy to hit by
+  // accident, so the log has to be able to tell the two apart.
+  log.info('recording paused');
+  return { ok: true };
+});
+ipcMain.handle('recording:resume', () => {
+  recordingPaused = false;
+  sidecar.resume();
+  log.info('recording resumed');
+  return { ok: true };
+});
 
 /**
  * Ends a recording. Both the Stop button and the global hotkey come here, so
  * that anything which should happen at the end of a recording happens once and
  * in one place rather than twice, slightly differently.
  */
-function finishRecording() {
+function finishRecording(reason = 'stopped') {
   recordingPaused = false;
   leaveCompact();
   sidecar.stop();
@@ -613,10 +702,13 @@ function finishRecording() {
       send('notice', { kind: 'size', message: advice.message });
     }
   }
+
+  // Last, so the count and the name are the ones the recording ended with.
+  logRecordingEnd(reason);
 }
 
 ipcMain.handle('recording:stop', () => {
-  finishRecording();
+  finishRecording('the Stop button');
   return { ok: true, steps: session ? session.steps.length : 0 };
 });
 

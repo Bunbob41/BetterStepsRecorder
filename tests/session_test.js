@@ -536,5 +536,42 @@ console.log('\nthe marks on a step:');
   fs.rmSync(mdir, { recursive: true, force: true });
 }
 
+// Carrying a recording on hands this number to the engine. Get it wrong and the
+// engine writes 0001 again, over the picture of the first step already
+// recorded: no error, no crash, just the wrong pictures under the right words.
+console.log('\nwhere the screenshot numbering has got to:');
+{
+  const bench = fs.mkdtempSync(path.join(os.tmpdir(), 'bsr-seq-'));
+  const shots = (names) => {
+    const dir = fs.mkdtempSync(path.join(bench, 's-'));
+    const s = new Session(dir);
+    for (const n of names) fs.writeFileSync(path.join(dir, 'steps', n), 'x');
+    return s;
+  };
+
+  check('a recording with nothing in it starts from zero',
+        shots([]).lastShotSeq() === 0);
+  check('one screenshot in and it is 1', shots(['0001.png']).lastShotSeq() === 1);
+  check('the highest wins, not the count',
+        shots(['0001.png', '0002.png', '0003.png']).lastShotSeq() === 3);
+  // A deleted step leaves a gap. Counting the files would hand the engine a
+  // number it has already used.
+  check('a gap left by a deleted step does not lower it',
+        shots(['0001.png', '0007.png']).lastShotSeq() === 7);
+  check('the format makes no difference', shots(['0004.jpg']).lastShotSeq() === 4);
+  // Photographs are named photo-<stamp> precisely so they cannot collide.
+  check('a photograph is not part of the sequence',
+        shots(['0002.png', 'photo-abc123-xy.jpg']).lastShotSeq() === 2);
+  check('and neither is anything else in there',
+        shots(['0002.png', 'redo-20260912.png', 'notes.txt']).lastShotSeq() === 2);
+
+  const gone = new Session(fs.mkdtempSync(path.join(bench, 'g-')));
+  fs.rmSync(path.join(gone.dir, 'steps'), { recursive: true, force: true });
+  check('a folder with no steps directory answers zero, not a crash',
+        gone.lastShotSeq() === 0);
+
+  fs.rmSync(bench, { recursive: true, force: true });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
