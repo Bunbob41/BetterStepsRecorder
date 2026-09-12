@@ -3,7 +3,9 @@
 Notable changes, newest first. The reasoning behind each decision lives in
 [docs/ENGINEERING.md](docs/ENGINEERING.md); this is the short version.
 
-## Unreleased
+## 0.2.2
+
+### Recording
 
 - Fixed: **the screenshots were one step behind the words.** Click through a
   row of tabs, or Options and then Settings, and each picture showed what the
@@ -33,6 +35,24 @@ Notable changes, newest first. The reasoning behind each decision lives in
   recorded as *Charts* and one on *Planned Lines* as *3D Options and Levels*,
   while the picture and the arrow showed the right tab. Buttons, checkboxes and
   radio buttons were never affected.
+- **The recording strip says when it can't see the program you're in.** A
+  program started with *Run as administrator* can't be recorded by an ordinary
+  one — Windows doesn't allow it — and a recording made that way used to miss
+  every step without a word. Now the strip says *Can't see … running as
+  administrator* while you're in it, and a note afterwards explains what was
+  missed and what to do.
+- Fixed: **a click on OK or Open often produced a step that said only
+  "Clicked"** — no control, no window, no application. Those clicks close the
+  dialog, and by the time the recorder looked, there was nothing left to
+  describe. The two most important steps in a procedure were the two it failed
+  hardest on.
+- Fixed: **a step could be named after a control in the window the click
+  opened** — a name for something you never touched, which is worse than no name
+  at all, because the picture and the words disagree and only the words are
+  wrong.
+
+### The window
+
 - Fixed: **eight text boxes were white in a dark window.** The library search,
   both find-and-replace boxes and the five highlight-legend fields were being
   drawn in Windows' own colours instead of the app's. They match every other
@@ -47,6 +67,9 @@ Notable changes, newest first. The reasoning behind each decision lives in
   every figure, so this is the difference between a guide titled *HYPACK Shell*
   and one titled *9/11/2026, 3:42:26 PM*. Type a name at any point and it is left
   alone.
+
+### LaTeX and Overleaf
+
 - **Screenshots are sized for the page in LaTeX exports.** At most 1600 pixels
   wide — wider than the text line can print — which turns a fourteen-megabyte
   procedure into a few megabytes and keeps a free Overleaf project well inside
@@ -69,21 +92,8 @@ Notable changes, newest first. The reasoning behind each decision lives in
   files to Overleaf and finding nothing in the PDF, because nothing includes the
   fragment, was the step everyone was missing. Verified by exporting a
   thirty-seven step recording and compiling it in Overleaf.
-- **The recording strip says when it can't see the program you're in.** A
-  program started with *Run as administrator* can't be recorded by an ordinary
-  one — Windows doesn't allow it — and a recording made that way used to miss
-  every step without a word. Now the strip says *Can't see … running as
-  administrator* while you're in it, and a note afterwards explains what was
-  missed and what to do.
-- Fixed: **a click on OK or Open often produced a step that said only
-  "Clicked"** — no control, no window, no application. Those clicks close the
-  dialog, and by the time the recorder looked, there was nothing left to
-  describe. The two most important steps in a procedure were the two it failed
-  hardest on.
-- Fixed: **a step could be named after a control in the window the click
-  opened** — a name for something you never touched, which is worse than no name
-  at all, because the picture and the words disagree and only the words are
-  wrong.
+
+### Recordings between versions
 
 - **A recording keeps the parts your version does not understand.** Recordings
   get passed between machines, and those machines will not always be running

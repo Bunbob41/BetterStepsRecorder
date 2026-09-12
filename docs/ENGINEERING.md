@@ -21,8 +21,9 @@ A Windows screen-capture tool that turns a task performed on screen into a
 document somebody else can follow. A replacement for the deprecated
 `PSR.exe`.
 
-Current state: **v0.1.2** released and in daily use by colleagues, with builds
-since then carrying the marker, LaTeX and photograph work. Packaged as an
+Current state: **v0.2.2** released and in daily use by colleagues. Since
+v0.1.2 the marker, LaTeX and photograph work landed, then the press-time
+capture fixes (D-70, D-71) and the Overleaf exports (D-75 to D-77). Packaged as an
 unsigned per-user NSIS installer, in a PUBLIC repository - which is a fact
 about what may safely appear in a screenshot, a commit or an issue.
 
