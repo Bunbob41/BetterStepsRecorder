@@ -423,6 +423,11 @@ body.compact { overflow: hidden; }
   user-select: text;
 }
 .session-name::placeholder { color: var(--muted); opacity: .8; }
+.close-rec {
+  background: transparent; border: 1px solid transparent; color: var(--muted);
+  font-size: 18px; line-height: 1; padding: 3px 8px; margin-left: -6px;
+}
+.close-rec:hover:not(:disabled) { color: var(--text); background: var(--panel-2); }
 .session-name:hover { border-color: var(--line); background: var(--panel-2); }
 .session-name:focus { outline: none; background: var(--panel-2); border-color: var(--accent); }
 
@@ -543,6 +548,12 @@ footer .hint .sep { color: var(--line); margin: 0 4px; }
   font-size: 12.5px;
 }
 .notice[hidden] { display: none; }
+/* The recording was kept. Green enough to read as done, dark enough to sit in
+   this window, and never mistaken for the advisory strip it shares a shape with. */
+.finished { background: #1b2a20; border-bottom-color: #2d4a36; }
+.finished-tick { color: #5fcf80; font-weight: 700; }
+.finished #finished-text { flex: 1; }
+.finished button { padding: 4px 12px; }
 .notice #notice-text { flex: 1; }
 .notice-x {
   background: transparent;

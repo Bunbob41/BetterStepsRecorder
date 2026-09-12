@@ -24,14 +24,19 @@
   <header class="toolbar">
     <input id="session-name" class="session-name" type="text"
            placeholder="Untitled recording" aria-label="Recording name" />
+    <!-- Closes the recording that is open and goes back to the list. Stopping
+         leaves a recording open for editing, and without this nothing ever put
+         it away: the window felt permanently inside the last thing recorded. -->
+    <button id="btn-close" class="close-rec" hidden
+            title="Close this recording" aria-label="Close this recording">&times;</button>
     <div class="controls">
       <div class="group" role="group" aria-label="Recording">
         <button id="btn-scope">Capture: Everything</button>
-        <button id="btn-record" class="primary">Start recording</button>
+        <button id="btn-record" class="primary">New recording</button>
         <!-- Only for a recording that is open and idle: it adds to that one
              rather than making another. Hidden the rest of the time, because
              "continue" with nothing open has nothing to continue. -->
-        <button id="btn-continue" hidden>Continue recording</button>
+        <button id="btn-continue" hidden>Continue this recording</button>
         <!-- No Pause or Stop here. Recording shrinks the window to the strip
              above, which carries both: a copy in this toolbar could only ever
              be seen disabled, because every state that enables it hides it. -->
@@ -60,6 +65,17 @@
     <span id="notice-text"></span>
     <button id="notice-settings" class="linky">Open Settings</button>
     <button id="notice-close" class="notice-x" title="Dismiss">&times;</button>
+  </div>
+
+  <!-- What stopping says. Everything was already on disk, but the only evidence
+       was a line in the footer, so a finished recording felt abandoned rather
+       than kept - and there was no obvious next move. -->
+  <div id="finished" class="notice finished" hidden>
+    <span class="finished-tick" aria-hidden="true">&#10003;</span>
+    <span id="finished-text"></span>
+    <button id="finished-export" class="primary">Export&hellip;</button>
+    <button id="finished-edit">Keep editing</button>
+    <button id="finished-new">New recording</button>
   </div>
 
   <div id="huemenu" class="huemenu" hidden></div>
@@ -126,7 +142,7 @@
           </div>
           <div id="library-list" class="library-list"></div>
           <p id="library-empty" class="library-none" hidden>
-            Nothing recorded yet. Press <strong>Start recording</strong>, say what
+            Nothing recorded yet. Press <strong>New recording</strong>, say what
             you are making, then use your computer normally — every click, drag and
             typed value is captured with a screenshot.
           </p>

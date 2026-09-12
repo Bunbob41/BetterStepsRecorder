@@ -44,6 +44,10 @@ const el = {
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
   add: $('btn-add'),
   continueBtn: $('btn-continue'),
+  closeBtn: $('btn-close'),
+  finished: $('finished'), finishedText: $('finished-text'),
+  finishedExport: $('finished-export'), finishedEdit: $('finished-edit'),
+  finishedNew: $('finished-new'),
   stepsCollapse: $('btn-steps-collapse'), stepsExpand: $('btn-steps-expand'),
   stepsResize: $('steps-resize'),
   railCount: $('rail-count'),
@@ -224,6 +228,10 @@ function paintStatus() {
  */
 function paintContinue() {
   el.continueBtn.hidden = !(state === 'idle' && openDir && steps.length > 0);
+  // Something open, and nothing recording: the only time there is a recording
+  // to put away. Mid-recording the window is the strip, and closing would pull
+  // the recording out from under the engine.
+  el.closeBtn.hidden = !(state === 'idle' && openDir);
 }
 
 function renderList() {
@@ -880,6 +888,8 @@ function recordingBegan(r) {
   el.sessionName.value = r.name || '';
   el.scopeBtn.textContent = `Capture: ${r.scope}`;
   el.notice.hidden = true;
+  el.finished.hidden = true;
+  if (!r.resumed) el.expTitle.value = '';
   // Starting a recording while a step was open left the PREVIOUS recording's
   // screenshot and details sitting in the pane, under a step list that had
   // just been emptied.
@@ -924,9 +934,67 @@ async function pauseOrResume() {
 
 async function stopRecording() {
   await window.bsr.stopRecording();
+  recordingFinished();
+}
+
+/**
+ * What the window does once a recording has stopped, however it was stopped.
+ *
+ * One function because there are two ways to stop - the strip and the hotkey -
+ * and the hotkey used to skip half of this: it went idle without refreshing the
+ * library, so the recording just made was missing from the list.
+ */
+function recordingFinished() {
   setState('idle');
   renderLibrary();
+  showFinished();
 }
+
+/**
+ * Says the recording is kept, and offers the next move.
+ *
+ * Everything was on disk before this appears - it is not a save. It is the
+ * confirmation that stopping kept the work, which a line in the footer never
+ * managed to be.
+ */
+function showFinished() {
+  const n = BsrSections.countSteps(steps);
+  if (!n) { el.finished.hidden = true; return; }
+  const name = (el.sessionName.value || '').trim();
+  const count = `${n} step${n === 1 ? '' : 's'}`;
+  el.finishedText.textContent = name ? `Saved \u2014 ${name}, ${count}` : `Saved \u2014 ${count}`;
+  el.notice.hidden = true;
+  el.finished.hidden = false;
+}
+
+/**
+ * Puts the open recording away and goes back to the list.
+ *
+ * Nothing is deleted and nothing is written: this ends the window's hold on the
+ * recording, which is what "I can't start a new recording" was really about.
+ */
+async function closeRecording() {
+  if (state !== 'idle') return;
+  const r = await window.bsr.closeSession();
+  if (r && r.ok === false) { if (r.error) showNotice(r.error); return; }
+
+  steps = [];
+  selectedId = null;
+  marked.clear();
+  openDir = null;
+  el.sessionName.value = '';
+  // The export title is only filled in when it is empty, so the last
+  // recording's title would otherwise be offered for the next one.
+  el.expTitle.value = '';
+  el.finished.hidden = true;
+  renderList();
+  await showLibrary();
+}
+
+el.closeBtn.addEventListener('click', closeRecording);
+el.finishedEdit.addEventListener('click', () => { el.finished.hidden = true; });
+el.finishedExport.addEventListener('click', () => { el.finished.hidden = true; openExport(); });
+el.finishedNew.addEventListener('click', () => { el.finished.hidden = true; openSetup(); });
 
 async function openFromDisk() {
   const r = await window.bsr.openSession();
@@ -1261,6 +1329,9 @@ el.recordings.addEventListener('click', (e) => {
       enabled: !atHome(),
       run: () => showLibrary() },
     { label: 'Open one from anywhere\u2026', run: () => openFromDisk() },
+    { label: 'Close this recording',
+      enabled: Boolean(openDir) && state === 'idle',
+      run: () => closeRecording() },
     null,
     // Rare, and it needs the application it describes to be running - which is
     // exactly why it stopped being a button that sat in the window all day.
@@ -2454,7 +2525,7 @@ el.cStop.addEventListener('click', stopRecording);
 window.bsr.onHotkey(({ action, session, error }) => {
   if (action === 'paused') setState('paused');
   else if (action === 'resumed') setState('recording');
-  else if (action === 'stopped') setState('idle');
+  else if (action === 'stopped') recordingFinished();
   else if (action === 'started' && session) {
     recordingBegan(session);
     showNotice(`Recording ${session.scope}. Press the same key to pause, `
@@ -3312,7 +3383,8 @@ async function applyPixels(tool, { sel, from, to }, displayedWidth) {
 
 // ---- export -------------------------------------------------------------------
 
-el.exportBtn.addEventListener('click', async () => {
+/** Opens the export dialog. A function, so the finished bar calls it directly. */
+async function openExport() {
   if (!steps.length) { alert('Record something first.'); return; }
   if (!el.expTitle.value) el.expTitle.value = el.sessionName.value || 'Recorded steps';
 
@@ -3328,7 +3400,9 @@ el.exportBtn.addEventListener('click', async () => {
       + 'as written.';
 
   el.exportDlg.showModal();
-});
+}
+
+el.exportBtn.addEventListener('click', openExport);
 
 el.expCancel.addEventListener('click', () => el.exportDlg.close());
 

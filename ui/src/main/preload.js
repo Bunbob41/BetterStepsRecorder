@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 contextBridge.exposeInMainWorld('bsr', {
   startRecording: (intent) => ipcRenderer.invoke('recording:start', intent),
   continueRecording: (intent) => ipcRenderer.invoke('recording:continue', intent),
+  closeSession: () => ipcRenderer.invoke('session:close'),
   listTemplates: () => ipcRenderer.invoke('templates:list'),
   effectiveTemplate: () => ipcRenderer.invoke('templates:effective'),
   revealTemplates: () => ipcRenderer.invoke('templates:reveal'),

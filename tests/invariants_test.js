@@ -243,6 +243,22 @@ console.log('\nan engine on its way out is not offered to a new recording:');
   check('and stops waiting rather than hanging', /setTimeout\(resolve, 4000\)/.test(main));
 }
 
+console.log('\na recording can be put away:');
+{
+  const at = main.indexOf("ipcMain.handle('session:close'");
+  const body = main.slice(at, main.indexOf('\n});', at));
+  // Closing mid-recording would pull the folder out from under the engine.
+  check('closing is refused while something is recording',
+        /if \(recordingSince\) return \{ ok: false/.test(body));
+  // Really closed, not only in the window: Continue carries on whatever main
+  // has open, so a recording closed only in the window could still be resumed.
+  check('and closes it in main, not only on screen', /session = null;/.test(body));
+  // Two ways to stop, one way to finish.
+  check('the strip and the stop hotkey finish a recording the same way',
+        /async function stopRecording\(\) \{[\s\S]{0,120}recordingFinished\(\)/.test(renderer)
+        && /action === 'stopped'\) recordingFinished\(\)/.test(renderer));
+}
+
 console.log('\nthe end of a recording is written down:');
 {
   // Only the start was ever logged, so every recording in the log trailed off

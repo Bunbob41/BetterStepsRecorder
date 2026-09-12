@@ -46,6 +46,20 @@ const check = (n, c, extra) => {
 };
 
 /** Everything the page asks the main process for, answered plausibly. */
+// EVERYTHING BETWEEN HERE AND THE CLOSING BACKTICK IS TEXT, NOT CODE.
+//
+// PRELOAD is a template literal written out as the page's preload file, so the
+// objects inside it - KEYS, ANSWERS, the bridge - only look like part of this
+// test. Two consequences, and both have bitten:
+//
+//   - A backtick anywhere inside, even in a comment, ends the string. The test
+//     then fails to load, and Electron does not exit on a load error: it sits
+//     with no window until something kills it. Ten minutes went on a "hang"
+//     that was a SyntaxError on one comment written with code formatting.
+//   - A dollar sign followed by a brace is interpolated here, in the test,
+//     rather than written into the preload.
+//
+// If the suite hangs with nothing printed, run: node --check tests/window_test.js
 const PRELOAD = `
 const { contextBridge } = require('electron');
 
@@ -124,6 +138,11 @@ const ANSWERS = {
     Object.assign(SETTINGS, patch || {});
     return { ...SETTINGS };
   },
+  // The setup dialog lists the open windows before it appears, and checks only
+  // r.ok before iterating r.windows. Unanswered, the stub's bare { ok: true }
+  // passes that check with nothing to iterate and the dialog never opens. The
+  // real engine resolves an array on every path, timeout included.
+  listWindows: () => ({ ok: true, windows: [] }),
   continueRecording: () => {
     CONTINUED.push(true);
     return { ok: true, resumed: true, dir: 'C:\\recordings\\one',
@@ -2856,6 +2875,86 @@ app.whenReady().then(async () => {
   check('and go back to naming what is open when it stops',
         line.after.said === `${line.after.strip} · ${line.after.name}`,
         `"${line.after.said}" vs "${line.after.strip} · ${line.after.name}"`);
+
+  // ---- finishing a recording ----------------------------------------------
+  // "There's no way to stop and save the recording... I feel like I can't start
+  // a new recording." Stopping said nothing, nothing ever closed a recording,
+  // and New and Continue sat side by side without saying which was which.
+  console.log('\na recording can be finished and put away:');
+
+  const done = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const $ = (id) => document.getElementById(id);
+    const stepsNow = () => document.querySelectorAll('#step-list li.step').length;
+
+    // Something open, then recording, then stopped - the ordinary sequence.
+    $('c-stop').click(); await sleep(150);
+    const row = document.querySelector('#library-list .lib-row');
+    if (row) { row.click(); await sleep(250); }
+    $('btn-continue').click(); await sleep(200);
+    $('c-stop').click(); await sleep(250);
+
+    const stopped = {
+      shown: !$('finished').hidden,
+      said: $('finished-text').textContent,
+      name: $('session-name').value.trim(),
+      steps: stepsNow(),
+      closeOffered: !$('btn-close').hidden,
+    };
+
+    $('finished-edit').click(); await sleep(100);
+    const kept = { dismissed: $('finished').hidden, stillOpen: stepsNow() };
+
+    // The stop hotkey has to finish the same way the strip does.
+    $('btn-continue').click(); await sleep(200);
+    await window.bsr.__hotkey({ action: 'stopped' }); await sleep(250);
+    const byHotkey = !$('finished').hidden;
+
+    // New recording from the bar opens the ordinary setup, nothing more.
+    $('finished-new').click(); await sleep(250);
+    const setupOpen = $('setupdlg').open;
+    $('setupdlg').close(); await sleep(100);
+
+    $('btn-close').click(); await sleep(350);
+    const closed = {
+      steps: stepsNow(),
+      name: $('session-name').value,
+      status: $('status-text').textContent.trim(),
+      continueHidden: $('btn-continue').hidden,
+      closeHidden: $('btn-close').hidden,
+      finishedHidden: $('finished').hidden,
+      libraryShown: document.querySelectorAll('#library-list .lib-row').length > 0,
+    };
+
+    return { stopped, kept, byHotkey, setupOpen, closed,
+             labels: { record: $('btn-record').textContent.trim(),
+                       cont: $('btn-continue').textContent.trim() } };
+  })()`);
+
+  check('stopping says the recording was kept', done.stopped.shown);
+  check('naming the recording and how many steps it has',
+        done.stopped.said.includes(done.stopped.name) && /\d+ steps?/.test(done.stopped.said),
+        done.stopped.said);
+  check('and offers to close it', done.stopped.closeOffered);
+  check('Keep editing puts the message away', done.kept.dismissed);
+  check('and leaves the recording open', done.kept.stillOpen > 0);
+  check('the stop hotkey finishes a recording the same way', done.byHotkey);
+  check('New recording from there opens the setup', done.setupOpen);
+
+  check('closing empties the step list', done.closed.steps === 0, String(done.closed.steps));
+  check('and the name', done.closed.name === '');
+  check('and the status line goes back to Idle', done.closed.status === 'Idle',
+        done.closed.status);
+  // Continue carries on whatever is open; with nothing open there is nothing
+  // to carry on, and offering it anyway would be the confusion this fixes.
+  check('nothing is offered to be continued', done.closed.continueHidden);
+  check('nor to be closed again', done.closed.closeHidden);
+  check('and the list of recordings is what is on screen', done.closed.libraryShown);
+
+  check('the button that starts a recording says it is a new one',
+        done.labels.record === 'New recording', done.labels.record);
+  check('and Continue says it adds to this one',
+        done.labels.cont === 'Continue this recording', done.labels.cont);
 
   console.log('\nno field you type into is wearing the platform colours:');
 

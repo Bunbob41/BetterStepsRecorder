@@ -133,7 +133,7 @@ machine — there is no account, no telemetry and no network use of any kind.
 
 ## Using it
 
-1. **Set out** — press **Start recording** and say what you are making: a
+1. **Set out** — press **New recording** and say what you are making: a
    procedure (rendered into an SOP template), a training guide, or an evidence
    record (kept in the past tense, because it describes what was done). Name it,
    pick a template, and scope it to one application if you want everything else

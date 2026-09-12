@@ -227,6 +227,47 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-86 - A recording can be finished
+`(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
+[ui/src/main/main.js](../ui/src/main/main.js)
+
+Reported from use: "there's no way to stop and save the recording. there's only
+the autosave and it's weird because i feel like i can't start a new recording."
+
+Nothing was lost - every step is on disk the moment it is taken (D-9) - so this
+was never a saving problem. It was three smaller ones that together made a
+finished recording feel unfinished:
+
+- **Stopping said nothing.** The only evidence the work was kept was a line in
+  the footer. Stopping now shows *Saved - name, N steps* with the three moves
+  that follow: Export, Keep editing, New recording.
+- **Nothing ever closed a recording.** Stopping leaves it open for editing, and
+  no control anywhere put it away, so the window felt permanently inside the
+  last thing recorded. There is a close button beside the name and a *Close this
+  recording* in the Recordings menu; both return to the list with nothing open.
+- **New and Continue did not say which was which** - made worse by D-81, which
+  put Continue beside Start. They read *New recording* and *Continue this
+  recording* now.
+
+**Deliberately not a Save button.** There is nothing for it to do, and a control
+that does nothing is exactly what D-83 removed from this toolbar. The bar says
+*Saved* because it is true, not because pressing something made it true.
+
+- **Closing is real in main, not only on screen.** `session:close` sets
+  `session = null`. Continue carries on whatever main has open, so a recording
+  closed only in the window would still have been resumable through the bridge.
+  It is refused while recording, when it would pull the folder out from under the
+  engine. `null` is safe everywhere because it is the state the application
+  starts in.
+- **One tail for both ways of stopping.** `recordingFinished()` is called by the
+  strip and by the stop hotkey. The hotkey used to go idle and skip the library
+  refresh, so a recording stopped that way was missing from the list.
+- **Export became a function**, `openExport()`, called by the toolbar and by the
+  finished bar - not a button the bar clicks, for the reason D-83 gives.
+- **The export title is cleared when a recording closes or a new one starts.** It
+  is only filled in when empty, so it would otherwise offer the previous
+  recording's title for the next one.
+
 ### D-85 - The screenshots are generated, not taken
 `(this change)` - [scripts/shots.js](../scripts/shots.js)
 

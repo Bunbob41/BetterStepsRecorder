@@ -817,6 +817,23 @@ function finishRecording(reason = 'stopped') {
   logRecordingEnd(reason);
 }
 
+/**
+ * Puts the open recording away, leaving nothing open.
+ *
+ * Nothing on disk changes: every step was written as it was taken. This is the
+ * window's "done with this one", and it has to be real here rather than only in
+ * the window - otherwise Continue, which carries on whatever is open, would
+ * still carry on a recording the person had closed.
+ */
+ipcMain.handle('session:close', () => {
+  if (recordingSince) return { ok: false, error: 'Stop the recording first.' };
+  if (session) log.info(`closed the recording at ${session.dir}`);
+  closeSession();
+  session = null;
+  autoNamedAs = null;
+  return { ok: true };
+});
+
 ipcMain.handle('recording:stop', () => {
   finishRecording('the Stop button');
   return { ok: true, steps: session ? session.steps.length : 0 };

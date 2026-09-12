@@ -3,6 +3,19 @@
 Notable changes, newest first. The reasoning behind each decision lives in
 [docs/ENGINEERING.md](docs/ENGINEERING.md); this is the short version.
 
+## Unreleased
+
+- **Stopping a recording says it was saved** — *Saved — Pump changeover, 12
+  steps* — and offers Export, Keep editing, or New recording. Nothing was ever
+  lost by stopping; it just never said so.
+- **A recording can be closed.** The × beside its name, or Recordings → Close
+  this recording, takes you back to the list with nothing open. Closing deletes
+  nothing.
+- **The buttons say what they do:** *New recording* always makes a separate
+  recording; *Continue this recording* adds to the one that is open.
+- Fixed: stopping with the stop hotkey left the recording out of the list until
+  something else refreshed it.
+
 ## 0.2.3
 
 ### Carrying a recording on

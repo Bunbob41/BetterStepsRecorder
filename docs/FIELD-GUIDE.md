@@ -593,10 +593,29 @@ what the window becomes while recording, along with the step count and the time
 elapsed. There is nothing to press in the main window while a recording is
 running, because the main window is not on screen then.
 
+### Finishing a recording
+
+Everything you record is saved the moment it happens, so there is no Save button
+and nothing to lose by stopping. When you press **Stop**, a green bar says so —
+*Saved — Pump changeover, 12 steps* — and offers what usually comes next:
+
+- **Export…** to turn it into a guide
+- **Keep editing** to tidy up the steps
+- **New recording** to start the next one
+
+When you are done with a recording, press the **×** beside its name at the top
+left (or **Recordings → Close this recording**). That takes you back to the list
+with nothing open, ready to start something new. Closing deletes nothing; the
+recording is still in the list and opens again with one click.
+
+**New recording** always makes a separate recording. **Continue this recording**
+adds to the one that is open, and only appears while one is.
+
 ### Picking a recording back up
 
 A recording that has stopped is not finished. Open it and, as long as nothing
-else is recording, the toolbar offers **Continue recording** beside Start. Press
+else is recording, the toolbar offers **Continue this recording** beside New
+recording. Press
 it and the new steps are added to the end of that recording, in the same folder,
 under the same name.
 
