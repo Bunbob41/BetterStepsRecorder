@@ -23,10 +23,45 @@ class Session {
     // an evidence record states what was done.
     this.purpose = 'sop';
     this.templatePath = '';
+    // What this recording was scoped to. Named by process rather than by pid:
+    // a pid is meaningless on the next run, and a recycled one belongs to
+    // somebody else's program. Empty `processes` means everything on screen.
+    this.scope = { label: '', processes: [] };
+    // The highest screenshot number this recording has EVER used. Kept because
+    // the folder cannot be trusted to remember it: deleting the last step
+    // unlinks its picture, which would lower the number read off the folder and
+    // let a continued recording write over a file an undo can still put back.
+    this.shotSeq = 0;
     // Whatever was in the file that this version does not understand. Empty for
     // a recording this version started; not necessarily empty for one it opened.
     this.extra = {};
     fs.mkdirSync(path.join(dir, 'steps'), { recursive: true });
+  }
+
+  /**
+   * Remembers what this recording is scoped to.
+   *
+   * `processes` are executable names, resolved back to live pids when the
+   * recording is carried on. A recording that captured one application must not
+   * silently capture everything on a later leg just because the application has
+   * been restarted since - that is somebody's mail in a document they think is
+   * scoped.
+   */
+  setScope({ label, processes }) {
+    this.scope = {
+      label: String(label || ''),
+      processes: (processes || []).map((p) => String(p)).filter(Boolean),
+    };
+    this.flush();
+    return this.scope;
+  }
+
+  /** Notes that the engine has used this screenshot name, and never forgets. */
+  noteShot(relative) {
+    const m = /^steps\/(\d+)\./.exec(String(relative || ''));
+    if (!m) return;
+    const n = Number(m[1]);
+    if (Number.isSafeInteger(n) && n > this.shotSeq) this.shotSeq = n;
   }
 
   setIntent({ purpose, templatePath }) {
@@ -55,11 +90,19 @@ class Session {
    * (see addPhoto), so they cannot collide with the engine's sequence.
    */
   lastShotSeq() {
-    let top = 0;
+    // The remembered mark first: it is the only one a deleted step cannot
+    // lower, and a deleted step's picture can still come back through undo.
+    let top = Number.isSafeInteger(this.shotSeq) ? this.shotSeq : 0;
     try {
       for (const name of fs.readdirSync(path.join(this.dir, 'steps'))) {
         const m = /^(\d+)\./.exec(name);
-        if (m) top = Math.max(top, Number(m[1]));
+        // A hand-placed file with an absurd number must not push this past what
+        // can be sent to the engine as an integer, or it arrives as no number
+        // at all and the numbering starts from 0001 again.
+        if (m) {
+          const n = Number(m[1]);
+          if (Number.isSafeInteger(n) && n > top) top = n;
+        }
       }
     } catch { /* no steps folder yet: nothing has been written */ }
     return top;
@@ -210,12 +253,14 @@ class Session {
       if (i !== -1) {
         step.screenshot = this.steps[i].screenshot || step.screenshot;
         this.steps[i] = step;
+        this.noteShot(step.screenshot);
         this.flush();
         return { replaced: true, index: i, step };
       }
     }
 
     this.steps.push(step);
+    this.noteShot(step.screenshot);
     this.flush();
     return { replaced: false, index: this.steps.length - 1, step };
   }
@@ -467,6 +512,7 @@ class Session {
       ...this.extra,
       v: format.CURRENT,
       name: this.name, purpose: this.purpose, templatePath: this.templatePath,
+      scope: this.scope, shotSeq: this.shotSeq,
       savedAt: new Date().toISOString(), steps: this.steps,
     };
     // Write-then-rename: a crash mid-write leaves the previous good file intact
@@ -522,6 +568,15 @@ class Session {
         s.name = data.name || '';
         s.purpose = data.purpose || 'sop';
         s.templatePath = data.templatePath || '';
+        // Absent in a recording made before this was remembered. Left null
+        // rather than defaulted to "everything", so carrying such a recording
+        // on can say it does not know instead of quietly widening the scope.
+        s.scope = data.scope && typeof data.scope === 'object'
+          ? { label: String(data.scope.label || ''),
+              processes: Array.isArray(data.scope.processes)
+                ? data.scope.processes.map(String).filter(Boolean) : [] }
+          : null;
+        s.shotSeq = Number.isSafeInteger(data.shotSeq) ? data.shotSeq : 0;
       } catch {
         // NOT an empty recording. Left as one, this is data loss with a single
         // stray byte behind it: the window shows a recording with no steps,

@@ -227,6 +227,75 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-84 - What a review of D-81 to D-83 found
+`(this change)` - [ui/src/main/main.js](../ui/src/main/main.js),
+[ui/src/main/session.js](../ui/src/main/session.js),
+[ui/src/main/sidecar.js](../ui/src/main/sidecar.js),
+[ui/src/main/format.js](../ui/src/main/format.js)
+
+Four defects, none of which any suite caught, three of them introduced by the
+three commits before this one.
+
+**The strip's Pause lost its guard (introduced by D-83).** It used to work by
+clicking the toolbar's Pause, and `if (!el.pause.disabled)` was the idle check -
+so deleting that button deleted the guard. A press while idle painted a Paused
+window with nothing recording, and `setState('paused')` disables Start,
+Recordings and Capture, so the only way out was Stop. It escaped the window too:
+`recordingPaused` was never reset by `beginRecording`, so the next recording
+began believing it was paused and the first press of the pause hotkey read as a
+resume and did nothing. Guarded now in the window, in the IPC handler and on the
+hotkey, and reset at the start of every recording.
+
+This is the third time this shape has bitten: the strip's Stop had it, was
+fixed, and the comment recording that fix was sitting three lines above the code
+that still had it. **Behaviour in a button is behaviour that disappears when the
+button does.**
+
+**Carrying a recording on reused the last scope (introduced by D-81).**
+`scopePids` is module-level and only reassigned when a caller passes one;
+Continue passes nothing, deliberately, because it asks no questions. So after a
+restart it held `[]` - and `Scope.Allows` treats empty as *record everything*.
+A recording of one application would quietly capture mail and chat into a
+document its owner believed was scoped. The other direction was as bad and
+merely noisier: a stale pid matches nothing, so the second leg recorded zero
+steps with no error.
+
+The scope is now part of the recording (`session.json`), named **by executable,
+never by pid** - a pid means nothing on the next run and a recycled one belongs
+to somebody else's program - and re-resolved to live pids when the recording is
+carried on. Three cases, all explicit: scoped and the program is running, carry
+on; scoped and it is not, refuse and say which program to start; recorded before
+this was written down, record everything and *say so in a notice*. Guessing
+silently in that last case is the failure worth avoiding.
+
+**Undo after carrying on destroyed a screenshot (introduced by D-81).**
+`removeStep` unlinks the picture after stashing it, so deleting the last step
+*lowered* what `lastShotSeq()` read off the folder. Continue then handed the
+engine that lowered number, the next click wrote `0005.png` again, and Ctrl+Z -
+which survives Continue, because Continue deliberately does not clear the undo
+stack - copied the trashed original over the new picture. Two steps pointing at
+one file, showing the deleted step's image, and the new screenshot gone.
+
+D-81 said the number must be read off the folder rather than counted from the
+steps. That was right about counting and wrong about the folder: **the folder
+forgets, and undo does not.** `session.json` now carries `shotSeq`, a high-water
+mark raised by every step the engine records and never lowered by anything. The
+folder can still raise it, for a recording made before the mark existed.
+
+**Stop then Continue failed (introduced by D-81 meeting an older race).**
+`stop()` closes stdin, but the process object lives until its exit event, and
+`running` was `#proc !== null` - so for that window the engine read as usable, a
+start wrote to a closed pipe, `send()` returned false and the recording was
+refused with "The capture engine did not accept the recording." The race
+pre-dates D-81; Stop-then-Continue is what made it easy to hit, where
+Stop-then-Start never was. `stopping` is now a state of its own, `running`
+excludes it, and `ensureSidecar` waits for the exit - killing the engine if it
+overstays, because it is holding a global hook.
+
+Both new fields are added WITHOUT raising the format version, which is what
+D-69's foreign-field mechanism is for: an older build opening one of these
+recordings keeps `scope` and `shotSeq` untouched rather than dropping them.
+
 ### D-83 - Two controls nobody could press, and a word nobody read
 `(this change)` - [ui/src/renderer/index.html](../ui/src/renderer/index.html),
 [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js)

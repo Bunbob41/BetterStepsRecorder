@@ -573,5 +573,88 @@ console.log('\nwhere the screenshot numbering has got to:');
   fs.rmSync(bench, { recursive: true, force: true });
 }
 
+// A recording that captured one application must not silently capture
+// everything on a later leg because the application has been restarted since.
+console.log('\nwhat a recording was scoped to outlives the run that made it:');
+{
+  const bench = fs.mkdtempSync(path.join(os.tmpdir(), 'bsr-scope-'));
+  const dir = path.join(bench, 'one');
+  const s = new Session(dir);
+
+  check('a new recording starts with nothing scoped',
+        s.scope.processes.length === 0);
+  s.setScope({ label: 'HYPACK Shell', processes: ['Hypack64.exe'] });
+
+  const back = Session.load(dir);
+  check('the scope survives being closed and reopened',
+        back.scope.label === 'HYPACK Shell'
+        && back.scope.processes.join() === 'Hypack64.exe');
+  // Named by process, never by pid: a pid means nothing on the next run, and a
+  // recycled one belongs to somebody else's program.
+  check('and it is named by program, not by process id',
+        JSON.stringify(back.scope).includes('Hypack64.exe')
+        && !/\bpid\b/.test(JSON.stringify(back.scope)));
+
+  // A recording made before this was written down must be distinguishable from
+  // one deliberately scoped to everything - the first cannot be guessed at.
+  const older = path.join(bench, 'older');
+  fs.mkdirSync(path.join(older, 'steps'), { recursive: true });
+  fs.writeFileSync(path.join(older, 'session.json'),
+                   JSON.stringify({ v: 1, name: 'Old', steps: [] }), 'utf8');
+  check('a recording from before this knows it does not know',
+        Session.load(older).scope === null);
+
+  const everything = path.join(bench, 'all');
+  const e = new Session(everything);
+  e.setScope({ label: 'Everything', processes: [] });
+  check('and one scoped to everything says so rather than saying nothing',
+        Session.load(everything).scope !== null
+        && Session.load(everything).scope.processes.length === 0);
+
+  fs.rmSync(bench, { recursive: true, force: true });
+}
+
+console.log('\nthe screenshot mark cannot be lowered by a delete:');
+{
+  const bench = fs.mkdtempSync(path.join(os.tmpdir(), 'bsr-mark-'));
+  const dir = path.join(bench, 'r');
+  const s = new Session(dir);
+  for (let i = 1; i <= 3; i++) {
+    fs.writeFileSync(path.join(dir, 'steps', `000${i}.png`), 'x');
+    s.addStep({ id: `s${i}`, action: 'leftClick', screenshot: `steps/000${i}.png` });
+  }
+  check('three steps in, the mark is 3', s.lastShotSeq() === 3);
+
+  // Deleting the last step unlinks its picture but keeps a copy in the trash,
+  // and the undo that can put it back survives being carried on. Handing the
+  // engine 2 here means the next click writes 0003.png, and then an undo copies
+  // the old picture straight over it.
+  s.removeStep('s3');
+  check('its picture really is gone from the folder',
+        !fs.existsSync(path.join(dir, 'steps', '0003.png')));
+  check('but the mark does not drop back', s.lastShotSeq() === 3);
+  check('and it is still 3 after the recording is reopened',
+        Session.load(dir).lastShotSeq() === 3);
+
+  // The folder still wins when it is ahead: an older recording has no mark
+  // written down at all.
+  const legacy = path.join(bench, 'legacy');
+  fs.mkdirSync(path.join(legacy, 'steps'), { recursive: true });
+  fs.writeFileSync(path.join(legacy, 'session.json'),
+                   JSON.stringify({ v: 1, name: 'Old', steps: [] }), 'utf8');
+  fs.writeFileSync(path.join(legacy, 'steps', '0009.png'), 'x');
+  check('a recording with no mark falls back to the folder',
+        Session.load(legacy).lastShotSeq() === 9);
+
+  // A hand-placed absurd number must not push the mark past what can be sent
+  // to the engine as an integer, or it arrives as no number at all.
+  fs.writeFileSync(path.join(legacy, 'steps', '99999999999999999999.png'), 'x');
+  const wild = Session.load(legacy).lastShotSeq();
+  check('and a nonsense filename cannot push it out of range',
+        Number.isSafeInteger(wild) && wild === 9, String(wild));
+
+  fs.rmSync(bench, { recursive: true, force: true });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

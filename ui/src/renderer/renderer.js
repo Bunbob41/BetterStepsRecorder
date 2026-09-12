@@ -910,6 +910,14 @@ el.continueBtn.addEventListener('click', async () => {
  * That is exactly how the strip's Stop came to do nothing at all.
  */
 async function pauseOrResume() {
+  // Nothing to pause. The guard used to be implicit and is now missing: the
+  // strip's Pause worked by clicking the toolbar's, which was disabled while
+  // idle, and removing that button removed the check with it. Without this, a
+  // press while idle paints a Paused window with nothing recording - and Start,
+  // Recordings and Capture are all disabled in that state, so there is no way
+  // out of it but Stop.
+  if (state === 'idle') return;
+
   if (state === 'paused') { await window.bsr.resumeRecording(); setState('recording'); }
   else { await window.bsr.pauseRecording(); setState('paused'); }
 }

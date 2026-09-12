@@ -63,6 +63,41 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check('and the engine goes away once its stdin is closed', !engine.running);
   }
 
+  console.log('\nan engine on its way out is not a usable engine:');
+  {
+    // Stop closes stdin and the process object lives on until its exit event.
+    // For that window the engine read as "running", so a recording started in
+    // it wrote to a closed pipe, the write failed, and the recording was
+    // refused with no reason given. Stop and then Continue is the most natural
+    // sequence there is, which made it easy to hit.
+    const engine = new Sidecar();
+    const exited = new Promise((resolve) => engine.once('exit', resolve));
+    engine.on('log', () => {});
+    engine.start(process.execPath);
+    await sleep(150);
+    check('it starts out running and not stopping',
+          engine.running && !engine.stopping);
+
+    engine.stop();
+    check('once stopped it is no longer running', !engine.running);
+    check('and says it is on its way out', engine.stopping);
+    check('and a start sent into that window is refused rather than lost',
+          engine.startSession('C:/nowhere', [], {}) === false);
+
+    await Promise.race([exited, sleep(5000)]);
+    check('once it has gone it is neither running nor stopping',
+          !engine.running && !engine.stopping);
+
+    // And the whole point: a fresh one can then be started.
+    const again = new Sidecar();
+    again.on('log', () => {});
+    again.start(process.execPath);
+    await sleep(150);
+    check('so a fresh engine can take its place', again.running && !again.stopping);
+    again.stop();
+    await Promise.race([new Promise((r) => again.once('exit', r)), sleep(5000)]);
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

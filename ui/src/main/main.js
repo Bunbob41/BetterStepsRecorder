@@ -288,6 +288,7 @@ function registerHotkeys() {
   // not working - and starting is what somebody reaches for it to do.
   const paused = globalShortcut.register(wanted.pause, () => {
     if (!sidecar || !sidecar.running) { startFromHotkey(); return; }
+    if (!recordingSince) return;
     recordingPaused = !recordingPaused;
     if (recordingPaused) sidecar.pause(); else sidecar.resume();
     log.info(`hotkey: ${recordingPaused ? 'paused' : 'resumed'}`);
@@ -436,7 +437,65 @@ function leaveCompact() {
 
 // ---- renderer API -----------------------------------------------------------
 
+/**
+ * The executables behind a set of pids, for remembering a scope.
+ *
+ * A pid says nothing once the program has closed, and Windows reuses them - so
+ * a recording that stored pids and was carried on tomorrow would either record
+ * nothing or record whatever inherited the number. The name survives both.
+ */
+async function processesFor(pids) {
+  if (!pids || !pids.length) return [];
+  try {
+    const windows = await sidecar.listWindows([process.pid]);
+    const wanted = new Set(pids);
+    return [...new Set(windows.filter((w) => wanted.has(w.pid))
+                              .map((w) => w.process)
+                              .filter(Boolean))];
+  } catch (err) {
+    log.warn(`could not read which programs the scope names: ${err.message}`);
+    return [];
+  }
+}
+
+/** The live pids of those executables, for carrying a recording on. */
+async function pidsFor(processes) {
+  if (!processes || !processes.length) return [];
+  try {
+    const windows = await sidecar.listWindows([process.pid]);
+    const wanted = new Set(processes.map((p) => p.toLowerCase()));
+    return [...new Set(windows.filter((w) => w.process
+                                          && wanted.has(w.process.toLowerCase()))
+                              .map((w) => w.pid))];
+  } catch (err) {
+    log.warn(`could not find the programs this recording is scoped to: ${err.message}`);
+    return [];
+  }
+}
+
 async function ensureSidecar() {
+  // An engine told to stop is not usable and is not gone yet: stop() closes
+  // stdin, and the process object lives until its exit event arrives. Starting
+  // in that window wrote to a closed pipe, and the write silently failed - so
+  // the recording was refused with "The capture engine did not accept the
+  // recording." Stop and then Continue is the most natural sequence there is,
+  // which made this easy to hit and impossible to understand.
+  if (sidecar.stopping) {
+    await new Promise((resolve) => {
+      sidecar.once('exit', resolve);
+      setTimeout(resolve, 4000);
+    });
+    // It has overstayed its welcome; it is holding a global hook, so it goes.
+    if (sidecar.stopping) {
+      log.warn('the capture engine did not exit when asked; stopping it the hard way');
+      sidecar.kill();
+      await new Promise((resolve) => {
+        sidecar.once('exit', resolve);
+        setTimeout(resolve, 1000);
+      });
+    }
+  }
+
   if (sidecar.running) return { ok: true };
 
   const exe = Sidecar.resolveExe(PROJECT_ROOT);
@@ -499,6 +558,13 @@ ipcMain.handle('templates:reveal', () => {
 async function beginRecording(intent = {}) {
   const resuming = Boolean(intent.resume);
   log.info(resuming ? 'recording:continue invoked' : 'recording:start invoked');
+
+  // A second start on a live engine re-seeds its numbering and its scope
+  // underneath the recording already running, and overwrites the clock so the
+  // first recording's ending is never written down.
+  if (recordingSince) {
+    return { ok: false, error: 'Something is already being recorded.' };
+  }
   if (resuming && !session) {
     return { ok: false, error: 'There is no recording open to carry on.' };
   }
@@ -554,9 +620,45 @@ async function beginRecording(intent = {}) {
     });
   }
 
-  if (Array.isArray(intent.scopePids)) {
+  if (resuming) {
+    // NOT whatever the last start left in these variables. After a restart that
+    // is an empty list, which means "record everything" - so a recording of one
+    // application would quietly start capturing mail and chat into a document
+    // its owner believes is scoped. The scope comes from the recording itself.
+    const remembered = session.scope;
+    if (!remembered) {
+      // Made before this was written down. Say so rather than guess: widening
+      // silently is the failure worth avoiding, and refusing outright would
+      // strand every recording made until now.
+      scopePids = [];
+      scopeLabel = 'Everything';
+      log.warn('this recording predates remembered scopes; continuing records everything');
+      send('notice', { kind: 'scope', message:
+        'This recording was made before the app remembered what a recording was '
+        + 'scoped to, so carrying it on records everything on screen.' });
+    } else if (!remembered.processes.length) {
+      scopePids = [];
+      scopeLabel = remembered.label || 'Everything';
+    } else {
+      scopePids = await pidsFor(remembered.processes);
+      scopeLabel = remembered.label || 'One application';
+      if (!scopePids.length) {
+        // Every click would be dropped and the recording would end with nothing
+        // in it, which looks exactly like the recorder being broken.
+        const named = remembered.processes.join(', ');
+        log.warn(`cannot carry on: ${named} is not running`);
+        return { ok: false, error:
+          `This recording is of ${scopeLabel}, and ${named} is not running. `
+          + 'Start it and press Continue again, or start a new recording.' };
+      }
+      log.info(`continuing, scoped to ${scopeLabel} (${scopePids.join(',')})`);
+    }
+  } else if (Array.isArray(intent.scopePids)) {
     scopePids = intent.scopePids;
     scopeLabel = intent.scopeLabel || (intent.scopePids.length ? 'One application' : 'Everything');
+    // Written into the recording while the programs are still running and can
+    // be asked their names.
+    session.setScope({ label: scopeLabel, processes: await processesFor(scopePids) });
   }
 
   const booted = await ensureSidecar();
@@ -585,6 +687,9 @@ async function beginRecording(intent = {}) {
   // failed leaves the user in a strip with nothing recording. The clock starts
   // here for the same reason - a start that failed ended nothing.
   recordingSince = Date.now();
+  // Belongs to a recording, not to the application: a stray pause left this set
+  // and the next recording began believing it was already paused.
+  recordingPaused = false;
 
   enterCompact();
   send('session:saved', { dir, count: session.steps.length });
@@ -651,6 +756,10 @@ async function startFromHotkey() {
 ipcMain.handle('ui:restore', () => { leaveCompact(); return { ok: true }; });
 
 ipcMain.handle('recording:pause', () => {
+  // The window is not the only way in, and a pause with nothing recording
+  // leaves `recordingPaused` set for the NEXT recording - where the first press
+  // of the pause hotkey then reads as a resume and silently does nothing.
+  if (!recordingSince) return { ok: false, error: 'Nothing is being recorded.' };
   recordingPaused = true;
   sidecar.pause();
   // A recording that was paused and a recording that stopped by itself look
@@ -660,6 +769,7 @@ ipcMain.handle('recording:pause', () => {
   return { ok: true };
 });
 ipcMain.handle('recording:resume', () => {
+  if (!recordingSince) return { ok: false, error: 'Nothing is being recorded.' };
   recordingPaused = false;
   sidecar.resume();
   log.info('recording resumed');

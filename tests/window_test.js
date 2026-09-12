@@ -2770,6 +2770,41 @@ app.whenReady().then(async () => {
   // ---- the status line ------------------------------------------------------
   // It said "Idle" whenever it could be read, which is always: the two states
   // that make it say anything else also hide this toolbar behind the strip.
+  // ---- pausing nothing ------------------------------------------------------
+  // The strip's Pause used to work by clicking the toolbar's, which was
+  // disabled while idle - so removing that button removed the only guard. A
+  // press while idle painted a Paused window with nothing recording, and Start,
+  // Recordings and Capture are all disabled in that state.
+  console.log('\npausing when nothing is recording does nothing:');
+
+  const idlePause = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    document.getElementById('c-stop').click();
+    await sleep(150);
+
+    const before = document.getElementById('status-text').textContent.trim();
+    document.getElementById('c-pause').click();
+    await sleep(150);
+
+    return {
+      before,
+      after: document.getElementById('status-text').textContent.trim(),
+      dot: document.getElementById('dot').className,
+      canStart: !document.getElementById('btn-record').disabled,
+      canOpen: !document.getElementById('btn-recordings').disabled,
+    };
+  })()`);
+
+  check('the window does not claim to be paused', idlePause.after !== 'Paused',
+        idlePause.after);
+  check('and says exactly what it said before', idlePause.after === idlePause.before,
+        `"${idlePause.before}" became "${idlePause.after}"`);
+  check('the dot stays grey', /\bidle\b/.test(idlePause.dot), idlePause.dot);
+  // The state it used to land in disabled all three of these, with no way back
+  // but Stop.
+  check('and starting a recording is still possible', idlePause.canStart);
+  check('as is opening one', idlePause.canOpen);
+
   console.log('\nthe status line says what is open:');
 
   const line = await win.webContents.executeJavaScript(`(async () => {

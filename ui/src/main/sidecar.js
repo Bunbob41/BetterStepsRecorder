@@ -13,6 +13,10 @@ const EXE = 'bettersteps-capture.exe';
 class Sidecar extends EventEmitter {
   #proc = null;
   #buffer = '';
+  // Told to stop, but not gone. stdin is closed in this window, so nothing can
+  // be sent, while the process object is still here - which read as "running"
+  // and made a recording started in that window fail for no visible reason.
+  #stopping = false;
 
   static resolveExe(projectRoot) {
     const candidates = [
@@ -28,11 +32,17 @@ class Sidecar extends EventEmitter {
   }
 
   get running() {
-    return this.#proc !== null;
+    return this.#proc !== null && !this.#stopping;
+  }
+
+  /** Asked to stop and not yet exited: unusable, and not replaceable yet. */
+  get stopping() {
+    return this.#stopping;
   }
 
   start(exePath) {
     if (this.#proc) return;
+    this.#stopping = false;
 
     this.#proc = spawn(exePath, [], { stdio: ['pipe', 'pipe', 'pipe'] });
     this.#proc.stdout.setEncoding('utf8');
@@ -47,12 +57,14 @@ class Sidecar extends EventEmitter {
 
     this.#proc.on('exit', (code) => {
       this.#proc = null;
+      this.#stopping = false;
       this.#buffer = '';
       this.emit('exit', code);
     });
 
     this.#proc.on('error', (err) => {
       this.#proc = null;
+      this.#stopping = false;
       this.emit('error', { code: 'SPAWN_FAILED', message: err.message });
     });
   }
@@ -158,8 +170,12 @@ class Sidecar extends EventEmitter {
   resume() { return this.send({ type: 'resume' }); }
 
   stop() {
-    if (!this.#proc || this.#proc.stdin.writableEnded) return;   // already stopped
+    if (!this.#proc || this.#stopping) return;   // already stopped, or going
     this.send({ type: 'stop' });
+    // After the message, before closing the pipe: send() refuses to write once
+    // this is set on a stream it has already ended, and the engine still needs
+    // to be told.
+    this.#stopping = true;
     // Closing stdin is the sidecar's orphan guard: if the stop message is
     // somehow missed, EOF makes it quit rather than linger holding a global hook.
     this.#proc.stdin.end();

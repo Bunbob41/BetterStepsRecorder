@@ -10,6 +10,21 @@ Notable changes, newest first. The reasoning behind each decision lives in
   in the same folder, under the same name. For when a recording ended before the
   job did: you stopped it early, the recorder fell over, or you closed the app.
   Start recording still makes a separate one.
+- Fixed: **carrying a recording on could record more than the original did.**
+  A recording scoped to one application, continued after the app had been
+  restarted, recorded everything on screen — while still saying it was scoped.
+  What a recording is scoped to is now remembered in the recording itself, by
+  program name, and re-established when you carry it on. If that program is not
+  running, it says so instead of recording the wrong thing.
+- Fixed: **undo could destroy a screenshot after carrying a recording on.**
+  Deleting the last step and then continuing let the next click reuse that
+  step's picture number; undoing the delete then wrote the old picture over the
+  new one.
+- Fixed: **pressing Stop and then Continue straight away** said "The capture
+  engine did not accept the recording".
+- Fixed: **the recording strip's Pause could put the window into a Paused state
+  with nothing recording**, where Start recording, Recordings and Capture were
+  all unavailable.
 - **The status line says what is open** — *37 steps · Pump changeover* — instead
   of always saying *Idle*. The dot beside it still means exactly one thing: grey
   is not recording, red is recording, amber is paused.

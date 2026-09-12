@@ -188,6 +188,61 @@ console.log('\na recording carried on does not overwrite what it already has:');
         resumingHalf.length > 0 && !resumingHalf.includes('closeSession()'));
 }
 
+console.log('\nnothing is recorded that the person did not ask for:');
+{
+  const at = main.indexOf('async function beginRecording');
+  const body = main.slice(at, main.indexOf("\nipcMain.handle('recording:start'", at));
+
+  // The scope is the privacy-bearing part. Carried on, it must come from the
+  // recording - the module-level variables hold whatever the last start left,
+  // which after a restart is an empty list, and empty means record everything.
+  check('carrying on takes the scope from the recording, not from last time',
+        /const remembered = session\.scope/.test(body));
+  check('and refuses rather than widening when the program is gone',
+        /if \(!scopePids\.length\)[\s\S]{0,400}return \{ ok: false/.test(body));
+  check('a recording too old to know says so instead of guessing',
+        /predates remembered scopes/.test(body));
+  check('the scope is written down while the programs can still be asked',
+        /session\.setScope\(\{ label: scopeLabel, processes: await processesFor/.test(body));
+  check('and it is named by program, never by process id',
+        /processes: \(processes \|\| \[\]\)/.test(read('ui/src/main/session.js')));
+
+  // Two recordings at once share one engine, one clock and one folder.
+  check('a second recording cannot start on top of a first',
+        /if \(recordingSince\) \{[\s\S]{0,160}already being recorded/.test(body));
+  check('and pausing is refused when nothing is recording',
+        /'recording:pause'[\s\S]{0,400}if \(!recordingSince\) return \{ ok: false/.test(main));
+  check('as it is in the window', /if \(state === 'idle'\) return;/.test(renderer));
+}
+
+console.log('\na screenshot number is never handed out twice:');
+{
+  const sessionJs = read('ui/src/main/session.js');
+  // Deleting a step unlinks its picture, so the folder alone forgets - and the
+  // undo that can put that picture back outlives carrying the recording on.
+  check('the mark is remembered rather than only counted off the folder',
+        /noteShot\(relative\)/.test(sessionJs)
+        && /shotSeq: this\.shotSeq/.test(sessionJs));
+  check('every step the engine records raises it',
+        /this\.noteShot\(step\.screenshot\);/.test(sessionJs));
+  check('and the folder can only ever raise it, never lower it',
+        /let top = Number\.isSafeInteger\(this\.shotSeq\) \? this\.shotSeq : 0;/
+          .test(sessionJs));
+  check('a number too large to send survives as no number at all, so it is refused',
+        /Number\.isSafeInteger\(n\) && n > top/.test(sessionJs));
+}
+
+console.log('\nan engine on its way out is not offered to a new recording:');
+{
+  const sc = read('ui/src/main/sidecar.js');
+  check('stopping is a state of its own', /get stopping\(\)/.test(sc));
+  check('and an engine in it does not read as running',
+        /return this\.#proc !== null && !this\.#stopping;/.test(sc));
+  check('a recording waits for it to go before starting another',
+        /if \(sidecar\.stopping\) \{/.test(main));
+  check('and stops waiting rather than hanging', /setTimeout\(resolve, 4000\)/.test(main));
+}
+
 console.log('\nthe end of a recording is written down:');
 {
   // Only the start was ever logged, so every recording in the log trailed off

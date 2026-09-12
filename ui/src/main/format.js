@@ -56,7 +56,12 @@ const canRead = (data) => versionOf(data) <= CURRENT;
  * and because the test that pins it should be reading the same list the writer
  * uses rather than a copy of it that can drift.
  */
-const OWNED = ['v', 'name', 'purpose', 'templatePath', 'savedAt', 'steps'];
+const OWNED = ['v', 'name', 'purpose', 'templatePath', 'savedAt', 'steps',
+               // What the recording was scoped to, and how far the engine's
+               // screenshot numbering has ever got. Both are needed to carry a
+               // recording on correctly after the application has been closed,
+               // so both have to survive on disk rather than in memory.
+               'scope', 'shotSeq'];
 
 /**
  * The parts of a loaded file this version does not understand.

@@ -610,6 +610,13 @@ would only invite an answer that contradicts what is already in the folder.
 You will not see the button when nothing is open, when the recording is empty —
 that is a Start, not a Continue — or while something is already recording.
 
+**It records what the first leg recorded.** If the recording was scoped to one
+application, carrying it on records that same application — the recording
+remembers which program by name, and finds it again. If that program is not
+running, it says so and does nothing, rather than recording the wrong thing.
+A recording made before version 0.2.3 does not carry that information, so
+continuing one records everything on screen; it tells you when that happens.
+
 > **Do not try to do this by hand.** Two recordings cannot be merged by copying
 > folders together: screenshots are numbered from 0001 each time a recording
 > starts, so the second set would overwrite the first. Continue exists because
