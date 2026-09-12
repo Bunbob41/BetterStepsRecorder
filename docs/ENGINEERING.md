@@ -226,6 +226,54 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-79 - The steps column is dragged, not decreed
+`(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
+[ui/src/main/settings.js](../ui/src/main/settings.js),
+[ui/src/renderer/styles.css](../ui/src/renderer/styles.css)
+
+320px was a compromise that suited a laptop and a wide monitor equally badly,
+and folding the column away was the only answer to it: all or nothing. The seam
+between the column and the screenshot is now draggable and the width is
+remembered beside `stepsCollapsed`.
+
+Ported from a fork of this tree (`workspace1`, commit 983ac64, co-authored by
+Cursor) which built it on a renderer split this tree does not have. The logic
+moved into `renderer.js` beside `collapseSteps`; there is no `host` indirection
+and no separate home-collapsed state here.
+
+- **Clamped in two places, 200-480.** The window clamps what a drag can reach;
+  `Settings` clamps what the file can contain. Neither trusts the other: a
+  hand-edited `settings.json` must not be able to leave the screenshot no room,
+  and the window must not depend on the file having been written by this
+  version.
+- **Zero means "as narrow as allowed", not "unset".** The original used
+  `Number(v.stepsWidth) || 320`, which reads a stored 0 as missing and returns
+  320 where 200 was meant. `Number.isFinite` separates "not a number" from "a
+  number I do not like".
+- **Written once, at the end of a drag.** The column follows the pointer every
+  frame with `persist: false`; a settings write per `pointermove` would be a few
+  hundred writes to save one integer.
+- **`pointermove` is bound to the window, not the seam.** The pointer routinely
+  outruns a 6px target mid-drag, and losing the moves strands the column
+  half-resized.
+- **`min-width: 0` on `.steps`.** Without it the widest step title sets a floor
+  under the grid track and the column refuses to be dragged narrower than its
+  longest row.
+
+Two notes from building it, both about tests rather than the feature:
+
+`Settings` had no test suite at all - the one module that trusts a value from
+outside the program enough to paint it straight into the window. It has one now
+([tests/settings_test.js](../tests/settings_test.js)), covering the clamp, the
+merge over defaults, and an unreadable file.
+
+The window test's settings stub answered from a fresh literal on every call, so
+nothing the page saved could ever be read back and any "it is remembered" check
+was unfalsifiable. It holds state now. The first version of the persistence
+check still passed with persistence removed, because it asserted 320 - which is
+both the default and what the double-click writes; it reads the width back while
+it is still 380, before anything else can produce that number by accident.
+
 ### D-78 - The two steps before the upload
 `(this change)` - [ui/src/renderer/appname.js](../ui/src/renderer/appname.js),
 [ui/src/main/main.js](../ui/src/main/main.js),

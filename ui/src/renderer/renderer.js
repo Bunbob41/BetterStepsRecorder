@@ -44,6 +44,7 @@ const el = {
   scopeRefresh: $('scope-refresh'), scopeCancel: $('scope-cancel'), scopeGo: $('scope-go'),
   add: $('btn-add'),
   stepsCollapse: $('btn-steps-collapse'), stepsExpand: $('btn-steps-expand'),
+  stepsResize: $('steps-resize'),
   railCount: $('rail-count'),
   libraryQuery: $('library-query'), libraryFound: $('library-found'),
   context: $('context'), contextSub: $('context-sub'),
@@ -125,6 +126,71 @@ async function collapseSteps(next) {
 
 el.stepsCollapse.addEventListener('click', () => collapseSteps(true));
 el.stepsExpand.addEventListener('click', () => collapseSteps(false));
+
+/**
+ * How wide the column is when it is not folded.
+ *
+ * Folding is all-or-nothing, and 320px was a compromise that suited neither a
+ * laptop nor a wide monitor. The seam between the column and the picture is
+ * draggable, and the width is remembered like the folded state is.
+ *
+ * The bounds are the point: narrower than 200 and a step title is unreadable,
+ * wider than 480 and the screenshot - the thing actually being worked on - stops
+ * being the subject of the window.
+ */
+const WIDTH_DEFAULT = 320;
+const WIDTH_MIN = 200;
+const WIDTH_MAX = 480;
+let stepsWidth = WIDTH_DEFAULT;
+
+function clampWidth(n) {
+  const v = Math.round(Number(n));
+  if (!Number.isFinite(v)) return WIDTH_DEFAULT;
+  return Math.min(WIDTH_MAX, Math.max(WIDTH_MIN, v));
+}
+
+/**
+ * Paint a width, and optionally keep it.
+ *
+ * `persist` is false while the pointer is still down: the grid follows the
+ * pointer every frame, and writing the settings file at that rate would be a
+ * few hundred writes to save one number. It is written once, when the drag ends.
+ */
+function setStepsWidth(next, { persist = true } = {}) {
+  stepsWidth = clampWidth(next);
+  // CSSOM, not an inline style attribute: the CSP here forbids the latter.
+  document.documentElement.style.setProperty('--steps-width', `${stepsWidth}px`);
+  if (persist) window.bsr.setSettings({ stepsWidth });
+}
+
+el.stepsResize.addEventListener('pointerdown', (e) => {
+  // Folded, there is nothing to size; the seam is hidden but a stray synthetic
+  // event should not resize an invisible column either.
+  if (e.button !== 0 || stepsCollapsed) return;
+  e.preventDefault();
+  const startX = e.clientX;
+  const startWidth = stepsWidth;
+
+  // On the window rather than the seam: the pointer routinely outruns a 6px
+  // target mid-drag, and losing the move events would strand the column
+  // half-resized.
+  const onMove = (ev) => setStepsWidth(startWidth + (ev.clientX - startX), { persist: false });
+  const onUp = () => {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    document.body.classList.remove('steps-resizing');
+    setStepsWidth(stepsWidth);
+  };
+  document.body.classList.add('steps-resizing');
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+});
+
+// A dragged-away column is fiddly to put back by hand.
+el.stepsResize.addEventListener('dblclick', () => setStepsWidth(WIDTH_DEFAULT));
+
+// A dragged-away column is fiddly to put back by hand.
+
 
 function renderList() {
   el.count.textContent = String(steps.length);
@@ -3236,6 +3302,9 @@ function paintSettings(v) {
   markColour = v.markColour || 'red';
   stepsCollapsed = v.stepsCollapsed === true;
   paintCollapsed();
+  // Already on the settings we were handed - painting it back would be a write
+  // of the value we just read.
+  setStepsWidth(v.stepsWidth, { persist: false });
   paintLegendMeanings(v);
   el.marker.value = v.markerStyle || 'circle';
   el.markerBold.checked = Boolean(v.markerBold);

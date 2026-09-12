@@ -9,6 +9,8 @@
   --accent: #4c8dff;
   --danger: #e5534b;
   --rec: #f04747;
+  /* The steps column when expanded. Drag the seam; the width is remembered. */
+  --steps-width: 320px;
 }
 
 * { box-sizing: border-box; }
@@ -78,15 +80,46 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 .dot.paused { background: #d6a02a; }
 @keyframes pulse { 50% { opacity: .3; } }
 
-main { flex: 1; display: grid; grid-template-columns: 320px 1fr; min-height: 0; }
+main { flex: 1; display: grid; grid-template-columns: var(--steps-width) 1fr; min-height: 0; }
 
 .steps {
+  position: relative;
   background: var(--sidebar);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Without this a long step title sets a floor under the grid track and the
+     column refuses to be dragged narrower than its widest row. */
+  min-width: 0;
 }
+
+/* The seam between the steps and the picture. Sits over the border rather than
+   taking space of its own, so nothing shifts when it appears. */
+.steps-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: col-resize;
+  z-index: 4;
+}
+.steps-resize:hover,
+body.steps-resizing .steps-resize { background: rgba(76, 141, 255, 0.35); }
+/* Folded, there is no width to drag - and nothing is needed here to say so:
+   the seam is a child of .steps, so the rule that hides everything but the rail
+   already covers it. An explicit rule looked prudent and was dead CSS. */
+/* Folded, there is no width to drag. */
+
+/* The pointer keeps the resize cursor across the whole window mid-drag, and
+   nothing selects text while the seam is being moved. */
+body.steps-resizing { cursor: col-resize; }
+body.steps-resizing * { cursor: col-resize !important; user-select: none !important; }
 .steps-head {
   display: flex; justify-content: space-between;
   padding: 10px 14px; border-bottom: 1px solid var(--line);

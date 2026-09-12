@@ -42,6 +42,10 @@ const DEFAULTS = {
   // Whether the steps column is folded away. A view, not a preference about
   // recordings - but it belongs with the things the window remembers.
   stepsCollapsed: false,
+  // How wide that column is when it is not folded. A fixed 320 fought both a
+  // laptop and a wide monitor; the seam between the column and the picture is
+  // draggable and this is where the chosen width is kept.
+  stepsWidth: 320,
   // A key printed in exports, saying what each highlighter colour means. Off by
   // default: most guides use one colour and a one-entry legend is clutter.
   showHighlightLegend: false,
@@ -99,6 +103,12 @@ class Settings {
       v[k] = typeof v[k] === 'string' ? v[k].slice(0, 400) : '';
     }
     if (typeof v.saveRoot !== 'string' || !v.saveRoot.trim()) v.saveRoot = this.defaults.saveRoot;
+    // Wide enough for a step title, narrow enough that the screenshot stays the
+    // subject. Clamped here as well as in the window: a hand-edited settings
+    // file must not be able to leave the picture with no room.
+    const w = Math.round(Number(v.stepsWidth));
+    v.stepsWidth = Number.isFinite(w) ? Math.min(480, Math.max(200, w))
+                                      : this.defaults.stepsWidth;
   }
 
   /** True if the configured save location is actually writable right now. */

@@ -575,6 +575,20 @@ keeps the previous shortcut rather than leaving you with one that silently does
 nothing, and any shortcut that fails to register is marked **in use elsewhere**
 in the list.
 
+### Making the step list wider
+
+The line between the step list and the screenshot can be dragged. Put the
+pointer on it, hold the left button and move — the list follows until you let
+go, and it stays that width the next time you open the app.
+
+It stops at sensible ends: narrow enough is still wide enough to read a step
+title, and wide enough leaves the screenshot the main thing on screen. If you
+drag it somewhere you regret, **double-click the line** and it goes back to
+where it started.
+
+The button above the list still folds it away entirely, which is a different
+thing — that is for when you want the picture and nothing else.
+
 ### Changing a word everywhere
 
 **Ctrl+F** opens a find bar above the step list. Type what you are looking for

@@ -98,19 +98,29 @@ const KEYS = {
   },
 };
 
+// What the settings file would hold. Mutable, so what the page saves can be
+// read back: answering from a fresh literal every time made every "it is
+// remembered" check unfalsifiable.
+const SETTINGS = {
+  saveRoot: 'C:\\Users\\You\\Documents\\StepRecordings',
+  imageFormat: 'png', imageQuality: 85, imageScale: 1, imageFrame: 'window',
+  recordKeyboard: true,
+  markerStyle: 'circle', markerBold: false,
+  highlightColour: 'yellow', showHighlightLegend: false, highlightMeanings: {},
+  brandName: '', brandLogo: '', brandFooter: '', templatePath: '',
+  stepsCollapsed: false, stepsWidth: 320,
+};
+
 const ANSWERS = {
   // Every key the page reads, with the names the real settings file uses.
   // A half-answered stub painted "undefined" into the save path, "NaN%" into
   // the scale and nothing into the format list - which is indistinguishable,
   // in a screenshot, from the page being broken.
-  getSettings: () => ({
-    saveRoot: 'C:\\Users\\You\\Documents\\StepRecordings',
-    imageFormat: 'png', imageQuality: 85, imageScale: 1, imageFrame: 'window',
-    recordKeyboard: true,
-    markerStyle: 'circle', markerBold: false,
-    highlightColour: 'yellow', showHighlightLegend: false, highlightMeanings: {},
-    brandName: '', brandLogo: '', brandFooter: '', templatePath: '',
-  }),
+  getSettings: () => ({ ...SETTINGS }),
+  setSettings: (patch) => {
+    Object.assign(SETTINGS, patch || {});
+    return { ...SETTINGS };
+  },
   getShortcuts: () => KEYS.state(),
   // The real one releases the global hotkeys, so the chord being replaced can
   // actually be typed into the box that replaces it.
@@ -2617,6 +2627,75 @@ app.whenReady().then(async () => {
   // Last, so it covers everything above it. The original defect here was a
   // ReferenceError, which is invisible to every other assertion if it happens
   // to leave the page in a passable state.
+  // ---- the steps column can be dragged to width ----------------------------
+  console.log('\nthe steps column is dragged to width:');
+
+  const seam = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const widthNow = () => getComputedStyle(document.documentElement)
+      .getPropertyValue('--steps-width').trim();
+    const bar = document.getElementById('steps-resize');
+
+    // The seam is only meaningful on an expanded column.
+    document.getElementById('btn-steps-expand').click();
+    await sleep(60);
+
+    const drag = async (dx) => {
+      const box = bar.getBoundingClientRect();
+      const at = (x) => ({ bubbles: true, clientX: x, clientY: box.top + 40,
+                           button: 0, pointerId: 1, pointerType: 'mouse' });
+      bar.dispatchEvent(new PointerEvent('pointerdown', at(box.left + 2)));
+      const held = document.body.classList.contains('steps-resizing');
+      window.dispatchEvent(new PointerEvent('pointermove', at(box.left + 2 + dx)));
+      await sleep(40);
+      const during = widthNow();
+      window.dispatchEvent(new PointerEvent('pointerup', at(box.left + 2 + dx)));
+      await sleep(40);
+      return { held, during, after: widthNow(),
+               released: !document.body.classList.contains('steps-resizing') };
+    };
+
+    const start = widthNow();
+    const wider = await drag(60);
+    // Read back BEFORE anything else writes: the default and the double-click
+    // both land on 320, so checking at the end proves nothing about the drag.
+    const savedAfterDrag = (await window.bsr.getSettings()).stepsWidth;
+    // Past the far end: the column must stop, not keep going.
+    const pinned = await drag(-4000);
+    bar.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    await sleep(60);
+    const restored = widthNow();
+
+    // Folded, the seam is not on screen to be grabbed.
+    document.getElementById('btn-steps-collapse').click();
+    await sleep(60);
+    const hiddenWhenFolded = getComputedStyle(bar).display === 'none';
+    document.getElementById('btn-steps-expand').click();
+    await sleep(60);
+
+    return { start, wider, pinned, restored, hiddenWhenFolded, savedAfterDrag,
+             saved: (await window.bsr.getSettings()).stepsWidth };
+  })()`);
+
+  check('it starts at the remembered width', seam.start === '320px', seam.start);
+  check('dragging the seam widens the column', seam.wider.after === '380px',
+        seam.wider.after);
+  check('and the column follows the pointer while it is held',
+        seam.wider.during === '380px', seam.wider.during);
+  check('the window says a drag is in progress', seam.wider.held);
+  check('and stops saying so when it ends', seam.wider.released);
+  // 380 - 4000 is far past the near end; it stops at the floor.
+  check('dragged past its limit it stops rather than vanishing',
+        seam.pinned.after === '200px', seam.pinned.after);
+  check('double-clicking it restores the default', seam.restored === '320px',
+        seam.restored);
+  check('a folded column has no seam to grab', seam.hiddenWhenFolded);
+  // The whole point, and it has to be asked while the answer is still a width
+  // nobody could have arrived at by default.
+  check('letting go of the seam saves the width', seam.savedAfterDrag === 380,
+        String(seam.savedAfterDrag));
+  check('and the last width set is the one kept', seam.saved === 320, String(seam.saved));
+
   console.log('\nthe page ran clean:');
   const alerts = await win.webContents.executeJavaScript('window.__alerts');
   check('nothing gave up and raised a dialog', alerts.length === 0);

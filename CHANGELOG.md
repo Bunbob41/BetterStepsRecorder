@@ -33,6 +33,10 @@ Notable changes, newest first. The reasoning behind each decision lives in
   recorded as *Charts* and one on *Planned Lines* as *3D Options and Levels*,
   while the picture and the arrow showed the right tab. Buttons, checkboxes and
   radio buttons were never affected.
+- **The step list can be dragged to the width you want.** Pull the line between
+  the list and the screenshot; double-click it to go back to the default. The
+  width is remembered. Folding the list away entirely still works and is
+  unchanged. (Ported from a fork of this tree, co-authored by Cursor.)
 - **A recording names itself.** Stop a recording you never named and it is
   called after what it recorded — *HYPACK Shell - 37 steps* — instead of the time
   it started. The name is the heading of an exported guide and the caption under
