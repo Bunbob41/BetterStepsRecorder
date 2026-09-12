@@ -2696,6 +2696,33 @@ app.whenReady().then(async () => {
         String(seam.savedAfterDrag));
   check('and the last width set is the one kept', seam.saved === 320, String(seam.saved));
 
+  // ---- no field is wearing the platform's own colours ----------------------
+  // Three were: the find bar's two boxes and the library search had rules that
+  // set layout and never appearance, and an input with no background of its own
+  // is handed the operating system's - a white box in a dark window. Reading
+  // the stylesheet cannot see this; only a rendered page can.
+  console.log('\nno field you type into is wearing the platform colours:');
+
+  const fields = await win.webContents.executeJavaScript(`
+    [...document.querySelectorAll('input')]
+      .filter((n) => !['checkbox', 'radio', 'range', 'hidden'].includes(n.type))
+      // The label tool is deliberately a white box: it is typed ON a
+      // screenshot, where the app's own dark panel would be the wrong thing.
+      .filter((n) => n.id !== 'label-input')
+      .map((n) => ({ id: n.id || '(no id)', bg: getComputedStyle(n).backgroundColor }))
+  `);
+
+  // Transparent reads as 0,0,0,0 and is fine: those sit on chrome already.
+  const lightness = (bg) => {
+    const [r, g, b, a = 1] = (bg.match(/[\d.]+/g) || []).map(Number);
+    return a === 0 ? 0 : (r + g + b) / 3;
+  };
+  const platform = fields.filter((f) => lightness(f.bg) > 128);
+
+  check(`there are fields to check (${fields.length})`, fields.length >= 8);
+  check('none of them is a white box in a dark window', platform.length === 0,
+        platform.map((f) => `${f.id}=${f.bg}`).join(' '));
+
   console.log('\nthe page ran clean:');
   const alerts = await win.webContents.executeJavaScript('window.__alerts');
   check('nothing gave up and raised a dialog', alerts.length === 0);

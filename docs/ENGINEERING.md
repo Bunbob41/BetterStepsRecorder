@@ -226,6 +226,38 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-80 - A field with no colours of its own gets the platform's
+`(this change)` - [ui/src/renderer/styles.css](../ui/src/renderer/styles.css),
+[tests/window_test.js](../tests/window_test.js)
+
+Eight text fields rendered as white boxes in the middle of a dark window: the
+library search, the find bar's two, and the five highlight-legend meanings. Not
+a palette mistake - those rules set `flex`, `padding` and `font-size` and never
+mentioned colour, and an input with no background of its own is given the
+operating system's.
+
+There was never a base rule for a field. `.field input[type=text]` dressed the
+ones inside dialogs and every field outside a dialog was dressed by hand, or
+not. The library search could not have been reached by that selector in any
+case: it is a `type=search`.
+
+So: one shared appearance rule naming every field you type into, with each
+field keeping its own size and spacing. `.label-input` stays deliberately white
+- it is typed onto a screenshot, where this window's dark panel would be wrong.
+
+- **No focus rule was copied.** The fork this came from paired the colours with
+  `outline: none` and a focus border. This tree already has a considered global
+  `:focus-visible` accent outline (and a comment about Chromium's orange
+  default), so taking that half would have been a regression.
+- **The check is a rendered-page check, because nothing else can see this.**
+  Reading the stylesheet tells you which rules exist, not which fields end up
+  with the platform's colours. The window test now walks every input, computes
+  its background and fails on anything light.
+
+That check found five of the eight. A one-off probe I wrote first found only
+three, because it loaded the page without a working bridge and the legend rows
+are built at runtime - a reminder that a page which has not run is not the page.
+
 ### D-79 - The steps column is dragged, not decreed
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
 [ui/src/main/settings.js](../ui/src/main/settings.js),

@@ -33,6 +33,10 @@ Notable changes, newest first. The reasoning behind each decision lives in
   recorded as *Charts* and one on *Planned Lines* as *3D Options and Levels*,
   while the picture and the arrow showed the right tab. Buttons, checkboxes and
   radio buttons were never affected.
+- Fixed: **eight text boxes were white in a dark window.** The library search,
+  both find-and-replace boxes and the five highlight-legend fields were being
+  drawn in Windows' own colours instead of the app's. They match every other
+  field now.
 - **The step list can be dragged to the width you want.** Pull the line between
   the list and the screenshot; double-click it to go back to the default. The
   width is remembered. Folding the list away entirely still works and is

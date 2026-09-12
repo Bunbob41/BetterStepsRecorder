@@ -114,7 +114,6 @@ body.steps-resizing .steps-resize { background: rgba(76, 141, 255, 0.35); }
 /* Folded, there is no width to drag - and nothing is needed here to say so:
    the seam is a child of .steps, so the rule that hides everything but the rail
    already covers it. An explicit rule looked prudent and was dead CSS. */
-/* Folded, there is no width to drag. */
 
 /* The pointer keeps the resize cursor across the whole window mid-drag, and
    nothing selects text while the seam is being moved. */
@@ -243,14 +242,35 @@ dialog h2 { margin: 0 0 16px; font-size: 15px; }
 .field b { color: var(--text); }
 .row { display: flex; gap: 8px; }
 
-.field input[type=text], .field select {
-  flex: 1;
+/* Every field you type into wears the same clothes.
+   Three did not: the find bar's two boxes and the library search were given
+   layout and nothing else, and an input with no background of its own is handed
+   the operating system's - white, in the middle of a dark window. The library
+   one is a type=search, so the `input[type=text]` selector that dressed
+   everything else could never have reached it anyway.
+   Appearance is shared here; each field keeps its own size and spacing. */
+.field input[type=text], .field select,
+.findbar input[type="text"],
+.legend-meanings input,
+.library-search input {
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--text);
-  padding: 7px 10px;
   font: inherit;
+}
+.field input[type=text]::placeholder,
+.findbar input[type="text"]::placeholder,
+.legend-meanings input::placeholder,
+.library-search input::placeholder { color: var(--muted); }
+/* A search field is given a clear button drawn in the platform's own colours,
+   which nothing else in this window has. */
+.library-search input::-webkit-search-cancel-button,
+.library-search input::-webkit-search-decoration { -webkit-appearance: none; }
+
+.field input[type=text], .field select {
+  flex: 1;
+  padding: 7px 10px;
   min-width: 0;
 }
 .field input[type=range] { accent-color: var(--accent); }
@@ -630,7 +650,7 @@ button.tool.active {
   border: 1px solid rgba(255,255,255,.3);
 }
 .legend-meanings label { width: 62px; color: var(--muted); font-size: 12px; }
-.legend-meanings input { flex: 1; }
+.legend-meanings input { flex: 1; min-width: 0; padding: 4px 8px; font-size: 12px; }
 
 /* Note and Section are one control with two halves: they are the same act -
    insert an authored row - differing only in rank. */
