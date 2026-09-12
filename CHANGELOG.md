@@ -3,7 +3,9 @@
 Notable changes, newest first. The reasoning behind each decision lives in
 [docs/ENGINEERING.md](docs/ENGINEERING.md); this is the short version.
 
-## Unreleased
+## 0.2.3
+
+### Carrying a recording on
 
 - **A recording that stopped can be picked back up.** Open it and press
   **Continue recording** — the new steps are added to the end of that recording,
@@ -22,6 +24,9 @@ Notable changes, newest first. The reasoning behind each decision lives in
   new one.
 - Fixed: **pressing Stop and then Continue straight away** said "The capture
   engine did not accept the recording".
+
+### The window
+
 - Fixed: **the recording strip's Pause could put the window into a Paused state
   with nothing recording**, where Start recording, Recordings and Capture were
   all unavailable.
@@ -31,6 +36,9 @@ Notable changes, newest first. The reasoning behind each decision lives in
 - **Pause and Stop have gone from the toolbar.** They could never be pressed
   there: starting a recording shrinks the window to the strip, which has both.
   In the toolbar they were only ever visible greyed out.
+
+### Finding out what happened
+
 - **A recording that ends now says why, in the log.** Only the start was ever
   written down, so a recording that cut out left no trace of what ended it.
   Stopping, the stop hotkey, the capture engine failing or exiting, and quitting
