@@ -252,8 +252,12 @@ names around it said that nobody needed.
   row - and the list truncates from the right, so the useful part was what got
   cut. `rowTitle` drops that suffix when the previous recorded step was in the
   same window. Only in the list: the recording and every export keep the full
-  text. Never on wording a person wrote, and never when what is left would say
-  nothing ("Double-clicked").
+  text. Never on wording a person wrote. It took three attempts: the first kept
+  the window unless a quoted target remained, the second unless more than one
+  word remained, and a live run against a real recording disproved each - three
+  "Pressed Tab in ..." rows, then five "Dragged in ..." rows, one after another.
+  A window the row above already named tells the reader nothing whatever sits in
+  front of it, so the first row in each window names it and the rest do not.
 - **The sub-line is in a person's words and names the app where it changes.**
   It printed the engine's identifiers, `leftClick` and `keyPress`, and the same
   application under every row. `actionWord` maps the known actions and turns any

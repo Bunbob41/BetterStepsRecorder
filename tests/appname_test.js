@@ -153,10 +153,24 @@ console.log('\na row does not repeat the window the row above named:');
         a.rowTitle(second, first) === 'Clicked the "Sensor type" dropdown');
   const elsewhere = { text: 'Clicked the "OK" button in "Save As"', window: w('Save As') };
   check('a row in a different window keeps it', a.rowTitle(elsewhere, second) === elsewhere.text);
-  // "Double-clicked" alone says nothing; the window is all it has.
+  // A bare verb in the same window loses the window too. The first version kept
+  // it, reasoning that "Double-clicked" says nothing alone - but repeating a
+  // window the row above already named says nothing either, and a live run of a
+  // real recording showed five "Dragged in "SBMAX64 - RAW1201.LOG - Depth"" rows
+  // one after another.
   const bare = { text: 'Double-clicked in "Meridian Sensor Setup"', window: w('Meridian Sensor Setup') };
-  check('a row that would be left saying nothing keeps its window',
-        a.rowTitle(bare, first) === bare.text);
+  check('a bare verb in the same window drops the window too',
+        a.rowTitle(bare, first) === 'Double-clicked');
+  check('and still names it as the first row in that window',
+        a.rowTitle(bare, { window: w('Somewhere else') }) === bare.text);
+  // A key press is a whole step without its window. Found on a real recording,
+  // where three "Pressed Tab in "Project Wizard"" rows stood one after another.
+  const tab = { text: 'Pressed Tab in "Project Wizard"', window: w('Project Wizard') };
+  check('a key press in the same window drops the window too',
+        a.rowTitle(tab, { window: w('Project Wizard') }) === 'Pressed Tab');
+  check('and so does a chord',
+        a.rowTitle({ text: 'Pressed Ctrl+S in "Project Wizard"', window: w('Project Wizard') },
+                   { window: w('Project Wizard') }) === 'Pressed Ctrl+S');
   // Somebody's own wording is theirs.
   check('wording a person wrote is never shortened',
         a.rowTitle({ ...second, textEdited: true }, first) === second.text);

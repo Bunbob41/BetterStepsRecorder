@@ -188,8 +188,7 @@
    * window, so the first row, and every row where the window changes, keeps it.
    *
    * Only ever for the list. The recording and every export keep the full text.
-   * Left whole when the result would say nothing ("Double-clicked" with its
-   * window taken away), and never touched when a person wrote the wording.
+   * Never touched when a person wrote the wording.
    */
   function rowTitle(step, prev) {
     const text = String((step && step.text) || '');
@@ -199,8 +198,15 @@
     if (!here || here !== before) return text;
     const tail = ` in "${here}"`;
     if (!text.endsWith(tail)) return text;
-    const rest = text.slice(0, -tail.length);
-    return rest.includes('"') ? rest : text;
+    // Dropped whatever is left in front of it - a bare verb included. Two
+    // earlier guards kept the window when the rest looked too thin to stand
+    // alone, first "no quoted target", then "a single word", and a live run
+    // against a real recording disproved each: three "Pressed Tab in "Project
+    // Wizard"" rows, then five "Dragged in "SBMAX64 - RAW1201.LOG - Depth"". A
+    // window the row above already named tells the reader nothing, whatever
+    // sits in front of it. The first row in each window still names it, because
+    // there the window differs from the row before.
+    return text.slice(0, -tail.length);
   }
 
   return { KNOWN, tidy, clean, friendly, dominant, forRecording, label,
