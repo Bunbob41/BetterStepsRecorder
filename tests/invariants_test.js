@@ -603,6 +603,25 @@ console.log('\nnothing typed, chosen or reported is lost:');
         /send\('sidecar:exit', \{ code, duringRecording/.test(main));
 }
 
+console.log('\nno routine outcome stops the window:');
+{
+  // alert() freezes every other control until it is clicked away, for outcomes
+  // that deserve a sentence - an export that failed, a template that is not
+  // one. The notice bar says the same thing and lets the person carry on.
+  const alerts = (renderer.match(/\balert\(/g) || []).length;
+  check('the window never blocks on alert()', alerts === 0, alerts + ' left');
+  check('Open and Show in folder act only on the file just exported',
+        /if \(r && r\.ok && r\.file\) lastExported = r\.file;/.test(main)
+        && /ipcMain\.handle\('export:show'[\s\S]{0,500}lastExported/.test(main));
+  check('a failed export is described in plain words',
+        (main.match(/messages\.fileProblem\(err, \{ action: 'export the guide' \}\)/g) || []).length === 2);
+  check('Cancel on Re-record reaches the wait in main',
+        /window\.bsr\.cancelRerecord\(\)/.test(renderer)
+        && /cancelRerecord = \(\) => \{ sidecar\.pause\(\); finish\('cancelled'\); \}/.test(main));
+  check('a missing capture component is not described as a build command',
+        !/'Capture engine not found/.test(main));
+}
+
 console.log('\nheadings are not counted as steps:');
 {
   // The count a reader is given has to be the number of things to do. Before

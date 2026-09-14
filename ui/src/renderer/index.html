@@ -63,6 +63,9 @@
   <!-- Advisory, never modal: a routine outcome must not freeze the window. -->
   <div id="notice" class="notice" hidden>
     <span id="notice-text"></span>
+    <!-- The next move, where there is one: Undo after a delete, Open or Show in
+         folder after an export. Filled by showNotice. -->
+    <span id="notice-actions" class="notice-actions"></span>
     <button id="notice-settings" class="linky">Open Settings</button>
     <button id="notice-close" class="notice-x" title="Dismiss">&times;</button>
   </div>

@@ -19,6 +19,16 @@ Notable changes, newest first. The reasoning behind each decision lives in
   named, the grey line under each row says *Click* or *Keyboard* instead of the
   recorder's internal names, and the program is named only where it changes.
   The header reads *Steps 12* on the left with its buttons on the right.
+- **After an export, the notice says which file was made and offers Open and
+  Show in folder.** A failed export now says why in plain words, such as the
+  file being open in Word, instead of an error code in a pop-up, and no longer
+  leaves "Exporting…" showing.
+- **Deleting steps keeps you where you were**, on the next step, and says what
+  was deleted with an Undo button.
+- **Cancel on Re-record now actually cancels.** Before, the recorder kept waiting
+  and your next click anywhere replaced the step.
+- **No more pop-ups that stop everything.** Problems are shown in the notice bar
+  in plain words, with the technical details kept in the log.
 - Fixed: **typing a step's wording and quickly clicking another step could save
   your words to the wrong step.**
 - **Undo now covers rewording, leaving a step out, reordering, and adding a note

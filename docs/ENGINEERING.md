@@ -227,6 +227,54 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-89 - Every outcome says what happened and offers the next move
+`(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
+[ui/src/main/main.js](../ui/src/main/main.js),
+[ui/src/main/messages.js](../ui/src/main/messages.js)
+
+The first half of the UX audit's second tier: the places where something
+happened and the window either said nothing, said it in a developer's words, or
+said it in a box that stopped everything until it was clicked away.
+
+**No routine outcome uses `alert()` any more.** There were fourteen. An export
+that failed, a template that was not one, a start that did not take, a mark that
+could not be drawn: each froze every control for a sentence. They go to the
+notice bar now, which was introduced for exactly this reason and then not used
+consistently. An invariant counts `alert(` in the renderer and wants none.
+
+**The notice bar can offer the next move.** `showNotice(message, { actions })`
+renders buttons, replaced on every call so an old notice's buttons never sit
+under a new message. Used for:
+
+- **Export.** Success says which file and offers *Open* and *Show in folder*.
+  Main remembers `lastExported`, the file the export just wrote, and
+  `export:show` acts on that and nothing else - the window asks for "open" or
+  "folder" and never sends a path, so nothing it sends can open anything else on
+  the disk. Failure clears the footer's "Exporting…", which used to stay behind,
+  and the Export buttons are disabled while one runs.
+- **Delete.** It stays in the editor on the step that took the deleted one's
+  place, and says *Deleted 3 steps* with *Undo*. It used to clear the selection
+  and switch to the library, so the next arrow key started from the top and
+  nothing said Ctrl+Z would bring them back.
+
+**Errors are for the person, the details are for the log.**
+`messages.fileProblem(err, { action })` turns the common file errors - held open
+by another program, protected, full disk, gone - into a sentence with a way out,
+and says only "the details are in the log" for anything else rather than
+guessing. The capture component being missing used to read "Build it with:
+dotnet build capture"; a fatal engine error read "Capture engine error
+(HOOK_FAILED): ...".
+
+**Cancel on Re-record cancels.** It hid the overlay and nothing else: the window
+stayed minimised, main went on waiting up to two minutes, and the next click
+anywhere replaced the step. `step:rerecordCancel` ends the wait in main. The
+overlay also numbers the step as the list does, not by row.
+
+The window test's bridge stub answered none of export, delete or re-record, so
+each got the default `{ ok: true }`. It now answers all of them, with values a
+check can set, and the re-record answer waits for a click or a cancel the way
+the real one does.
+
 ### D-88 - Nothing typed, chosen or reported is lost
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
 [ui/src/main/history.js](../ui/src/main/history.js),

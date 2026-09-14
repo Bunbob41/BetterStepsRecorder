@@ -558,6 +558,9 @@ footer .hint .sep { color: var(--line); margin: 0 4px; }
 .finished #finished-text { flex: 1; }
 .finished button { padding: 4px 12px; }
 .notice #notice-text { flex: 1; }
+.notice-actions { display: inline-flex; gap: 6px; }
+.notice-actions:empty { display: none; }
+.notice-actions button { padding: 3px 10px; }
 .notice-x {
   background: transparent;
   border: 0;

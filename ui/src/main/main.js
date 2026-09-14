@@ -13,6 +13,7 @@ const composite = require('./composite');
 const photos = require('./photos');
 const { buildLatex, gatherImages, writeImages } = require('./latex');
 const texzip = require('./texzip');
+const messages = require('./messages');
 const screenshots = require('./screenshots');
 const { toJpeg, toJpegFrom } = require('./transcode');
 const annotate = require('../renderer/annotate');
@@ -375,6 +376,19 @@ let autoNamedAs = null;
 // open in the editor.
 let recordingSince = null;
 
+// The file the last export wrote. Open and Show in folder act on this and
+// nothing else - the window never names a path for them to open.
+let lastExported = null;
+
+// Set while a re-record is waiting for its click, so Cancel can end the wait.
+let cancelRerecord = null;
+
+// What a person is told when the capture component is not where it should be.
+// The old text was a build command - "dotnet build capture" - which means
+// something in a checkout of this repository and nothing to anyone who
+// installed the app.
+const ENGINE_MISSING = "Steps Recorder's capture component is missing. Reinstalling the app puts it back.";
+
 /**
  * Write down that a recording ended, and what ended it.
  *
@@ -508,7 +522,7 @@ async function ensureSidecar() {
 
   const exe = Sidecar.resolveExe(PROJECT_ROOT);
   if (!exe) {
-    return { ok: false, error: 'Capture engine not found. Build it with: dotnet build capture' };
+    return { ok: false, error: ENGINE_MISSING };
   }
 
   sidecar.start(exe);
@@ -579,7 +593,7 @@ async function beginRecording(intent = {}) {
   const exe = Sidecar.resolveExe(PROJECT_ROOT);
   log.info(`capture engine: ${exe}`);
   if (!exe) {
-    return { ok: false, error: 'Capture engine not found. Build it with: dotnet build capture' };
+    return { ok: false, error: ENGINE_MISSING };
   }
 
   const writable = settings.probe();
@@ -688,7 +702,7 @@ async function beginRecording(intent = {}) {
   });
 
   if (!started) {
-    return { ok: false, error: 'The capture engine did not accept the recording.' };
+    return { ok: false, error: 'The recorder could not start. Try again; if it keeps happening, restart Steps Recorder.' };
   }
 
   // Only once recording is genuinely under way: shrinking for a start that
@@ -1323,14 +1337,31 @@ ipcMain.handle('step:redact', (_e, { id, dataUrl, kind = 'blur', colour = '' }) 
 
 ipcMain.handle('export:run', async (_e, args) => {
   try {
-    return await runExport(args);
+    const r = await runExport(args);
+    if (r && r.ok && r.file) lastExported = r.file;
+    return r;
   } catch (err) {
     // A handler that throws rejects the invoke, and the renderer awaits it in a
     // click handler where nothing catches: the dialog closes and the export
     // silently does not happen.
     log.error(err);
-    return { ok: false, error: `Export failed: ${err.message}` };
+    return { ok: false, error: messages.fileProblem(err, { action: 'export the guide' }) };
   }
+});
+
+/**
+ * Opens the file the last export wrote, or shows it in its folder.
+ *
+ * Only that file. The window asks for "open" or "folder" and never supplies a
+ * path, so nothing it sends can make this open anything else on the disk.
+ */
+ipcMain.handle('export:show', (_e, { how } = {}) => {
+  if (!lastExported || !fs.existsSync(lastExported)) {
+    return { ok: false, error: 'That export is no longer where it was saved.' };
+  }
+  if (how === 'folder') shell.showItemInFolder(lastExported);
+  else shell.openPath(lastExported);
+  return { ok: true };
 });
 
 /** The screenshot files a document for this session would carry. */
@@ -1745,7 +1776,7 @@ async function runExport({ format, title }) {
 
   } catch (err) {
     log.error(err);
-    return { ok: false, error: err.message };
+    return { ok: false, error: messages.fileProblem(err, { action: 'export the guide' }) };
   }
 }
 
@@ -1839,8 +1870,11 @@ ipcMain.handle('step:rerecord', async (_e, { id }) => {
     const finish = (value) => {
       clearTimeout(timer);
       sidecar.off('step', onStep);
+      cancelRerecord = null;
       resolve(value);
     };
+    // Cancel from the window: stop the engine waiting and stop listening.
+    cancelRerecord = () => { sidecar.pause(); finish('cancelled'); };
 
     const timer = setTimeout(() => {
       sidecar.pause();
@@ -1858,9 +1892,15 @@ ipcMain.handle('step:rerecord', async (_e, { id }) => {
   win.restore();
   win.focus();
 
+  if (captured === 'cancelled') return { ok: false, cancelled: true };
   return captured
     ? { ok: true, step: session.steps.find((s) => s.id === id) }
-    : { ok: false, error: 'Timed out waiting for a click.' };
+    : { ok: false, error: 'No click came within two minutes, so the step was left as it was.' };
+});
+
+ipcMain.handle('step:rerecordCancel', () => {
+  if (cancelRerecord) cancelRerecord();
+  return { ok: true };
 });
 
 /**

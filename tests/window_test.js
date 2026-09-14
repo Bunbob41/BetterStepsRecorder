@@ -129,6 +129,12 @@ const SETTINGS = {
 const CONTINUED = [];
 // Every step update the page sent, in order.
 const UPDATES = [];
+// What export, delete and re-record answer, set by the tier 2a checks.
+let EXPORT_RESULT = { ok: true };
+let REMOVE_RESULT = null;
+const SHOWN = [];
+let RERECORD_WAIT = null;
+let CANCELS = 0;
 
 const ANSWERS = {
   // Every key the page reads, with the names the real settings file uses.
@@ -212,6 +218,17 @@ const ANSWERS = {
   shotData: () => SHOT,
   // Kept, so a test can see which step a save was actually sent for.
   updateStep: (id, patch) => { UPDATES.push({ id, patch }); return { ok: true }; },
+  exportSteps: () => EXPORT_RESULT,
+  showExport: (how) => { SHOWN.push(how); return { ok: true }; },
+  removeSteps: (ids) => REMOVE_RESULT || { ok: true, removed: ids.length, steps: [] },
+  // Waits, as the real one does, until a click comes or it is cancelled.
+  rerecordStep: () => new Promise((resolve) => { RERECORD_WAIT = resolve; }),
+  cancelRerecord: () => {
+    CANCELS++;
+    if (RERECORD_WAIT) RERECORD_WAIT({ ok: false, cancelled: true });
+    RERECORD_WAIT = null;
+    return { ok: true };
+  },
   // Enough of the real handler that the PAGE's behaviour is what is under
   // test: the real one clamps, pushes an undo entry and writes the field.
   // history.js is exercised on its own; this is about the drag.
@@ -302,6 +319,10 @@ let onExit = () => {};
 bridge.onExit = (fn) => { onExit = fn; };
 bridge.__exit = async (message) => { onExit(message); return true; };
 bridge.__updates = async () => UPDATES;
+bridge.__setExport = async (r) => { EXPORT_RESULT = r; return true; };
+bridge.__setRemove = async (r) => { REMOVE_RESULT = r; return true; };
+bridge.__shown = async () => SHOWN;
+bridge.__cancels = async () => CANCELS;
 bridge.__keys = async () =>
   ({ values: KEYS.values, calls: KEYS.calls, captured: KEYS.captured });
 bridge.__lastMarker = async () => LAST_MARKER;
@@ -3083,6 +3104,91 @@ app.whenReady().then(async () => {
   check('the Saved bar leaves a note for afterwards visible', t1.noteKept && t1.savedShown);
   check('a recording cut off by the engine dying says so', t1.crashSaid);
   check('and an ordinary stop says nothing', t1.quietExit);
+
+  // ---- tier 2a: what happened, and the next move ----------------------------
+  console.log('\nevery outcome says what happened and offers the next move:');
+
+  const t2 = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const $ = (id) => document.getElementById(id);
+    const said = () => ($('notice').hidden ? '' : $('notice-text').textContent);
+    const buttons = () => [...document.querySelectorAll('#notice-actions button')]
+      .map((b) => b.textContent);
+
+    const row = document.querySelector('#library-list .lib-row');
+    if (row) { row.click(); await sleep(300); }
+
+    // An export that fails.
+    await window.bsr.__setExport({ ok: false, error: 'Could not export the guide: the file is '
+      + 'open in another program. Close it there and try again.' });
+    $('notice').hidden = true;
+    $('exp-go').click();
+    await sleep(250);
+    const failed = { footer: $('save-state').textContent, said: said(),
+                     usable: !$('btn-export').disabled };
+
+    // An export that works.
+    await window.bsr.__setExport({ ok: true, file: 'D:/Guides/Raise a PO.docx' });
+    $('notice').hidden = true;
+    $('exp-go').click();
+    await sleep(250);
+    const worked = { said: said(), buttons: buttons() };
+    const folder = [...document.querySelectorAll('#notice-actions button')]
+      .find((b) => b.textContent === 'Show in folder');
+    if (folder) folder.click();
+    await sleep(100);
+    const shown = await window.bsr.__shown();
+
+    // Deleting a step.
+    $('notice').hidden = true;
+    const items = [...document.querySelectorAll('#step-list li.step')];
+    items[1].click();
+    await sleep(200);
+    const doomed = items[1].dataset.id;
+    const expectedNext = items[2].dataset.id;
+    await window.bsr.__setRemove({ ok: true, removed: 1,
+                                   steps: steps.filter((s) => s.id !== doomed) });
+    await deleteSelection();
+    await sleep(200);
+    const deleted = { selected: selectedId, expectedNext, inEditor: !$('detail-body').hidden,
+                      said: said(), buttons: buttons() };
+    await window.bsr.__setRemove(null);
+
+    // Re-recording, then cancelling.
+    $('notice').hidden = true;
+    const waiting = rerecordSelected();
+    await sleep(100);
+    const overlayUp = !$('arming').hidden;
+    $('arming-cancel').click();
+    await waiting;
+    await sleep(100);
+    const cancelled = { overlayUp, overlayDown: $('arming').hidden,
+                        cancels: await window.bsr.__cancels(), quiet: $('notice').hidden };
+
+    return { failed, worked, shown, deleted, cancelled };
+  })()`);
+
+  check('a failed export does not leave "Exporting" in the footer',
+        !t2.failed.footer.includes('Exporting'), t2.failed.footer);
+  check('it says why in words, without a popup', /open in another program/.test(t2.failed.said),
+        t2.failed.said);
+  check('and Export can be used again straight away', t2.failed.usable);
+  check('a finished export names the file', t2.worked.said.includes('Raise a PO.docx'), t2.worked.said);
+  check('and offers to open it or show it in its folder',
+        t2.worked.buttons.includes('Open') && t2.worked.buttons.includes('Show in folder'),
+        t2.worked.buttons.join(' | '));
+  check('Show in folder asks main for the folder, not a path', JSON.stringify(t2.shown) === '["folder"]',
+        JSON.stringify(t2.shown));
+  check('deleting a step keeps the editor open', t2.deleted.inEditor);
+  check('on the step that took its place', t2.deleted.selected === t2.deleted.expectedNext,
+        t2.deleted.selected + ' vs ' + t2.deleted.expectedNext);
+  check('and says what was deleted, with Undo',
+        /Deleted 1 step/.test(t2.deleted.said) && t2.deleted.buttons.includes('Undo'),
+        t2.deleted.said + ' / ' + t2.deleted.buttons.join(' | '));
+  check('Re-record shows its overlay while it waits', t2.cancelled.overlayUp);
+  check('Cancel ends the wait itself, not just the overlay',
+        t2.cancelled.cancels === 1 && t2.cancelled.overlayDown);
+  check('and cancelling is not reported as a failure', t2.cancelled.quiet);
 
   console.log('\nno field you type into is wearing the platform colours:');
 

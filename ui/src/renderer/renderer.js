@@ -71,6 +71,7 @@ const el = {
   legend: $('set-legend'), legendMeanings: $('legend-meanings'),
   notice: $('notice'), noticeText: $('notice-text'),
   noticeSettings: $('notice-settings'), noticeClose: $('notice-close'),
+  noticeActions: $('notice-actions'),
   keysDlg: $('keysdlg'), kPause: $('k-pause'), kStop: $('k-stop'),
   kError: $('k-error'), kReset: $('k-reset'), kClose: $('k-close'),
   shortcutsBtn: $('btn-shortcuts'), hotkeyHint: $('hotkey-hint'),
@@ -783,9 +784,20 @@ window.bsr.onHotkeys(paintShortcuts);
  * occurrences" points the reader at a page that has nothing to do with what
  * just happened.
  */
-function showNotice(message, { settings = false } = {}) {
+function showNotice(message, { settings = false, actions = [] } = {}) {
   el.noticeText.textContent = message;
   el.noticeSettings.hidden = !settings;
+  // Buttons for the obvious next move - Undo, Open, Show in folder - so a notice
+  // that reports something can also offer what to do about it. Replaced on
+  // every call, so an old notice's buttons never sit under a new message.
+  el.noticeActions.replaceChildren();
+  for (const a of actions) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = a.label;
+    b.addEventListener('click', () => { el.notice.hidden = true; a.run(); });
+    el.noticeActions.append(b);
+  }
   el.notice.hidden = false;
 }
 
@@ -923,7 +935,7 @@ el.suGo.addEventListener('click', async () => {
   el.setupDlg.close();
 
   const r = await window.bsr.startRecording(intent);
-  if (!r.ok) { alert(r.error); return; }
+  if (!r.ok) { showNotice(r.error); return; }
   recordingBegan(r);
 });
 
@@ -966,7 +978,7 @@ function recordingBegan(r) {
  */
 el.continueBtn.addEventListener('click', async () => {
   const r = await window.bsr.continueRecording();
-  if (!r.ok) { alert(r.error); return; }
+  if (!r.ok) { showNotice(r.error); return; }
   recordingBegan(r);
 });
 
@@ -1078,6 +1090,8 @@ async function openFromDisk() {
 async function deleteSelection() {
   const ids = marked.size ? [...marked] : (selectedId ? [selectedId] : []);
   if (!ids.length) return;
+  // Where the first of them was, so the row that takes its place is selected.
+  const at = Math.min(...ids.map((id) => steps.findIndex((s) => s.id === id)).filter((i) => i >= 0));
 
   // One call, so the whole selection is a single undoable action.
   const r = await window.bsr.removeSteps(ids);
@@ -1085,10 +1099,26 @@ async function deleteSelection() {
 
   steps = r.steps;
   marked.clear();
-  selectedId = null;
-  showPane('library');
   renderList();
   renderLibrary();
+
+  // Stay where the work is. Deleting used to clear the selection and switch to
+  // the library, so the next arrow key started again from the top, and nothing
+  // said what had gone or that Ctrl+Z would bring it back.
+  const next = steps.length
+    ? steps[Math.min(Number.isFinite(at) ? at : 0, steps.length - 1)]
+    : null;
+  if (next) {
+    await select(next.id);
+  } else {
+    selectedId = null;
+    showPane('library');
+  }
+
+  const n = r.removed || ids.length;
+  showNotice(`Deleted ${n} step${n === 1 ? '' : 's'}.`, {
+    actions: [{ label: 'Undo', run: () => undoOnce() }],
+  });
 }
 
 
@@ -1229,9 +1259,14 @@ window.bsr.onSaved(({ dir, count }) => savedState(count, dir));
 el.reveal.addEventListener('click', () => window.bsr.revealSession());
 
 window.bsr.onError((m) => {
+  // The code and the engine's own words go to the console here and to the log in
+  // main. The window used to show them in a blocking box - "Capture engine error
+  // (HOOK_FAILED): ..." - which named nothing a person could do anything about.
   console.error('[capture]', m);
-  alert(`Capture engine error (${m.code}): ${m.message}`);
-  setState('idle');
+  if (state !== 'idle') recordingFinished();
+  else setState('idle');
+  showNotice('The recorder hit a problem it could not recover from. Try again; if it keeps '
+           + 'happening, restart Steps Recorder. The details are in the log.');
 });
 
 /**
@@ -1298,16 +1333,26 @@ window.bsr.onLog((m) => console.log('[capture]', m.level, m.message));
 async function rerecordSelected() {
   if (!selectedId) return;
   const step = steps.find((s) => s.id === selectedId);
-  el.armingN.textContent = String(steps.indexOf(step) + 1);
+  // The number the list shows it by, not its row: notes and headings are rows.
+  const rowIndex = steps.indexOf(step);
+  el.armingN.textContent = String(
+    steps.slice(0, rowIndex + 1).filter((s) => BsrSections.isStep(s)).length);
   el.arming.hidden = false;
 
   const r = await window.bsr.rerecordStep(selectedId);
   el.arming.hidden = true;
 
-  if (!r.ok) { alert(r.error); return; }
+  if (r && r.cancelled) return;
+  if (!r || !r.ok) { showNotice((r && r.error) || 'That step could not be re-recorded.'); return; }
 }
 
-el.armingCancel.addEventListener('click', () => { el.arming.hidden = true; });
+// Cancel used to hide the overlay and nothing else: the window stayed
+// minimised, the recorder went on waiting for up to two minutes, and the next
+// click anywhere quietly replaced the step. It ends the wait now.
+el.armingCancel.addEventListener('click', () => {
+  el.arming.hidden = true;
+  window.bsr.cancelRerecord();
+});
 
 window.bsr.onReplaced(({ index, step }) => {
   steps[index] = step;
@@ -1332,7 +1377,7 @@ window.bsr.onReplaced(({ index, step }) => {
  * unusable.
  */
 async function checkRecording() {
-  if (!steps.length) { alert('Open a recording first.'); return; }
+  if (!steps.length) { showNotice('Open a recording first.'); return; }
 
   el.saveState.textContent = 'Checking\u2026';
   try {
@@ -1340,7 +1385,7 @@ async function checkRecording() {
     if (!r.ok) {
       // Or the status line reads "Checking..." for the rest of the session.
       el.saveState.textContent = '';
-      alert(r.error);
+      showNotice(r.error);
       return;
     }
 
@@ -1762,7 +1807,7 @@ function clearDropHints() {
  */
 async function addNoteBelow(afterId = selectedId) {
   const r = await window.bsr.addNote('', afterId);
-  if (!r) { alert('Open or start a recording first.'); return; }
+  if (!r) { showNotice('Open or start a recording first.'); return; }
 
   steps.splice(r.index, 0, r.step);
   renderList();
@@ -1857,7 +1902,7 @@ function phaseName(app) {
 
 async function addSection(text, afterId) {
   const r = await window.bsr.addSection(text, afterId);
-  if (!r) { alert('Open or start a recording first.'); return null; }
+  if (!r) { showNotice('Open or start a recording first.'); return null; }
 
   steps.splice(r.index, 0, r.step);
   renderList();
@@ -2488,7 +2533,7 @@ el.findGo.addEventListener('click', async () => {
   if (!q) return;
 
   const r = await window.bsr.replaceAll(q, el.findReplacement.value, findOptions());
-  if (!r || !r.ok) { alert((r && r.error) || 'Could not replace.'); return; }
+  if (!r || !r.ok) { showNotice((r && r.error) || 'Could not replace.'); return; }
 
   if (r.steps) steps = r.steps;
   renderList();
@@ -3418,7 +3463,7 @@ async function applyPixels(tool, { sel, from, to }, displayedWidth) {
   if (!step) return;
 
   const dataUrl = await window.bsr.shotData(step.screenshot);
-  if (!dataUrl) { alert('Could not read the screenshot.'); return; }
+  if (!dataUrl) { showNotice('Could not read the screenshot.'); return; }
 
   const img = new Image();
   await new Promise((resolve, reject) => {
@@ -3473,7 +3518,7 @@ async function applyPixels(tool, { sel, from, to }, displayedWidth) {
     showNotice(`Could not mark that area: ${err.message}`);
     return;
   }
-  if (!r.ok) { alert(r.error); return; }
+  if (!r.ok) { showNotice(r.error); return; }
 
   steps[steps.indexOf(step)] = r.step;
   select(step.id);
@@ -3483,7 +3528,10 @@ async function applyPixels(tool, { sel, from, to }, displayedWidth) {
 
 /** Opens the export dialog. A function, so the finished bar calls it directly. */
 async function openExport() {
-  if (!steps.length) { alert('Record something first.'); return; }
+  if (!steps.length) {
+    showNotice('There is nothing to export yet. Open a recording, or make one, first.');
+    return;
+  }
   if (!el.expTitle.value) el.expTitle.value = el.sessionName.value || 'Recorded steps';
 
   // Say what will happen to THIS recording, not what usually happens: an
@@ -3509,17 +3557,38 @@ el.expGo.addEventListener('click', async () => {
   // A large recording spends several seconds re-encoding screenshots before the
   // save dialog appears. Without this the window simply looks frozen.
   el.saveState.textContent = 'Exporting…';
-  const r = await window.bsr.exportSteps(el.expFormat.value, el.expTitle.value);
-  if (r.cancelled) { el.saveState.textContent = ''; return; }
-  if (!r.ok) { alert(r.error); return; }
+  // One at a time: a second click during a slow export started a second one.
+  el.exportBtn.disabled = true;
+  el.finishedExport.disabled = true;
+  let r;
+  try {
+    r = await window.bsr.exportSteps(el.expFormat.value, el.expTitle.value);
+  } finally {
+    el.exportBtn.disabled = false;
+    el.finishedExport.disabled = false;
+  }
+  if (!r || r.cancelled) { el.saveState.textContent = ''; return; }
+  if (!r.ok) {
+    // Cleared: "Exporting…" used to stay in the footer after the export failed,
+    // behind a blocking box carrying the operating system's own error text.
+    el.saveState.textContent = '';
+    showNotice(r.error || 'The guide could not be exported.');
+    return;
+  }
   el.saveState.textContent = `Exported to ${r.file}`;
-  // The strip, not alert(). 20fe21c removed a modal for exactly this reason: a
-  // routine outcome must not freeze the window. Being told the screenshots were
-  // re-encoded is worth knowing and not worth a click to dismiss before
-  // carrying on.
-  // With the link: what it warns about - screenshots too large to embed - is
-  // changed in Settings, under capture format.
-  if (r.warning) showNotice(r.warning, { settings: true });
+  // Where it went, and the two things anyone does next with a file they just
+  // made. The footer's path was plain text, and its Show in Explorer opened the
+  // recording's folder rather than the export's. No Settings link: most export
+  // warnings - the LaTeX upload instructions among them - are nothing to do with
+  // Settings, and a link beside them sent people looking for a setting that is
+  // not there.
+  const name = String(r.file).split(/[\\/]/).pop();
+  showNotice(r.warning ? `Exported ${name}. ${r.warning}` : `Exported ${name}.`, {
+    actions: [
+      { label: 'Open', run: () => window.bsr.showExport('open') },
+      { label: 'Show in folder', run: () => window.bsr.showExport('folder') },
+    ],
+  });
 });
 
 // ---- settings ----------------------------------------------------------------
@@ -3775,7 +3844,7 @@ el.logoPick.addEventListener('click', async () => {
 
 el.templatePick.addEventListener('click', async () => {
   const r = await window.bsr.chooseTemplate();
-  if (!r.ok) { if (r.error) alert(r.error); return; }
+  if (!r.ok) { if (r.error) showNotice(r.error); return; }
   paintSettings(r.values);
 
   // Say what the template declares, so a typo in a hook name is visible now

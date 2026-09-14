@@ -1074,6 +1074,29 @@ Straight quotes are turned into proper opening and closing pairs, because TeX
 prints `"` as a closing quote wherever it finds one and most steps quote the
 name of a button.
 
+### When something finishes, or goes wrong
+
+Messages appear in the **notice bar** under the toolbar, never in a pop-up that
+stops you working. Where there is an obvious next move, the bar has a button
+for it:
+
+- **After an export** it names the file and offers **Open** and **Show in
+  folder**. Those two act only on the file the export just made.
+- **After deleting steps** it says how many and offers **Undo** (Ctrl+Z does the
+  same). You stay on the next step rather than being sent back to the library.
+- **If an export fails** it says why in plain words — most often that the file
+  is open in Word — and what to do. The technical details go to the log.
+
+**Re-record's Cancel** really does stop waiting: your next click is not
+captured, and the step is left as it was.
+
+```mermaid
+flowchart LR
+    act["You export, delete,<br/>or re-record"] --> ok{"Did it work?"}
+    ok -- yes --> next["Notice says what happened<br/>+ a button for the next move"]
+    ok -- no --> why["Notice says why, in words<br/>details go to the log"]
+```
+
 ### Exporting to Word
 
 Word is the fourth entry in the Export dropdown. **It works straight away** —

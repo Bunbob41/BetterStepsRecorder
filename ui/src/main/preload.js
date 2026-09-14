@@ -37,10 +37,12 @@ contextBridge.exposeInMainWorld('bsr', {
   removeStep: (id) => ipcRenderer.invoke('step:remove', { id }),
   removeSteps: (ids) => ipcRenderer.invoke('step:removeMany', { ids }),
   rerecordStep: (id) => ipcRenderer.invoke('step:rerecord', { id }),
+  cancelRerecord: () => ipcRenderer.invoke('step:rerecordCancel'),
   reorderStep: (from, to) => ipcRenderer.invoke('step:reorder', { from, to }),
   shotUrl: (screenshot) => ipcRenderer.invoke('shot:url', { screenshot }),
   revealSession: () => ipcRenderer.invoke('session:reveal'),
   exportSteps: (format, title) => ipcRenderer.invoke('export:run', { format, title }),
+  showExport: (how) => ipcRenderer.invoke('export:show', { how }),
   redactStep: (id, dataUrl, kind, colour) =>
     ipcRenderer.invoke('step:redact', { id, dataUrl, kind, colour }),
   shotData: (screenshot) => ipcRenderer.invoke('shot:data', { screenshot }),
