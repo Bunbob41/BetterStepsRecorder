@@ -227,6 +227,23 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-91 - The key that deletes steps is a choice
+`(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
+[ui/src/main/settings.js](../ui/src/main/settings.js)
+
+Only Delete deleted the selection, and plenty of keyboards - most laptops -
+have no Delete key within reach. `settings.deleteKey` is `either` (the default),
+`delete` or `backspace`, chosen on the "Delete the selection" row of All
+shortcuts, where somebody looking for the key would look. Reset to defaults
+puts it back to either.
+
+`isDeleteKey(e)` is the one test, used for a selected mark and for the selected
+steps. It sits after the handler's typing guard, so Backspace in any text box
+is only ever typing, and it refuses any modifier, so Ctrl+Backspace is never a
+delete. Making Backspace delete by default is safe for the same reason and
+because every delete now offers Undo (D-89). The right-click menu names the
+chosen key.
+
 ### D-90 - Every way in to a recording behaves the same
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
 [ui/src/main/main.js](../ui/src/main/main.js),

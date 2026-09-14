@@ -3231,6 +3231,69 @@ app.whenReady().then(async () => {
         /Nothing was recorded/.test(t2b.said) && /Notepad/.test(t2b.said), t2b.said);
   check('and Discard asks main to throw it away', t2b.offered && t2b.discards === 1);
 
+  // ---- which key deletes ----------------------------------------------------------
+  console.log('\nthe key that deletes a step is a choice:');
+
+  const dk = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const real = deleteSelection;
+    let calls = 0;
+    deleteSelection = async () => { calls++; };
+    selectMark(null);
+    const press = (key, target) => {
+      (target || document.body).dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    };
+    const tally = async (key, target) => {
+      const before = calls;
+      if (!target && document.activeElement) document.activeElement.blur();
+      press(key, target);
+      await sleep(60);
+      return calls - before;
+    };
+    const choose = async (value) => {
+      const pick = document.getElementById('k-delete');
+      pick.value = value;
+      pick.dispatchEvent(new Event('change'));
+      await sleep(80);
+    };
+
+    const out = {};
+    await choose('either');
+    out.eitherDelete = await tally('Delete');
+    out.eitherBack = await tally('Backspace');
+    await choose('delete');
+    out.deleteOnlyBack = await tally('Backspace');
+    out.deleteOnlyDelete = await tally('Delete');
+    await choose('backspace');
+    out.backOnlyDelete = await tally('Delete');
+    out.backOnlyBack = await tally('Backspace');
+    out.saved = (await window.bsr.getSettings()).deleteKey;
+
+    // Backspace in a text box is typing, whatever the choice.
+    const box = document.getElementById('library-query');
+    box.focus();
+    out.inBox = await tally('Backspace', box);
+    box.blur();
+    out.ctrlBack = await (async () => {
+      const before = calls;
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', ctrlKey: true, bubbles: true }));
+      await sleep(60);
+      return calls - before;
+    })();
+
+    await choose('either');
+    deleteSelection = real;
+    return out;
+  })()`);
+
+  check('by default both Delete and Backspace delete', dk.eitherDelete === 1 && dk.eitherBack === 1,
+        JSON.stringify(dk));
+  check('"Delete only" ignores Backspace', dk.deleteOnlyBack === 0 && dk.deleteOnlyDelete === 1);
+  check('"Backspace only" ignores Delete', dk.backOnlyDelete === 0 && dk.backOnlyBack === 1);
+  check('the choice is saved', dk.saved === 'backspace', dk.saved);
+  check('Backspace in a text box never deletes a step', dk.inBox === 0);
+  check('nor does Ctrl+Backspace', dk.ctrlBack === 0);
+
   console.log('\nno field you type into is wearing the platform colours:');
 
   const fields = await win.webContents.executeJavaScript(`

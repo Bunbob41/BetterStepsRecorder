@@ -531,6 +531,7 @@ footer .hint .sep { color: var(--line); margin: 0 4px; }
 .k-what { font-size: 13px; }
 .k-keys { color: var(--muted); font-size: 12px; }
 .k-set { padding: 3px 10px; font-size: 12px; }
+.k-select { font-size: 12px; padding: 3px 6px; }
 .keyrow.listening .k-keys { color: var(--accent); }
 .k-error { color: var(--danger); font-size: 12px; margin: 8px 0 0; }
 .k-error[hidden] { display: none; }

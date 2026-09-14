@@ -55,6 +55,9 @@ const DEFAULTS = {
   showClickMarker: true,
   markerStyle: 'circle',
   markerBold: false,
+  // Which key deletes the selected steps. Either, by default: plenty of
+  // keyboards - most laptops among them - have no Delete key within reach.
+  deleteKey: 'either', // either | delete | backspace
   hotkeyPause: '',    // blank means the built-in default
   hotkeyStop: '',
 };
@@ -98,6 +101,7 @@ class Settings {
     // expects the marker they have always had.
     v.showClickMarker = v.showClickMarker !== false;
     if (!['window', 'monitor', 'screen'].includes(v.imageFrame)) v.imageFrame = 'window';
+    if (!['either', 'delete', 'backspace'].includes(v.deleteKey)) v.deleteKey = 'either';
     for (const k of ['brandName', 'brandLogo', 'brandFooter', 'templatePath',
                      'hotkeyPause', 'hotkeyStop']) {
       v[k] = typeof v[k] === 'string' ? v[k].slice(0, 400) : '';

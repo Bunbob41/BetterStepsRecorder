@@ -74,6 +74,7 @@ const el = {
   noticeActions: $('notice-actions'),
   keysDlg: $('keysdlg'), kPause: $('k-pause'), kStop: $('k-stop'),
   kError: $('k-error'), kReset: $('k-reset'), kClose: $('k-close'),
+  kDelete: $('k-delete'),
   shortcutsBtn: $('btn-shortcuts'), hotkeyHint: $('hotkey-hint'),
 };
 
@@ -650,8 +651,44 @@ async function refreshShortcuts() {
   paintShortcuts(await window.bsr.getShortcuts());
 }
 
+// Which key deletes the selected steps: 'either', 'delete' or 'backspace'.
+// Either by default, because many keyboards have no Delete key within reach.
+let deleteKey = 'either';
+
+function paintDeleteKey(v) {
+  deleteKey = ['either', 'delete', 'backspace'].includes(v && v.deleteKey) ? v.deleteKey : 'either';
+  el.kDelete.value = deleteKey;
+}
+
+/**
+ * Whether this key press means "delete the selection".
+ *
+ * Never with a modifier held: Ctrl+Backspace and friends mean something else
+ * everywhere, and are not somebody reaching for Delete.
+ */
+function isDeleteKey(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  if (e.key === 'Delete') return deleteKey !== 'backspace';
+  if (e.key === 'Backspace') return deleteKey !== 'delete';
+  return false;
+}
+
+/** What the right-click menu shows beside Delete. */
+function deleteKeyLabel() {
+  return deleteKey === 'backspace' ? 'Backspace' : 'Del';
+}
+
+// Read at start-up, not only when a dialog opens: the key has to work from the
+// first press.
+window.bsr.getSettings().then(paintDeleteKey).catch(() => {});
+
+el.kDelete.addEventListener('change', async () => {
+  paintDeleteKey(await window.bsr.setSettings({ deleteKey: el.kDelete.value }));
+});
+
 el.shortcutsBtn.addEventListener('click', async () => {
   await refreshShortcuts();
+  paintDeleteKey(await window.bsr.getSettings());
   el.kError.hidden = true;
   el.keysDlg.showModal();
 });
@@ -662,6 +699,7 @@ el.kReset.addEventListener('click', async () => {
   await window.bsr.setShortcut('pause', '');
   const r = await window.bsr.setShortcut('stop', '');
   if (r.state) paintShortcuts(r.state);
+  paintDeleteKey(await window.bsr.setSettings({ deleteKey: 'either' }));
   el.kError.hidden = true;
 });
 
@@ -1215,12 +1253,12 @@ document.addEventListener('keydown', async (e) => {
   // A selected mark takes Delete first. Without this the key would delete the
   // STEP while the window is showing a bar about one arrow on it, which is a
   // long way from what was meant and expensive to be wrong about.
-  if (e.key === 'Delete' && selectedMarkId && selectedMark()) {
+  if (isDeleteKey(e) && selectedMarkId && selectedMark()) {
     e.preventDefault();
     deleteMark(selectedMarkId);
     return;
   }
-  if (e.key === 'Delete') { e.preventDefault(); deleteSelection(); return; }
+  if (isDeleteKey(e)) { e.preventDefault(); deleteSelection(); return; }
   if (e.key === 'Escape' && selectedMarkId) { selectMark(null); return; }
 
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -2410,7 +2448,7 @@ el.list.addEventListener('contextmenu', (e) => {
     null,
     { label: step.excluded ? 'Include in the guide' : 'Leave out of the guide',
       run: () => setExcluded([...marked], !step.excluded) },
-    { label: many ? `Delete ${marked.size} steps` : 'Delete step', key: 'Del',
+    { label: many ? `Delete ${marked.size} steps` : 'Delete step', key: deleteKeyLabel(),
       run: () => deleteSelection() },
   ]);
 });

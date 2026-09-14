@@ -292,9 +292,16 @@
       <span class="k-what">Select several steps</span>
       <span class="k-keys"><kbd>Ctrl</kbd>+click, <kbd>Shift</kbd>+click</span>
     </div>
-    <div class="keyrow static">
+    <div class="keyrow">
       <span class="k-what">Delete the selection</span>
-      <span class="k-keys"><kbd>Delete</kbd></span>
+      <!-- A choice rather than a fixed key: many keyboards have no Delete key
+           within easy reach. Typing in a text box is never affected. -->
+      <select id="k-delete" class="k-select" aria-label="Key that deletes the selection">
+        <option value="either">Delete or Backspace</option>
+        <option value="delete">Delete only</option>
+        <option value="backspace">Backspace only</option>
+      </select>
+      <span></span>
     </div>
     <div class="keyrow static">
       <span class="k-what">Undo the last change</span>

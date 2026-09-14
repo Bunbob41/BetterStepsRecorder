@@ -19,6 +19,8 @@ Notable changes, newest first. The reasoning behind each decision lives in
   named, the grey line under each row says *Click* or *Keyboard* instead of the
   recorder's internal names, and the program is named only where it changes.
   The header reads *Steps 12* on the left with its buttons on the right.
+- **Backspace can now delete steps.** Choose Delete, Backspace, or either (the
+  default) under All shortcuts. Typing in a text box is never affected.
 - **Stopping a recording that captured nothing now says so** and offers to
   discard it (to the Recycle Bin). If the recording was limited to one program,
   it names that program, since clicks elsewhere are the usual reason.

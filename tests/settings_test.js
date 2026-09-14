@@ -85,6 +85,14 @@ console.log('\nwhat the window saves is clamped on the way in too:');
         new Settings(path.dirname(s.file), { documentsDir: docs }).values.stepsWidth === 480);
 }
 
+console.log('\nwhich key deletes a step:');
+{
+  check('either key, by default', withFile(undefined).values.deleteKey === 'either');
+  check('a choice that was made is kept', withFile({ deleteKey: 'backspace' }).values.deleteKey === 'backspace');
+  check('and one that is not a choice falls back to either',
+        withFile({ deleteKey: 'Enter' }).values.deleteKey === 'either');
+}
+
 fs.rmSync(bench, { recursive: true, force: true });
 
 console.log(`\n${pass} passed, ${fail} failed`);

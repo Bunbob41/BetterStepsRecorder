@@ -1257,6 +1257,11 @@ them for its name:
 and deleting one are on the step's own right-click menu, along with **+ Add**'s
 three: a note, a section heading, or photographs.
 
+The keyboard deletes too. By default either **Delete** or **Backspace** removes
+the selected steps; if you want only one of them, choose it under **All
+shortcuts**, on the "Delete the selection" row. Backspace inside a text box is
+always just typing.
+
 The first five say *look here*, which the recorder cannot know. They are held as
 **data on the step**, not painted into the screenshot, and that is what lets you
 change your mind:
