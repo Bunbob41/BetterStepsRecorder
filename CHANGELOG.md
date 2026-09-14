@@ -19,6 +19,19 @@ Notable changes, newest first. The reasoning behind each decision lives in
   named, the grey line under each row says *Click* or *Keyboard* instead of the
   recorder's internal names, and the program is named only where it changes.
   The header reads *Steps 12* on the left with its buttons on the right.
+- Fixed: **typing a step's wording and quickly clicking another step could save
+  your words to the wrong step.**
+- **Undo now covers rewording, leaving a step out, reordering, and adding a note
+  or heading.** Before, Ctrl+Z skipped all of these and undid an older change
+  instead. A burst of typing, or leaving out several selected steps at once, is
+  one undo.
+- Fixed: **the Capture choice in the toolbar was ignored when starting a new
+  recording**, which could record every program when you had chosen one. The
+  new recording now starts on that choice, and says so if the program has closed.
+- Fixed: **stopping a recording hid the notes left for afterwards**, such as a
+  program that could not be recorded because it was running as administrator.
+- Fixed: **if the recorder stopped unexpectedly mid-recording, nothing was said.**
+  It now tells you, how many steps were kept, and that Continue picks it up.
 - Fixed: the line above a step's screenshot numbered it by row, so a step below
   a note or heading showed a different number from the list, and it named the
   action with the recorder's internal word. It matches the list now.

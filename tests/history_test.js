@@ -364,5 +364,92 @@ console.log('\nundoing a crop puts back everything the crop moved:');
   check('and the marks', Boolean(old.steps[0].marks));
 }
 
+console.log('\nfields on steps, and the order of the steps:');
+{
+  const s = fakeSession([step('a', 'one'), step('b', 'two'), step('c', 'three')]);
+  s.reorder = function (from, to) {
+    if (from < 0 || from >= this.steps.length || to < 0 || to >= this.steps.length) return false;
+    const [moved] = this.steps.splice(from, 1);
+    this.steps.splice(to, 0, moved);
+    return true;
+  };
+  const order = () => s.steps.map((x) => x.id).join('');
+
+  const reword = applyEntry(s, { type: 'patchStep',
+    changes: [{ id: 'a', was: { text: 'ORIGINAL', textEdited: false } }] });
+  check('a rewording is undone', reword.ok && s.steps[0].text === 'ORIGINAL');
+  // Left undefined, updateStep would read the undone wording as authored.
+  check('and whether it was authored goes back with it', s.steps[0].textEdited === false);
+  // And the entry that redoes it records that as a real boolean. Left undefined,
+  // the real updateStep reads a wording change without it as authored and marks
+  // it so on the way back - this fake does not copy that, so the entry itself is
+  // what has to be checked.
+  check('the redo entry records authorship as a boolean, never undefined',
+        typeof reword.inverse.changes[0].was.textEdited === 'boolean');
+  applyEntry(s, reword.inverse);
+  check('and it is redone', s.steps[0].text === 'one');
+
+  s.updateStep('b', { excluded: true });
+  s.updateStep('c', { excluded: true });
+  const back = applyEntry(s, { type: 'patchStep', changes: [
+    { id: 'b', was: { excluded: undefined } }, { id: 'c', was: { excluded: undefined } }] });
+  check('leaving two steps out is undone as one', back.ok && !s.steps[1].excluded && !s.steps[2].excluded);
+  applyEntry(s, back.inverse);
+  check('and redone as one', s.steps[1].excluded === true && s.steps[2].excluded === true);
+  check('a change to a step that has gone is refused, not applied to nothing',
+        applyEntry(s, { type: 'patchStep', changes: [{ id: 'zz', was: { text: 'x' } }] }).ok === false);
+
+  // Somebody dragged c to the front; the entry is the move that puts it back.
+  s.reorder(2, 0);
+  const moved = applyEntry(s, { type: 'reorder', from: 0, to: 2 });
+  check('a drag is undone', moved.ok && order() === 'abc');
+  applyEntry(s, moved.inverse);
+  check('and redone', order() === 'cab');
+  check('a move that no longer fits is refused, not guessed at',
+        applyEntry(s, { type: 'reorder', from: 9, to: 0 }).ok === false);
+}
+
+console.log('\nwhat a person calls one change is one undo:');
+{
+  const h = new History();
+  h.pushPatch('a', { text: 'before', textEdited: false }, 1000);
+  h.pushPatch('a', { text: 'bef', textEdited: true }, 1400);
+  h.pushPatch('a', { text: 'befo', textEdited: true }, 1900);
+  check('a burst of typing is one undo', h.past.length === 1);
+  check('holding the wording from before the first keystroke',
+        h.past[0].changes[0].was.text === 'before');
+
+  h.pushPatch('a', { text: 'later', textEdited: true }, 6000);
+  check('typing again after a real pause is a new undo', h.past.length === 2);
+
+  h.pushPatch('b', { excluded: undefined }, 7000);
+  h.pushPatch('c', { excluded: undefined }, 7100);
+  h.pushPatch('d', { excluded: undefined }, 7200);
+  check('leaving a whole selection out is one undo',
+        h.past.length === 3 && h.past[2].changes.length === 3);
+
+  h.pushPatch('b', { text: 'x', textEdited: false }, 7250);
+  check('a different kind of change starts a new undo', h.past.length === 4);
+
+  const h2 = new History();
+  h2.pushPatch('a', { text: 'x', textEdited: false }, 0);
+  h2.pushPatch('b', { text: 'y', textEdited: false }, 300);
+  check('rewording a different step is its own undo', h2.past.length === 2);
+
+  // Undo a batch, then change something: it must not join the undone entry -
+  // nor the older entry that is back at the top in its place. An empty history
+  // here let a broken version crash before this check could report.
+  const h3 = new History();
+  const s3 = fakeSession([step('e', '1'), step('f', '2'), step('g', '3'), step('x', '4')]);
+  h3.pushPatch('x', { excluded: undefined }, -10000);
+  h3.pushPatch('e', { excluded: undefined }, 0);
+  h3.pushPatch('f', { excluded: undefined }, 100);
+  h3.undo(s3);
+  h3.pushPatch('g', { excluded: undefined }, 150);
+  const top = h3.past[h3.past.length - 1];
+  check('a change never joins an entry that has been undone',
+        top && top.changes.length === 1 && top.changes[0].id === 'g');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

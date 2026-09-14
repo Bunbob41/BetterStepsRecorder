@@ -18,6 +18,13 @@
  *   retext       <-> retext         wording, symmetric with itself
  *   pixels       <-> pixels         a blur, an annotation or a crop
  *   marker       <-> marker         where the click indicator sits
+ *   patchStep    <-> patchStep      fields on steps: wording, left out, a
+ *                                   dismissed suggestion - symmetric
+ *   reorder      <-> reorder        a step dragged to a new place
+ *
+ * And inserting a note or a section heading is recorded as the removeSteps that
+ * takes it out again, so its opposite is the restoreSteps a deletion already
+ * has.
  *
  * Pure of Electron so the awkward parts - a redo of a blur, an undo that finds
  * its screenshot gone - can be tested without a window.
@@ -25,6 +32,12 @@
 
 /** How many steps back a person can go. Beyond this the oldest is dropped. */
 const LIMIT = 25;
+
+/** Saves to one step's wording closer together than this are one piece of typing. */
+const TYPING_MS = 2000;
+
+/** The same change to several steps closer together than this is one action. */
+const BATCH_MS = 500;
 
 /** Every stash token an entry is holding, so an evicted one frees its files. */
 function tokensOf(entry) {
@@ -81,6 +94,36 @@ function applyEntry(session, entry) {
       }
       if (!before.length) return { ok: false, error: 'Those steps are no longer here.' };
       return { ok: true, inverse: { type: 'retext', changes: before } };
+    }
+
+    // ---- fields on steps: wording, left out, a dismissed suggestion --------
+    case 'patchStep': {
+      const before = [];
+      for (const c of entry.changes || []) {
+        const step = session.steps.find((s) => s.id === c.id);
+        if (!step) continue;
+        // The same fields, as they stand now, become the opposite entry.
+        // textEdited as a boolean: left undefined, updateStep would read a
+        // wording change as authored and mark it so on the way back.
+        const now = {};
+        for (const k of Object.keys(c.was || {})) {
+          now[k] = k === 'textEdited' ? Boolean(step[k]) : step[k];
+        }
+        before.push({ id: c.id, was: now });
+        session.updateStep(c.id, { ...c.was });
+      }
+      if (!before.length) return { ok: false, error: 'Those steps are no longer here.' };
+      return { ok: true, inverse: { type: 'patchStep', changes: before } };
+    }
+
+    // ---- a step dragged to a new place -------------------------------------
+    case 'reorder': {
+      // Recorded as the move that puts it back, so its opposite is the same
+      // move the other way.
+      if (typeof session.reorder !== 'function' || !session.reorder(entry.from, entry.to)) {
+        return { ok: false, error: 'That step has moved since.' };
+      }
+      return { ok: true, inverse: { type: 'reorder', from: entry.to, to: entry.from } };
     }
 
     // ---- pixels: a blur, an annotation, or a crop --------------------------
@@ -188,6 +231,54 @@ class History {
   get depth() { return { undo: this.past.length, redo: this.future.length }; }
 
   /** Records an edit. Anything that could have been redone no longer can. */
+  // The last field change recorded, kept so the next one can join it when it is
+  // the same act continuing.
+  #lastPatch = null;
+
+  /**
+   * Records a change to fields on a step, joining the previous change when it
+   * is the same act rather than a new one.
+   *
+   * Two cases join, and both are about what a person would call one thing:
+   *
+   *  - Typing. The window saves wording after a short pause, so a sentence
+   *    arrives as several saves. Undo taking it back one pause at a time is not
+   *    undo. Saves to the same step's wording within TYPING_MS join, and the
+   *    entry keeps the wording from before the first of them.
+   *  - The same change to several steps at once - excluding a selection sends
+   *    one save per step, a moment apart. Within BATCH_MS and with the same
+   *    fields, they become one entry covering all of them.
+   *
+   * Only while that entry is still the latest thing in the history: once
+   * anything else has happened, or it has been undone, the next change starts
+   * afresh.
+   */
+  pushPatch(id, was, now = Date.now()) {
+    const keys = Object.keys(was).sort().join(',');
+    const last = this.past[this.past.length - 1];
+    const prior = this.#lastPatch;
+    const continuing = prior && prior.entry === last && prior.keys === keys;
+
+    if (continuing) {
+      const typing = keys === 'text,textEdited';
+      const already = last.changes.some((c) => c.id === id);
+      if (typing && already && now - prior.at < TYPING_MS) {
+        prior.at = now;
+        return false;
+      }
+      if (!typing && !already && now - prior.at < BATCH_MS) {
+        last.changes.push({ id, was });
+        prior.at = now;
+        return false;
+      }
+    }
+
+    const entry = { type: 'patchStep', changes: [{ id, was }] };
+    this.push(entry);
+    this.#lastPatch = { entry, keys, at: now };
+    return true;
+  }
+
   push(entry) {
     this.past.push(entry);
     // A new edit makes the future unreachable, and its stashed files with it.

@@ -227,6 +227,58 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-88 - Nothing typed, chosen or reported is lost
+`(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
+[ui/src/main/history.js](../ui/src/main/history.js),
+[ui/src/main/main.js](../ui/src/main/main.js)
+
+The first tier of a four-part UX audit: the findings that could damage work or
+record more than was meant, each verified in the code before being changed.
+
+**Typed wording could be saved to the wrong step.** The save is debounced, and
+it remembered the step at the keystroke but read the text box when the timer
+fired. Clicking another row inside those 300ms had already put that row's
+wording in the box, so the edited step was saved - to disk - with the clicked
+step's words. The pending text is now captured with its step at the keystroke,
+and flushed when the selection changes, the box loses focus, or an undo runs.
+
+**Undo skipped most of what people do.** Only deletions, replace-all, pixels,
+marks and the click marker were recorded. Rewording, excluding, dismissing a
+suggestion, reordering and adding a note or heading were not - so Ctrl+Z after
+rewording a step undid an older deletion instead, changing something the person
+was not looking at. Three additions to the existing symmetric history (D-39):
+
+- `patchStep` for fields on steps, its own opposite. `History.pushPatch` folds
+  two things a person would call one action: saves to one step's wording within
+  2s (a sentence arrives as several debounced saves), and the same fields changed
+  on several steps within 0.5s (excluding a selection sends one save per step).
+  Only while that entry is still the newest in the history.
+- `reorder`, recorded as the move that puts it back.
+- Adding a note or heading is recorded as the `removeSteps` that takes it out,
+  whose opposite is the `restoreSteps` a deletion already produces.
+
+`textEdited` is captured as a boolean, never undefined: `updateStep` reads an
+undefined `textEdited` beside a text change as authorship and would mark an
+undone rewording as the person's own.
+
+**The toolbar's Capture choice was ignored.** New recording opened its dialog on
+"Everything on screen" whatever the toolbar said, and sent that - so choosing one
+program and starting recorded every program, under a button still naming the
+one. The dialog now starts on the toolbar's choice, and when that program is no
+longer running it says so rather than widening quietly.
+
+**Stopping hid what was meant for afterwards** (introduced by D-86). The notice
+bar is where everything the strip has no room for is kept for after a recording:
+a program that could not be seen, a failed step, the size of the screenshots.
+The Saved bar hid it at exactly that moment. It no longer does; the two stack.
+
+**An engine that died under a recording said nothing.** Main sent only the exit
+code, which an ordinary Stop also produces, so the window went idle as if
+nothing had happened. Main now sends whether a recording was live, decided
+before `logRecordingEnd` clears it, and the window finishes the recording and
+says it stopped unexpectedly, how many steps were kept, and that Continue picks
+it up.
+
 ### D-87 - The steps column says less, better
 `(this change)` - [ui/src/renderer/appname.js](../ui/src/renderer/appname.js),
 [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),

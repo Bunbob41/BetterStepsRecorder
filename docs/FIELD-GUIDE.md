@@ -430,6 +430,11 @@ It is written carefully, too: each save goes to a temporary file and is then
 renamed over the real one, so a crash halfway through leaves the previous good
 version rather than a half-written one.
 
+**Ctrl+Z** undoes rewording a step, leaving one out of the guide, dragging it
+somewhere else, adding a note or a section heading, deleting, and marking up a
+screenshot. A burst of typing counts as one change, and so does leaving out
+several selected steps at once.
+
 The one thing that is *not* kept is the undo history. **Ctrl+Z** covers a slip
 while you are working, and **Ctrl+Y** (or Ctrl+Shift+Z) puts it back if you
 went one too far. Close the app and that history goes, along with the copies of

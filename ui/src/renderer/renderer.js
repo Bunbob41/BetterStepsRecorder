@@ -386,6 +386,9 @@ function renderList() {
 }
 
 async function select(id) {
+  // Whatever was typed into the step being left is saved as that step's, before
+  // the box is given to the next one.
+  if (pendingText && pendingText.id !== id) flushText();
   selectedId = id;
   // A mark belongs to the step it is on; carrying a selection across to the
   // next step would leave the bar describing something not on screen.
@@ -884,6 +887,19 @@ async function openSetup() {
     el.suScope.append(opt);
   }
 
+  // Start from the Capture choice already made in the toolbar. The dialog used
+  // to start on "Everything on screen" whatever the toolbar said, and send that
+  // - so choosing one program and pressing New recording recorded every program,
+  // mail and chat included, under a button still reading "Capture: <that one>".
+  const chosen = scopeChoice.pids.length ? String(scopeChoice.pids[0]) : '';
+  const available = [...el.suScope.options].some((o) => o.value === chosen);
+  el.suScope.value = available ? chosen : '';
+  if (chosen && !available) {
+    // Not widened silently: the program is gone, so say what that means here.
+    showNotice(`${scopeChoice.label} is not running any more, so this recording is set to `
+             + 'everything on screen. Choose a program in the dialog if that is not what you want.');
+  }
+
   syncPurpose();
   el.setupDlg.showModal();
   el.suName.focus();
@@ -1005,7 +1021,10 @@ function showFinished() {
   const name = (el.sessionName.value || '').trim();
   const count = `${n} step${n === 1 ? '' : 's'}`;
   el.finishedText.textContent = name ? `Saved \u2014 ${name}, ${count}` : `Saved \u2014 ${count}`;
-  el.notice.hidden = true;
+  // The notice bar is left as it is. It is where everything meant for after a
+  // recording goes - a program that could not be seen, a step that failed, the
+  // size of the screenshots - because the strip has no room for it. Hiding it
+  // here hid all of that at the one moment it was meant to be read.
   el.finished.hidden = false;
 }
 
@@ -1145,18 +1164,37 @@ document.addEventListener('keydown', async (e) => {
 });
 
 let saveTimer = null;
+// The wording typed and not yet saved, with the step it was typed INTO.
+//
+// The save used to remember the step at the keystroke but read the box when the
+// timer fired, 300ms later. Click another row inside that window and select()
+// had already put the other step's wording in the box - so the step that was
+// edited was saved with the words of the step that was clicked. Quietly, and to
+// disk. Both halves are captured together now, at the keystroke.
+let pendingText = null;
+
+async function flushText() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  const pending = pendingText;
+  pendingText = null;            // taken before any await, so it is saved once
+  if (!pending) return;
+  const step = steps.find((s) => s.id === pending.id);
+  if (!step) return;
+  step.text = pending.text;
+  await window.bsr.updateStep(pending.id, { text: pending.text });
+  renderList();
+}
+
 el.text.addEventListener('input', () => {
-  const id = selectedId;
+  if (!selectedId) return;
+  pendingText = { id: selectedId, text: el.text.value };
   clearTimeout(saveTimer);
   // Debounced: every keystroke would otherwise rewrite session.json.
-  saveTimer = setTimeout(async () => {
-    const step = steps.find((s) => s.id === id);
-    if (!step) return;
-    step.text = el.text.value;
-    await window.bsr.updateStep(id, { text: el.text.value });
-    renderList();
-  }, 300);
+  saveTimer = setTimeout(flushText, 300);
 });
+// Leaving the box is the end of the edit: nothing waits on a timer after that.
+el.text.addEventListener('blur', () => { flushText(); });
 
 // ---- events from the capture engine ----------------------------------------
 
@@ -1196,7 +1234,22 @@ window.bsr.onError((m) => {
   setState('idle');
 });
 
-window.bsr.onExit(() => setState('idle'));
+/**
+ * The capture engine has gone.
+ *
+ * After an ordinary Stop that is expected, and nothing needs saying. Under a
+ * live recording it is the recording cutting out - antivirus, a crash - and the
+ * window used to go quietly idle, indistinguishable from a Stop nobody pressed,
+ * with no word on whether anything was kept.
+ */
+window.bsr.onExit((m = {}) => {
+  if (!m.duringRecording) { setState('idle'); return; }
+  recordingFinished();
+  const n = m.steps || 0;
+  showNotice('The recording stopped unexpectedly'
+           + (n ? ` after ${n} step${n === 1 ? '' : 's'}` : '')
+           + '. Everything recorded up to then is saved - press Continue this recording to carry on.');
+});
 
 /**
  * The program in front is one the recorder cannot see, because it is running as
@@ -1888,6 +1941,9 @@ function suggestionRow(hint, index) {
  * discover.
  */
 async function stepHistory(direction) {
+  // Wording still waiting on its timer is saved first. Otherwise Ctrl+Z undoes
+  // the change before it, and the typing lands a moment later on top.
+  await flushText();
   const r = direction === 'redo' ? await window.bsr.redo() : await window.bsr.undo();
   if (!r || r.empty) return;
   if (!r.ok) {

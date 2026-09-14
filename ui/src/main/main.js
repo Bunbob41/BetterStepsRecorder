@@ -227,6 +227,11 @@ function wireSidecar() {
   });
 
   sidecar.on('exit', (code) => {
+    // Decided before logRecordingEnd clears it: whether a recording was live is
+    // the one thing the window needs, to tell a crash from an ordinary stop.
+    const duringRecording = Boolean(recordingSince);
+    const recorded = session ? sections.countSteps(session.steps) : 0;
+
     // The engine going away underneath a live recording IS the recording
     // cutting out, and it is the case that left no trace at all: no stop, no
     // error, nothing. Said at error level because nobody asked for it to end.
@@ -239,7 +244,10 @@ function wireSidecar() {
     // Without this, an engine killed by antivirus or a crash leaves the window
     // as a floating strip with every other control hidden and no way back.
     leaveCompact();
-    send('sidecar:exit', { code });
+    // The window used to be told only the exit code, which an ordinary Stop also
+    // produces - so an engine killed by antivirus mid-recording looked exactly
+    // like nothing had happened.
+    send('sidecar:exit', { code, duringRecording, steps: recorded });
   });
 }
 
@@ -886,14 +894,44 @@ ipcMain.handle('photo:add', async (_e, { files, afterId }) => {
                            { afterId, keepOriginal: true, onWarn: log.warn });
 });
 
-ipcMain.handle('step:addNote', (_e, { text, afterId }) =>
-  session ? session.addNote(text, afterId) : null);
+// Adding a note or a heading is undone by taking it out again, which is a
+// deletion's opposite already - so it is recorded as exactly that.
+ipcMain.handle('step:addNote', (_e, { text, afterId }) => {
+  if (!session) return null;
+  const r = session.addNote(text, afterId);
+  if (r && r.step) pushUndo({ type: 'removeSteps', ids: [r.step.id] });
+  return r;
+});
 
-ipcMain.handle('step:addSection', (_e, { text, afterId }) =>
-  session ? session.addSection(text, afterId) : null);
+ipcMain.handle('step:addSection', (_e, { text, afterId }) => {
+  if (!session) return null;
+  const r = session.addSection(text, afterId);
+  if (r && r.step) pushUndo({ type: 'removeSteps', ids: [r.step.id] });
+  return r;
+});
 
-ipcMain.handle('step:update', (_e, { id, patch }) =>
-  session ? session.updateStep(id, patch) : null);
+/**
+ * A change to fields on a step - its wording, whether it is left out of the
+ * guide, a dismissed suggestion - and the undo that takes it back.
+ *
+ * None of these used to be undoable. Ctrl+Z after rewording a step skipped the
+ * rewording and undid whatever deletion came before it, which is worse than no
+ * undo: it changes something the person was not looking at.
+ */
+ipcMain.handle('step:update', (_e, { id, patch }) => {
+  if (!session) return null;
+  const step = session.steps.find((s) => s.id === id);
+  if (step && patch && typeof patch === 'object') {
+    const keys = Object.keys(patch);
+    // Wording carries whether it was authored, so undo restores both.
+    if (keys.includes('text') && !keys.includes('textEdited')) keys.push('textEdited');
+    const was = {};
+    for (const k of keys) was[k] = k === 'textEdited' ? Boolean(step[k]) : step[k];
+    history.pushPatch(id, was);
+    sendDepth();
+  }
+  return session.updateStep(id, patch);
+});
 
 ipcMain.handle('step:remove', (_e, { id }) => {
   if (!session) return false;
@@ -979,8 +1017,13 @@ ipcMain.handle('steps:replaceAll', (_e, { query, replacement, options }) => {
            steps: session.steps };
 });
 
-ipcMain.handle('step:reorder', (_e, { from, to }) =>
-  session ? session.reorder(from, to) : false);
+ipcMain.handle('step:reorder', (_e, { from, to }) => {
+  if (!session) return false;
+  const moved = session.reorder(from, to);
+  // Recorded as the move that puts it back.
+  if (moved) pushUndo({ type: 'reorder', from: to, to: from });
+  return moved;
+});
 
 ipcMain.handle('session:open', async () => {
   const r = await dialog.showOpenDialog(win, {

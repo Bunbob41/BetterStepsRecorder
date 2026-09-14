@@ -55,7 +55,10 @@ console.log('every undo entry can actually be undone:');
   // presses Ctrl+Z and nothing happens, with no error and the entry consumed.
   // The types are pushed in main.js and applied in history.js, so neither file
   // can be checked on its own.
-  const pushed = [...main.matchAll(/pushUndo\(\{\s*\n?\s*type: '(\w+)'/g)].map((m) => m[1]);
+  // pushPatch in history.js builds the entries for field changes, so the types
+  // it builds count as pushed as well as main's own pushUndo calls.
+  const pushed = [...main.matchAll(/pushUndo\(\{\s*\n?\s*type: '(\w+)'/g)].map((m) => m[1])
+    .concat([...history.matchAll(/const entry = \{ type: '(\w+)'/g)].map((m) => m[1]));
   const handled = [...history.matchAll(/case '(\w+)':/g)].map((m) => m[1]);
 
   check(`there are undo types to check (${pushed.length})`, pushed.length >= 4);
@@ -576,6 +579,28 @@ console.log('\na crop cuts everything the marker depends on:');
         'crop.js can move it, but step:crop never asks');
   check('writing the result back', /markerAt: nextMarker/.test(body),
         'the new position is computed and then discarded');
+}
+
+console.log('\nnothing typed, chosen or reported is lost:');
+{
+  // The audit's first tier, each pinned so it cannot quietly come back.
+  check('typed wording is captured with the step it was typed into',
+        /pendingText = \{ id: selectedId, text: el\.text\.value \}/.test(renderer));
+  check('and saved before another step is given the box',
+        /if \(pendingText && pendingText\.id !== id\) flushText\(\);/.test(renderer));
+  check('a field change goes into the undo history', /history\.pushPatch\(id, was\)/.test(main));
+  check('a reorder records the move that puts it back',
+        /pushUndo\(\{ type: 'reorder', from: to, to: from \}\)/.test(main));
+  check('adding a note records its removal',
+        /session\.addNote\(text, afterId\);\s*\n\s*if \(r && r\.step\) pushUndo\(\{ type: 'removeSteps'/.test(main));
+  check('as does adding a heading',
+        /session\.addSection\(text, afterId\);\s*\n\s*if \(r && r\.step\) pushUndo\(\{ type: 'removeSteps'/.test(main));
+  check('the new recording dialog starts on the Capture choice',
+        /el\.suScope\.value = available \? chosen : '';/.test(renderer));
+  check('the Saved bar does not hide the notices',
+        !/el\.notice\.hidden = true;\s*\n\s*el\.finished\.hidden = false;/.test(renderer));
+  check('main tells the window whether a recording was live when the engine went',
+        /send\('sidecar:exit', \{ code, duringRecording/.test(main));
 }
 
 console.log('\nheadings are not counted as steps:');

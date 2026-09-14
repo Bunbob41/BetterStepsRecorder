@@ -127,6 +127,8 @@ const SETTINGS = {
 
 // Every time the page asked to carry a recording on.
 const CONTINUED = [];
+// Every step update the page sent, in order.
+const UPDATES = [];
 
 const ANSWERS = {
   // Every key the page reads, with the names the real settings file uses.
@@ -142,7 +144,9 @@ const ANSWERS = {
   // r.ok before iterating r.windows. Unanswered, the stub's bare { ok: true }
   // passes that check with nothing to iterate and the dialog never opens. The
   // real engine resolves an array on every path, timeout included.
-  listWindows: () => ({ ok: true, windows: [] }),
+  listWindows: () => ({ ok: true, windows: [
+    { pid: 4242, process: 'notepad.exe', title: 'Untitled - Notepad', foreground: false },
+  ] }),
   continueRecording: () => {
     CONTINUED.push(true);
     return { ok: true, resumed: true, dir: 'C:\\recordings\\one',
@@ -206,7 +210,8 @@ const ANSWERS = {
   // in a hidden window, and a run that never ended. It also meant the marking
   // path was never actually reached.
   shotData: () => SHOT,
-  updateStep: () => ({ ok: true }),
+  // Kept, so a test can see which step a save was actually sent for.
+  updateStep: (id, patch) => { UPDATES.push({ id, patch }); return { ok: true }; },
   // Enough of the real handler that the PAGE's behaviour is what is under
   // test: the real one clamps, pushes an undo entry and writes the field.
   // history.js is exercised on its own; this is about the drag.
@@ -292,6 +297,11 @@ bridge.__continued = async () => CONTINUED.length;
 let onHotkey = () => {};
 bridge.onHotkey = (fn) => { onHotkey = fn; };
 bridge.__hotkey = async (message) => { onHotkey(message); return true; };
+// The engine going away arrives as an event too.
+let onExit = () => {};
+bridge.onExit = (fn) => { onExit = fn; };
+bridge.__exit = async (message) => { onExit(message); return true; };
+bridge.__updates = async () => UPDATES;
 bridge.__keys = async () =>
   ({ values: KEYS.values, calls: KEYS.calls, captured: KEYS.captured });
 bridge.__lastMarker = async () => LAST_MARKER;
@@ -2989,6 +2999,90 @@ app.whenReady().then(async () => {
         done.labels.record === 'New recording', done.labels.record);
   check('and Continue says it adds to this one',
         done.labels.cont === 'Continue this recording', done.labels.cont);
+
+  // ---- tier 1: nothing typed, chosen or reported is lost ---------------------
+  console.log('\nnothing typed, chosen or reported is lost:');
+
+  const t1 = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const $ = (id) => document.getElementById(id);
+
+    $('c-stop').click();
+    await sleep(150);
+    const row = document.querySelector('#library-list .lib-row');
+    if (row) { row.click(); await sleep(300); }
+    const rows = [...document.querySelectorAll('#step-list li.step')];
+    rows[0].click();
+    await sleep(200);
+    const firstId = rows[0].dataset.id;
+    const secondId = rows[1].dataset.id;
+
+    // Type into the first step, then go straight to another row - well inside
+    // the 300ms the save waits for.
+    const box = $('detail-text');
+    box.value = 'TYPED INTO THE FIRST STEP';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    rows[1].click();
+    await sleep(500);
+    const typed = (await window.bsr.__updates())
+      .filter((u) => u.patch && u.patch.text === 'TYPED INTO THE FIRST STEP');
+
+    // The Capture choice in the toolbar is where the dialog starts.
+    scopeChoice = { pids: [4242], label: 'Notepad' };
+    $('btn-record').click();
+    await sleep(400);
+    const scopeValue = $('su-scope').value;
+    $('setupdlg').close();
+    await sleep(100);
+
+    // A chosen program that has closed is said, not silently widened.
+    $('notice').hidden = true;
+    scopeChoice = { pids: [9999], label: 'Gone App' };
+    $('btn-record').click();
+    await sleep(400);
+    const goneValue = $('su-scope').value;
+    const goneSaid = !$('notice').hidden && $('notice-text').textContent.includes('Gone App');
+    $('setupdlg').close();
+    await sleep(100);
+    scopeChoice = { pids: [], label: 'Everything' };
+
+    // The Saved bar leaves a note for afterwards where it is.
+    showNotice('A NOTE FOR AFTERWARDS');
+    showFinished();
+    await sleep(50);
+    const noteKept = !$('notice').hidden && $('notice-text').textContent.includes('AFTERWARDS');
+    const savedShown = !$('finished').hidden;
+    $('finished').hidden = true;
+    $('notice').hidden = true;
+
+    // The engine dying under a recording is said.
+    await window.bsr.__exit({ code: 1, duringRecording: true, steps: 7 });
+    await sleep(250);
+    const crashSaid = !$('notice').hidden
+      && $('notice-text').textContent.includes('stopped unexpectedly after 7 steps');
+    $('notice').hidden = true;
+    $('finished').hidden = true;
+
+    // An ordinary exit, after a Stop, says nothing.
+    await window.bsr.__exit({ code: 0, duringRecording: false, steps: 7 });
+    await sleep(150);
+    const quietExit = $('notice').hidden;
+
+    return { firstId, secondId, typed, scopeValue, goneValue, goneSaid,
+             noteKept, savedShown, crashSaid, quietExit };
+  })()`);
+
+  check('typed wording is saved to the step it was typed into',
+        t1.typed.length > 0 && t1.typed.every((u) => u.id === t1.firstId),
+        JSON.stringify(t1.typed));
+  check('and never to the step clicked next', !t1.typed.some((u) => u.id === t1.secondId));
+  check('a new recording starts on the Capture choice in the toolbar', t1.scopeValue === '4242',
+        t1.scopeValue);
+  check('a chosen program that has closed is said, not silently widened',
+        t1.goneValue === '' && t1.goneSaid);
+  check('the Saved bar leaves a note for afterwards visible', t1.noteKept && t1.savedShown);
+  check('a recording cut off by the engine dying says so', t1.crashSaid);
+  check('and an ordinary stop says nothing', t1.quietExit);
 
   console.log('\nno field you type into is wearing the platform colours:');
 
