@@ -19,6 +19,14 @@ Notable changes, newest first. The reasoning behind each decision lives in
   named, the grey line under each row says *Click* or *Keyboard* instead of the
   recorder's internal names, and the program is named only where it changes.
   The header reads *Steps 12* on the left with its buttons on the right.
+- **Stopping a recording that captured nothing now says so** and offers to
+  discard it (to the Recycle Bin). If the recording was limited to one program,
+  it names that program, since clicks elsewhere are the usual reason.
+- **The recording clock stops while paused.**
+- **Recent recordings shows a "Show all" button** when you have more than twelve.
+  Damaged recordings no longer sit at the top of the list.
+- **Opening a recording with the Open button now works like opening it from the
+  list**: its name, its first step, and no leftovers from the last one.
 - **After an export, the notice says which file was made and offers Open and
   Show in folder.** A failed export now says why in plain words, such as the
   file being open in Word, instead of an error code in a pop-up, and no longer

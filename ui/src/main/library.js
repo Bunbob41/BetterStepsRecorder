@@ -114,7 +114,11 @@ function list(root, { readdir = fs.readdirSync, readFile = fs.readFileSync,
     }
   }
 
-  return entries.sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt)));
+  // Newest first, and those with no date - damaged ones - after them. As
+  // strings, a missing date was "null", which sorts after every digit, so a
+  // damaged recording from years ago sat at the top of Recent recordings.
+  return entries.sort((a, b) => (!a.savedAt - !b.savedAt)
+    || String(b.savedAt).localeCompare(String(a.savedAt)));
 }
 
 module.exports = { list, folderBytes };

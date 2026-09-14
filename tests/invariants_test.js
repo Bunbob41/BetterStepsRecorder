@@ -622,6 +622,20 @@ console.log('\nno routine outcome stops the window:');
         !/'Capture engine not found/.test(main));
 }
 
+console.log('\nevery way in behaves the same:');
+{
+  check('Open from disk shows a recording the way the list does',
+        /async function openFromDisk\(\) \{[\s\S]{0,600}await showOpened\(r\);/.test(renderer));
+  check('more than twelve recordings can be reached without searching',
+        /libraryShowAll \? rows : rows\.slice\(0, LIBRARY_RECENT\)/.test(renderer)
+        && /Show all \$\{rows\.length\} recordings/.test(renderer));
+  check('Discard only ever empties a recording with no steps, from the recordings folder, to the Recycle Bin',
+        /ipcMain\.handle\('session:discard'[\s\S]{0,400}if \(session\.steps\.length\)/.test(main)
+        && /path\.dirname\(path\.resolve\(dir\)\)\.toLowerCase\(\) === path\.resolve\(root\)\.toLowerCase\(\)/.test(main)
+        && /await shell\.trashItem\(dir\)/.test(main)
+        && !/session:discard[\s\S]{0,1500}(rmSync|unlinkSync|rmdirSync)/.test(main));
+}
+
 console.log('\nheadings are not counted as steps:');
 {
   // The count a reader is given has to be the number of things to do. Before

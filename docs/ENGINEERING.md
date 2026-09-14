@@ -227,6 +227,42 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-90 - Every way in to a recording behaves the same
+`(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
+[ui/src/main/main.js](../ui/src/main/main.js),
+[ui/src/main/library.js](../ui/src/main/library.js)
+
+The second half of the audit's second tier: places where the same thing
+behaved differently depending on how a person got there.
+
+**One way to show an opened recording.** `showOpened(res, at)` is shared by the
+library list, search results and the Open dialog. Open-from-disk had its own
+copy that had fallen behind: the name box kept the previous recording's name,
+ticked steps stayed counted, nothing was selected. Opening also clears the
+export title, which is only filled in when empty and so carried over.
+
+**The strip's clock stops while paused.** It counted through pauses. `setState`
+freezes and thaws it, so the Pause button and the pause hotkey both do. It is
+the time of this sitting: Continue on an older recording starts from zero,
+because the window does not know how long earlier sittings were, and a number
+it would have to guess is worse than one that is plainly "since you pressed
+Continue".
+
+**Stopping with nothing recorded says so.** No Saved bar appears for zero steps,
+so the strip went quiet and an empty recording stayed in the list. It now names
+the scope - the usual cause is clicking in a different program from the one the
+recording was limited to - and offers *Discard it*. `session:discard` refuses
+if there are steps, refuses while recording, moves the folder to the Recycle
+Bin with `shell.trashItem` (never a delete), and only for a folder directly in
+the recordings folder; one opened from elsewhere is closed and left where it is.
+The window cannot name the folder.
+
+**The library reaches past twelve.** Recent recordings stopped at twelve, so the
+thirteenth could only be found by searching. A *Show all N recordings* button
+follows. Separately, a damaged recording has no `savedAt`; as a string that was
+`"null"`, which sorts after every digit, so damaged recordings sat at the top.
+Undated entries now sort last, in the list and in search results.
+
 ### D-89 - Every outcome says what happened and offers the next move
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
 [ui/src/main/main.js](../ui/src/main/main.js),

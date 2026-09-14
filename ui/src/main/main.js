@@ -856,6 +856,45 @@ ipcMain.handle('session:close', () => {
   return { ok: true };
 });
 
+/**
+ * Throws away the open recording, only if nothing was recorded in it.
+ *
+ * To the Recycle Bin, never deleted outright, and only a folder that sits
+ * directly in the recordings folder: the window can ask for this, but cannot
+ * say which folder, and a recording opened from somewhere else is left where
+ * it is.
+ */
+ipcMain.handle('session:discard', async () => {
+  if (recordingSince) return { ok: false, error: 'Stop the recording first.' };
+  if (!session) return { ok: true };
+  if (session.steps.length) {
+    return { ok: false, error: 'This recording has steps in it, so it was kept.' };
+  }
+
+  const dir = session.dir;
+  const root = settings.values.saveRoot;
+  const inRecordings = Boolean(root)
+    && path.dirname(path.resolve(dir)).toLowerCase() === path.resolve(root).toLowerCase();
+
+  closeSession();
+  session = null;
+  autoNamedAs = null;
+
+  if (!inRecordings) {
+    log.warn(`kept the empty recording at ${dir}: it is not in the recordings folder`);
+    return { ok: true, kept: true };
+  }
+  try {
+    await shell.trashItem(dir);
+    log.info(`moved the empty recording at ${dir} to the Recycle Bin`);
+    return { ok: true };
+  } catch (err) {
+    log.error(err);
+    return { ok: false,
+             error: messages.fileProblem(err, { action: 'move the empty recording to the Recycle Bin' }) };
+  }
+});
+
 ipcMain.handle('recording:stop', () => {
   finishRecording('the Stop button');
   return { ok: true, steps: session ? session.steps.length : 0 };

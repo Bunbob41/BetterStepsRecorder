@@ -94,6 +94,8 @@ function setState(next) {
 
   el.record.disabled = next !== 'idle';
   if (next === 'idle') stopElapsed();
+  else if (next === 'paused') freezeElapsed();
+  else if (next === 'recording') thawElapsed();
   // A warning about the program in front means nothing once nothing is recording.
   if (next === 'idle') paintBlocked(null);
   // Safety net: idle and compact is a dead end, so never allow the pair.
@@ -820,12 +822,30 @@ el.noticeSettings.addEventListener('click', () => {
 
 let recordingStarted = null;
 let elapsedTimer = null;
+// When the recording was paused, or null. The strip's clock went on counting
+// through a pause, so a recording paused for a coffee said it had been running
+// for twenty minutes.
+let pausedAt = null;
+// What the recording is limited to, as the setup dialog named it.
+let recordingScope = '';
 
 function stopElapsed() {
   clearInterval(elapsedTimer);
   elapsedTimer = null;
   recordingStarted = null;
+  pausedAt = null;
   el.cElapsed.textContent = '';
+}
+
+function freezeElapsed() {
+  if (recordingStarted && !pausedAt) pausedAt = Date.now();
+}
+
+function thawElapsed() {
+  if (!recordingStarted || !pausedAt) return;
+  // The start moves later by as long as the pause lasted.
+  recordingStarted += Date.now() - pausedAt;
+  pausedAt = null;
 }
 
 function startElapsed() {
@@ -833,7 +853,7 @@ function startElapsed() {
   clearInterval(elapsedTimer);
   const tick = () => {
     if (!recordingStarted) return;
-    const secs = Math.floor((Date.now() - recordingStarted) / 1000);
+    const secs = Math.floor(((pausedAt || Date.now()) - recordingStarted) / 1000);
     const mm = String(Math.floor(secs / 60)).padStart(2, '0');
     const ss = String(secs % 60).padStart(2, '0');
     el.cElapsed.textContent = mm + ':' + ss;
@@ -957,6 +977,7 @@ function recordingBegan(r) {
   }
   el.sessionName.value = r.name || '';
   el.scopeBtn.textContent = `Capture: ${r.scope}`;
+  recordingScope = r.scope || '';
   el.notice.hidden = true;
   el.finished.hidden = true;
   if (!r.resumed) el.expTitle.value = '';
@@ -1018,6 +1039,31 @@ function recordingFinished() {
   setState('idle');
   renderLibrary();
   showFinished();
+  if (!steps.length) offerDiscard();
+}
+
+/**
+ * Stopping with nothing recorded.
+ *
+ * The strip used to go quiet: no Saved bar, because there was nothing to count,
+ * and an empty recording left behind in the list. The usual cause is the scope -
+ * clicking in a different program from the one the recording was limited to -
+ * so it is named.
+ */
+function offerDiscard() {
+  const only = recordingScope && recordingScope !== 'Everything' ? recordingScope : '';
+  showNotice(only
+    ? `Nothing was recorded. Only clicks in ${only} are captured in this recording.`
+    : 'Nothing was recorded.', {
+    actions: [{ label: 'Discard it', run: discardEmpty }],
+  });
+}
+
+async function discardEmpty() {
+  const r = await window.bsr.discardRecording();
+  if (!r || !r.ok) { showNotice((r && r.error) || 'The empty recording was kept.'); return; }
+  forgetOpen();
+  await showLibrary();
 }
 
 /**
@@ -1050,7 +1096,12 @@ async function closeRecording() {
   if (state !== 'idle') return;
   const r = await window.bsr.closeSession();
   if (r && r.ok === false) { if (r.error) showNotice(r.error); return; }
+  forgetOpen();
+  await showLibrary();
+}
 
+/** The window's side of having nothing open. */
+function forgetOpen() {
   steps = [];
   selectedId = null;
   marked.clear();
@@ -1061,7 +1112,6 @@ async function closeRecording() {
   el.expTitle.value = '';
   el.finished.hidden = true;
   renderList();
-  await showLibrary();
 }
 
 el.closeBtn.addEventListener('click', closeRecording);
@@ -1072,19 +1122,12 @@ el.finishedNew.addEventListener('click', () => { el.finished.hidden = true; open
 async function openFromDisk() {
   const r = await window.bsr.openSession();
   if (!r.ok) { if (r.error) showNotice(r.error); return; }
-  if (r.photos) {
-    showNotice(`${r.photos} photo${r.photos === 1 ? '' : 's'} from the `
-             + `recording's folder ${r.photos === 1 ? 'was' : 'were'} added `
-             + `at the end. The originals are in its originals folder.`);
-  }
-  if (r.photoErrors && r.photoErrors.length) showNotice(r.photoErrors.join(' '));
-  el.saveState.textContent = `${r.steps.length} steps · ${r.dir}`;
-  openDir = r.dir;
-  el.reveal.disabled = false;
-  steps = r.steps;
-  selectedId = null;
-  showPane('library');
-  renderList();
+  // The same as opening it from the list. This had its own copy, which had
+  // fallen behind: the name box kept the previous recording's name, ticked
+  // steps from that one stayed counted, and nothing was selected, so the
+  // recording opened onto the library rather than its first step.
+  await showOpened(r);
+  renderLibrary();
 }
 
 async function deleteSelection() {
@@ -1491,7 +1534,16 @@ el.recordings.addEventListener('click', (e) => {
 async function openRecording(dir, at = null) {
   const res = await window.bsr.openLibrary(dir);
   if (!res.ok) { showNotice(res.error); renderLibrary(); return false; }
+  return showOpened(res, at);
+}
 
+/**
+ * Puts a recording main has just opened in front of the person.
+ *
+ * Every way of opening one comes here - the list, a search result, the Open
+ * dialog - so they cannot drift apart again.
+ */
+async function showOpened(res, at = null) {
   // Photographs that were sitting in the folder are now steps. Said out loud,
   // because a recording that quietly grew four steps between one opening and
   // the next would be alarming rather than convenient.
@@ -1509,6 +1561,11 @@ async function openRecording(dir, at = null) {
   // "Delete 3 steps" that are not there and then delete nothing.
   marked.clear();
   el.sessionName.value = res.name || '';
+  openDir = res.dir;
+  // Only filled in when empty, so the last recording's title would otherwise be
+  // offered as this one's.
+  el.expTitle.value = '';
+  el.finished.hidden = true;
   // Saying it here too. The tick only appeared while recording, so editing an
   // existing recording gave no sign that every change was already on disk -
   // which is the moment somebody is most likely to look for a Save button and
@@ -1677,6 +1734,10 @@ async function paintUsage() {
 }
 
 let librarySearchAt = 0;
+// The list shows the newest twelve until asked for the rest. Before, the
+// thirteenth recording could only be found by searching for it.
+const LIBRARY_RECENT = 12;
+let libraryShowAll = false;
 
 async function renderLibrary() {
   const query = el.libraryQuery.value.trim();
@@ -1695,7 +1756,16 @@ async function renderLibrary() {
     el.libraryFound.textContent = '';
     el.libraryList.replaceChildren();
     el.libraryEmpty.hidden = rows.length > 0;
-    for (const r of rows.slice(0, 12)) el.libraryList.append(libraryRow(r, ''));
+    const shown = libraryShowAll ? rows : rows.slice(0, LIBRARY_RECENT);
+    for (const r of shown) el.libraryList.append(libraryRow(r, ''));
+    if (rows.length > shown.length) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'library-more';
+      more.textContent = `Show all ${rows.length} recordings`;
+      more.addEventListener('click', () => { libraryShowAll = true; renderLibrary(); });
+      el.libraryList.append(more);
+    }
     return;
   }
 

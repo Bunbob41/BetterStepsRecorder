@@ -1090,6 +1090,14 @@ for it:
 **Re-record's Cancel** really does stop waiting: your next click is not
 captured, and the step is left as it was.
 
+**If you stop and nothing was recorded**, the bar says so and offers **Discard
+it**, which moves the empty recording to the Recycle Bin. When a recording is
+limited to one program, it reminds you which, because clicking in a different
+program is the usual reason nothing was caught.
+
+The **clock on the recording strip** stops while you are paused, so it shows how
+long you have actually been recording since you pressed Record or Continue.
+
 ```mermaid
 flowchart LR
     act["You export, delete,<br/>or re-record"] --> ok{"Did it work?"}

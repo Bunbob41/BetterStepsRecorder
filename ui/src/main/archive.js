@@ -88,7 +88,8 @@ function search(root, query, { caseSensitive = false, wholeWord = false,
   }
 
   return found.sort((a, b) =>
-    b.total - a.total || String(b.savedAt).localeCompare(String(a.savedAt)));
+    b.total - a.total || (!a.savedAt - !b.savedAt)
+    || String(b.savedAt).localeCompare(String(a.savedAt)));
 }
 
 module.exports = { search, SNIPPETS };

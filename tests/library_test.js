@@ -127,6 +127,24 @@ console.log('\nthe count on a card is the number of things to do:');
   check('headings and notes are not steps', withRows[0].steps === 2);
 }
 
+console.log('\na damaged recording does not sit at the top:');
+{
+  const files = {
+    'C:/R/old/session.json': JSON.stringify({ name: 'Old', savedAt: '2024-01-01T00:00:00.000Z', steps: [] }),
+    'C:/R/broken/session.json': '{ not json',
+    'C:/R/new/session.json': JSON.stringify({ name: 'New', savedAt: '2026-09-01T00:00:00.000Z', steps: [] }),
+  };
+  const norm = (p) => String(p).replace(/\\/g, '/');
+  const rows = library.list('C:/R', {
+    exists: (p) => norm(p) === 'C:/R' || norm(p) in files,
+    readdir: (p) => (norm(p) === 'C:/R' ? ['broken', 'old', 'new'] : []),
+    readFile: (p) => files[norm(p)],
+    statOf: () => ({ size: 0 }),
+  });
+  const order = rows.map((r) => path.basename(r.dir)).join(',');
+  check('newest first, and the undated one after every dated one', order === 'new,old,broken', order);
+}
+
 console.log('\nwhich application a recording is called after:');
 {
   // A recording almost always begins by clicking something on the taskbar, so

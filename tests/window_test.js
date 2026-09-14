@@ -135,6 +135,7 @@ let REMOVE_RESULT = null;
 const SHOWN = [];
 let RERECORD_WAIT = null;
 let CANCELS = 0;
+let DISCARDS = 0;
 
 const ANSWERS = {
   // Every key the page reads, with the names the real settings file uses.
@@ -223,6 +224,7 @@ const ANSWERS = {
   removeSteps: (ids) => REMOVE_RESULT || { ok: true, removed: ids.length, steps: [] },
   // Waits, as the real one does, until a click comes or it is cancelled.
   rerecordStep: () => new Promise((resolve) => { RERECORD_WAIT = resolve; }),
+  discardRecording: () => { DISCARDS++; return { ok: true }; },
   cancelRerecord: () => {
     CANCELS++;
     if (RERECORD_WAIT) RERECORD_WAIT({ ok: false, cancelled: true });
@@ -323,6 +325,7 @@ bridge.__setExport = async (r) => { EXPORT_RESULT = r; return true; };
 bridge.__setRemove = async (r) => { REMOVE_RESULT = r; return true; };
 bridge.__shown = async () => SHOWN;
 bridge.__cancels = async () => CANCELS;
+bridge.__discards = async () => DISCARDS;
 bridge.__keys = async () =>
   ({ values: KEYS.values, calls: KEYS.calls, captured: KEYS.captured });
 bridge.__lastMarker = async () => LAST_MARKER;
@@ -3189,6 +3192,44 @@ app.whenReady().then(async () => {
   check('Cancel ends the wait itself, not just the overlay',
         t2.cancelled.cancels === 1 && t2.cancelled.overlayDown);
   check('and cancelling is not reported as a failure', t2.cancelled.quiet);
+
+  // ---- tier 2b ------------------------------------------------------------------
+  console.log('\nthe clock, and stopping with nothing recorded:');
+
+  const t2b = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const $ = (id) => document.getElementById(id);
+
+    // A clock two minutes in, then paused.
+    startElapsed();
+    recordingStarted = Date.now() - 125000;
+    setState('paused');
+    await sleep(1200);
+    const atPause = $('c-elapsed').textContent;
+    await sleep(1300);
+    const later = $('c-elapsed').textContent;
+    setState('idle');
+
+    // A recording limited to Notepad that captured nothing.
+    steps = [];
+    recordingScope = 'Notepad';
+    $('notice').hidden = true;
+    recordingFinished();
+    await sleep(200);
+    const said = $('notice').hidden ? '' : $('notice-text').textContent;
+    const discard = [...document.querySelectorAll('#notice-actions button')]
+      .find((b) => b.textContent === 'Discard it');
+    if (discard) discard.click();
+    await sleep(300);
+    return { atPause, later, said, offered: Boolean(discard),
+             discards: await window.bsr.__discards(), emptied: steps.length === 0 };
+  })()`);
+
+  check('the clock shows the time it was paused at', t2b.atPause === '02:05', t2b.atPause);
+  check('and does not move while paused', t2b.later === t2b.atPause, t2b.atPause + ' then ' + t2b.later);
+  check('stopping with nothing recorded says so, naming what was being captured',
+        /Nothing was recorded/.test(t2b.said) && /Notepad/.test(t2b.said), t2b.said);
+  check('and Discard asks main to throw it away', t2b.offered && t2b.discards === 1);
 
   console.log('\nno field you type into is wearing the platform colours:');
 

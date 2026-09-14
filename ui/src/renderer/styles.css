@@ -561,6 +561,7 @@ footer .hint .sep { color: var(--line); margin: 0 4px; }
 .notice-actions { display: inline-flex; gap: 6px; }
 .notice-actions:empty { display: none; }
 .notice-actions button { padding: 3px 10px; }
+.library-more { display: block; margin: 10px auto 2px; }
 .notice-x {
   background: transparent;
   border: 0;
