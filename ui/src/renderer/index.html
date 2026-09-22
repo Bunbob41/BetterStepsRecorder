@@ -210,6 +210,29 @@
           <div id="mark-bar" class="mark-bar" hidden>
             <span id="mark-kind" class="mark-kind"></span>
             <span id="mark-colours" class="mark-colours"></span>
+            <!-- Any colour, not only the five: picked, or taken off the
+                 screenshot, so words can be made to match what is around them. -->
+            <span id="mark-custom" class="mark-custom" hidden>
+              <input id="mark-colour-custom" type="color" title="Any colour"
+                     aria-label="Any colour" />
+              <button id="mark-colour-pick" class="eyedrop" type="button"
+                      title="Take the colour from the screen"
+                      aria-label="Take the colour from the screen">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.6 1.9a2 2 0 0 1 2.8 0l.7.7a2 2 0 0 1 0 2.8l-1.4 1.4.7.7-1.1 1.1-.7-.7-5.3 5.3H3.5l-1 1-1-1 1-1v-2.8l5.3-5.3-.7-.7 1.1-1.1.7.7z" fill="currentColor"/></svg>
+              </button>
+            </span>
+            <span id="mark-card" class="mark-card" hidden>
+              <span>Card</span>
+              <input id="mark-card-fill" type="color" title="Card colour"
+                     aria-label="Card colour" />
+              <button id="mark-card-pick" class="eyedrop" type="button"
+                      title="Take the card colour from the screen"
+                      aria-label="Take the card colour from the screen">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.6 1.9a2 2 0 0 1 2.8 0l.7.7a2 2 0 0 1 0 2.8l-1.4 1.4.7.7-1.1 1.1-.7-.7-5.3 5.3H3.5l-1 1-1-1 1-1v-2.8l5.3-5.3-.7-.7 1.1-1.1.7.7z" fill="currentColor"/></svg>
+              </button>
+              <input id="mark-card-opacity" type="range" min="0" max="100" step="5"
+                     title="How solid the card is" aria-label="How solid the card is" />
+            </span>
             <label id="mark-size-wrap" class="mark-size" hidden>
               <span>Size</span>
               <select id="mark-size">
@@ -240,9 +263,11 @@
           <!-- Where a label is typed. Sits on the picture at the point that
                was clicked, so the words are written where they will appear
                rather than in a dialog somewhere else. -->
-          <input id="label-input" class="label-input" type="text" hidden
-                 maxlength="120" spellcheck="false"
-                 aria-label="Label text" />
+          <!-- A textarea so a text box can hold more than one line: Enter
+               saves, Shift+Enter starts a new line. -->
+          <textarea id="label-input" class="label-input" hidden rows="1"
+                    maxlength="120" spellcheck="false"
+                    aria-label="Label text"></textarea>
         </div>
       </div>
     </section>

@@ -1253,6 +1253,34 @@ them for its name:
   colour the finished label will be
 - **Blur** — the privacy one, described below
 
+### Text on a screenshot
+
+The **Text** tool does two things. **Click** to place a short one-line label.
+**Drag** to draw a **text box**: type as much as you like and the words wrap
+inside it. Enter saves; Shift+Enter starts a new line.
+
+Click a text box to select it, then:
+
+- **Drag a corner** to make it wider or narrower. The words rewrap to fit.
+- **Size** (Small, Medium, Large) changes the lettering.
+- **Colour**: the five dots, or the square for any colour, or the eyedropper to
+  take a colour from anywhere on the screen.
+- **Card**: the colour of the background behind the words (again with an
+  eyedropper) and a slider from solid to see-through. Taking the card's colour
+  from the screenshot itself, with a solid card, lets new text blend into the
+  picture.
+
+What you see is what goes into the guide: the Word, PDF and web exports break
+the lines in the same places as the screen.
+
+```mermaid
+flowchart LR
+    tool["Text tool"] --> click{"Click or drag?"}
+    click -- click --> label["One-line label"]
+    click -- drag --> box["Text box<br/>words wrap inside"]
+    box --> card["Card behind it<br/>any colour, solid to see-through"]
+```
+
 **Crop** sits to their right, and that is the whole toolbar. Re-recording a step
 and deleting one are on the step's own right-click menu, along with **+ Add**'s
 three: a note, a section heading, or photographs.

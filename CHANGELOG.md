@@ -19,6 +19,11 @@ Notable changes, newest first. The reasoning behind each decision lives in
   named, the grey line under each row says *Click* or *Keyboard* instead of the
   recorder's internal names, and the program is named only where it changes.
   The header reads *Steps 12* on the left with its buttons on the right.
+- **Text boxes.** With the Text tool, drag to draw a box: the words wrap inside
+  it, and its corners resize it. Boxes sit on a card whose colour you can pick
+  or take straight off the screenshot, with a slider from solid to see-through,
+  so text can be made to blend in. Any mark can now be any colour. Shift+Enter
+  starts a new line. A click still places a one-line label as before.
 - **Backspace can now delete steps.** Choose Delete, Backspace, or either (the
   default) under All shortcuts. Typing in a text box is never affected.
 - **Stopping a recording that captured nothing now says so** and offers to

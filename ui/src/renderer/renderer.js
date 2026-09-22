@@ -33,6 +33,10 @@ const el = {
   markBar: $('mark-bar'), markKind: $('mark-kind'), markColours: $('mark-colours'),
   markSizeWrap: $('mark-size-wrap'), markSize: $('mark-size'),
   markHint: $('mark-hint'), markHandles: $('mark-handles'),
+  markCustom: $('mark-custom'), markColourCustom: $('mark-colour-custom'),
+  markColourPick: $('mark-colour-pick'), markCard: $('mark-card'),
+  markCardFill: $('mark-card-fill'), markCardPick: $('mark-card-pick'),
+  markCardOpacity: $('mark-card-opacity'),
   markDelete: $('mark-delete'), markDone: $('mark-done'),
   exportBtn: $('btn-export'), exportDlg: $('exportdlg'),
   expTitle: $('exp-title'), expFormat: $('exp-format'),
@@ -2528,7 +2532,8 @@ el.wrap.addEventListener('contextmenu', (e) => {
     null,
     ...(hitMark ? [
       ...(hitMark.tool === 'text'
-        ? [{ label: 'Edit this label', run: () => openLabel(0, 0, hitMark) }]
+        ? [{ label: BsrAnnotate.isTextBox(hitMark) ? 'Edit this text' : 'Edit this label',
+             run: () => openLabel(0, 0, hitMark) }]
         : []),
       // One item instead of four. Four colours, a delete and four things about
       // the click marker made an eleven-line menu in which the two arrows -
@@ -2852,7 +2857,7 @@ function showPreview(on) {
  */
 function previewDrag(from, to) {
   const rectTools = armedTool === 'box' || armedTool === 'highlight'
-                 || armedTool === 'blur' || armedTool === 'crop';
+                 || armedTool === 'blur' || armedTool === 'crop' || armedTool === 'text';
   // The single owner of which of the two is on screen. Nothing else may set
   // these: the version that shipped had the mousedown handler re-showing the
   // rectangle straight afterwards, so a circle drag previewed a box.
@@ -2925,7 +2930,8 @@ function paintMarkBar() {
     return;
   }
 
-  el.markKind.textContent = MARK_NAMES[mark.tool] || 'Mark';
+  el.markKind.textContent = BsrAnnotate.isTextBox(mark) ? 'Text box'
+    : (MARK_NAMES[mark.tool] || 'Mark');
 
   // A highlight keeps the highlighter's own colours: they mean something in
   // the key at the front of the guide, and offering the shape palette here
@@ -2948,12 +2954,31 @@ function paintMarkBar() {
   el.markSizeWrap.hidden = mark.tool !== 'text';
   if (mark.tool === 'text') el.markSize.value = mark.size || 'medium';
 
+  // Any colour, for everything but a highlight - whose colours mean something
+  // in the key at the front of the guide.
+  el.markCustom.hidden = mark.tool === 'highlight';
+  el.markColourCustom.value = BsrAnnotate.colourValue(mark.colour);
+  el.markColourCustom.classList.toggle('chosen', BsrAnnotate.isHex(mark.colour));
+  const box = BsrAnnotate.isTextBox(mark);
+  el.markCard.hidden = !box;
+  if (box) {
+    const card = BsrAnnotate.cardOf(mark);
+    el.markCardFill.value = card.fill;
+    el.markCardOpacity.value = String(Math.round(card.opacity * 100));
+  }
+  // The eyedropper is Chromium's own. Hidden rather than broken where there is
+  // none.
+  const canPick = typeof window.EyeDropper === 'function';
+  el.markColourPick.hidden = !canPick;
+  el.markCardPick.hidden = !canPick;
+
   // What can be done to THIS mark. "Drag it to move it", over an arrow with a
   // handle on each end, describes the one thing the strip used to be able to
   // say rather than what is on the screen.
   const HINTS = { arrow: 'Drag an end to aim it - Shift snaps the angle',
-                  text: 'Drag it to move it' };
-  el.markHint.textContent = HINTS[mark.tool] || 'Drag a corner to resize it';
+                  text: 'Drag it to move it - double-click to edit' };
+  el.markHint.textContent = box ? 'Drag a corner to resize - double-click to edit'
+    : (HINTS[mark.tool] || 'Drag a corner to resize it');
 
   el.markBar.hidden = false;
 
@@ -2991,14 +3016,104 @@ function selectMark(id) {
   paintMarkBar();
 }
 
+/**
+ * A text box made tall enough for its words, measured against the picture on
+ * screen. Anything else comes back as it was.
+ */
+function fitText(mark) {
+  return BsrAnnotate.isTextBox(mark) && el.shot.naturalWidth
+    ? BsrAnnotate.fitTextBox(mark, el.shot.naturalWidth, el.shot.naturalHeight)
+    : mark;
+}
+
+/** A text box's lettering at one of the three sizes, for the picture on screen. */
+function fontPctNow(size) {
+  return BsrAnnotate.fontPctFor(el.shot.naturalWidth || 1000, el.shot.naturalHeight || 1000, size);
+}
+
 /** Changes one field of one mark, as one undoable step. */
 async function changeMark(id, patch) {
   const step = steps.find((s) => s.id === selectedId);
   if (!step) return;
   await commitMarks(step, (step.marks || [])
-    .map((m) => (m.id === id ? { ...m, ...patch } : m)));
+    .map((m) => (m.id === id ? fitText({ ...m, ...patch }) : m)));
   paintMarkBar();
 }
+
+/**
+ * Draws a change without saving it, while a colour or the slider is still
+ * being moved. Saved once, when it is let go - one undo, not forty.
+ */
+function previewMark(id, patch) {
+  const step = steps.find((s) => s.id === selectedId);
+  if (!step) return;
+  placeMarks({ ...step, marks: (step.marks || [])
+    .map((m) => (m.id === id ? fitText({ ...m, ...patch }) : m)) });
+}
+
+/** Chromium reports #rrggbb; anything else is turned into that or refused. */
+function asHex(value) {
+  if (BsrAnnotate.isHex(value)) return value.toLowerCase();
+  const m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/i.exec(String(value || ''));
+  if (!m) return null;
+  return '#' + m.slice(1, 4).map((n) => Math.min(255, Number(n)).toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Takes a colour from anywhere on the screen - the screenshot included - so a
+ * text box can be made in the exact colours around it.
+ */
+async function pickFromScreen(apply) {
+  if (typeof window.EyeDropper !== 'function') return;
+  try {
+    const { sRGBHex } = await new window.EyeDropper().open();
+    const hex = asHex(sRGBHex);
+    if (hex) await apply(hex);
+  } catch {
+    // Escape, or a click that picked nothing. Nothing changes.
+  }
+}
+
+el.markColourCustom.addEventListener('input', () => {
+  const m = selectedMark();
+  if (m) previewMark(m.id, { colour: el.markColourCustom.value });
+});
+el.markColourCustom.addEventListener('change', () => {
+  const m = selectedMark();
+  if (m) changeMark(m.id, { colour: el.markColourCustom.value });
+});
+el.markColourPick.addEventListener('click', () => pickFromScreen(async (hex) => {
+  const m = selectedMark();
+  if (m) await changeMark(m.id, { colour: hex });
+}));
+
+const cardPatch = (m, change) => ({ card: { ...BsrAnnotate.cardOf(m), ...change } });
+
+el.markCardFill.addEventListener('input', () => {
+  const m = selectedMark();
+  if (m) previewMark(m.id, cardPatch(m, { fill: el.markCardFill.value }));
+});
+el.markCardFill.addEventListener('change', () => {
+  const m = selectedMark();
+  if (m) changeMark(m.id, cardPatch(m, { fill: el.markCardFill.value }));
+});
+el.markCardPick.addEventListener('click', () => pickFromScreen(async (hex) => {
+  const m = selectedMark();
+  // Taking a colour for the card is asking to see it: a see-through card
+  // would show nothing of what was just picked.
+  if (m) {
+    const card = BsrAnnotate.cardOf(m);
+    await changeMark(m.id, cardPatch(m, { fill: hex, opacity: card.opacity || 1 }));
+  }
+}));
+el.markCardOpacity.addEventListener('input', () => {
+  const m = selectedMark();
+  if (m) previewMark(m.id, cardPatch(m, { opacity: Number(el.markCardOpacity.value) / 100 }));
+});
+el.markCardOpacity.addEventListener('change', () => {
+  const m = selectedMark();
+  if (m) changeMark(m.id, cardPatch(m, { opacity: Number(el.markCardOpacity.value) / 100 }));
+});
 
 async function deleteMark(id) {
   const step = steps.find((s) => s.id === selectedId);
@@ -3009,7 +3124,9 @@ async function deleteMark(id) {
 
 el.markSize.addEventListener('change', () => {
   const mark = selectedMark();
-  if (mark) changeMark(mark.id, { size: el.markSize.value });
+  if (!mark) return;
+  const size = el.markSize.value;
+  changeMark(mark.id, BsrAnnotate.isTextBox(mark) ? { size, fontPct: fontPctNow(size) } : { size });
 });
 el.markDelete.addEventListener('click', () => {
   const mark = selectedMark();
@@ -3172,8 +3289,9 @@ window.addEventListener('mouseup', async () => {
 
   const step = steps.find((s) => s.id === selectedId);
   if (!step) return;
+  // A text box dragged narrower needs more lines, so more height.
   await commitMarks(step, (step.marks || [])
-    .map((m) => (m.id === drag.id ? drag.next : m)));
+    .map((m) => (m.id === drag.id ? fitText(drag.next) : m)));
   paintMarkBar();
 });
 
@@ -3202,47 +3320,104 @@ el.wrap.addEventListener('dblclick', (e) => {
  */
 let labelAt = null;
 let labelEditing = null;
+// The box being typed into, in percentages, or null for a label at a point.
+let labelBox = null;
 
-function openLabel(clientX, clientY, editing = null) {
+/** Keeps a text box's editor as tall as what is typed in it. */
+function growLabel() {
+  if (!labelBox) return;
+  el.labelInput.style.height = 'auto';
+  el.labelInput.style.height = `${el.labelInput.scrollHeight}px`;
+}
+
+function openLabel(clientX, clientY, editing = null, drawn = null) {
   const shot = el.shot.getBoundingClientRect();
   if (!shot.width || !shot.height) return;
 
   labelEditing = editing;
-  labelAt = editing
-    ? { x: editing.at.x, y: editing.at.y }
+  labelBox = editing ? (editing.rect ? { ...editing.rect } : null) : drawn;
+  labelAt = labelBox ? { x: labelBox.x, y: labelBox.y }
+    : editing ? { x: editing.at.x, y: editing.at.y }
     : { x: ((clientX - shot.left) / shot.width) * 100,
         y: ((clientY - shot.top) / shot.height) * 100 };
 
   const wrap = el.wrap.getBoundingClientRect();
   const left = shot.left - wrap.left + (labelAt.x / 100) * shot.width;
   const top = shot.top - wrap.top + (labelAt.y / 100) * shot.height;
+  const colour = BsrAnnotate.colourValue(editing ? editing.colour : markColour);
+  const box = el.labelInput;
 
-  // Roughly the size it will end up, so what is typed looks like what appears.
-  const scale = el.shot.naturalWidth ? shot.width / el.shot.naturalWidth : 1;
-  const size = BsrAnnotate.fontFor(el.shot.naturalWidth || 1000,
-                                   el.shot.naturalHeight || 1000) * scale;
+  // The words being changed are hidden while they are retyped. Otherwise the
+  // old ones sit underneath the new, and nobody can read either.
+  const step = steps.find((s) => s.id === selectedId);
+  if (editing && step) {
+    placeMarks({ ...step, marks: (step.marks || []).filter((m) => m.id !== editing.id) });
+  }
 
-  el.labelInput.value = editing ? (editing.text || '') : '';
-  el.labelInput.style.left = `${Math.round(left)}px`;
-  // The anchor is the baseline of the lettering, so the box sits above it.
-  el.labelInput.style.top = `${Math.round(top - size)}px`;
-  el.labelInput.style.fontSize = `${Math.max(11, Math.round(size))}px`;
-  el.labelInput.style.color = BsrAnnotate.colourValue(
-    editing ? editing.colour : markColour);
-  el.labelInput.hidden = false;
-  el.labelInput.focus();
-  el.labelInput.select();
+  box.value = editing ? (editing.text || '') : '';
+  box.style.left = `${Math.round(left)}px`;
+  box.style.color = colour;
+
+  if (labelBox) {
+    // Typed where it will appear and at the size it will appear: the editor
+    // is the card, with the same padding and the same lettering.
+    const size = (editing && editing.size) || 'medium';
+    const pct = Number(editing && editing.fontPct) > 0 ? editing.fontPct : fontPctNow(size);
+    const font = (pct / 100) * shot.height;
+    const card = editing ? BsrAnnotate.cardOf(editing) : { fill: '#ffffff', opacity: 0.9 };
+    const hex = card.fill.slice(1);
+    const rgb = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ');
+    box.classList.add('as-box');
+    box.wrap = 'soft';
+    box.maxLength = 2000;
+    box.style.top = `${Math.round(top)}px`;
+    box.style.width = `${Math.max(40, Math.round((labelBox.w / 100) * shot.width))}px`;
+    box.style.minHeight = `${Math.round((labelBox.h / 100) * shot.height)}px`;
+    box.style.fontSize = `${Math.max(9, font)}px`;
+    box.style.padding = `${Math.round(font * 0.4)}px`;
+    box.style.background = `rgba(${rgb}, ${Math.max(card.opacity, 0.35)})`;
+    box.setAttribute('aria-label', 'Text box');
+  } else {
+    // Roughly the size it will end up, so what is typed looks like what appears.
+    const scale = el.shot.naturalWidth ? shot.width / el.shot.naturalWidth : 1;
+    const size = BsrAnnotate.fontFor(el.shot.naturalWidth || 1000, el.shot.naturalHeight || 1000,
+                                     BsrAnnotate.sizeScale(editing && editing.size)) * scale;
+    box.classList.remove('as-box');
+    box.wrap = 'off';
+    box.maxLength = 120;
+    // The anchor is the baseline of the lettering, so the box sits above it.
+    box.style.top = `${Math.round(top - size)}px`;
+    box.style.width = `${Math.max(160, Math.round(size * 12))}px`;
+    box.style.minHeight = '';
+    box.style.fontSize = `${Math.max(11, Math.round(size))}px`;
+    box.style.padding = '';
+    box.style.background = '';
+    box.setAttribute('aria-label', 'Label text');
+  }
+  box.style.height = '';
+  box.hidden = false;
+  growLabel();
+  box.focus();
+  box.select();
 }
 
 function closeLabel() {
+  const editing = labelEditing;
   el.labelInput.hidden = true;
   el.labelInput.value = '';
   labelAt = null;
   labelEditing = null;
+  labelBox = null;
+  // Put back what was hidden while it was being retyped.
+  if (editing) placeMarks(steps.find((s) => s.id === selectedId));
 }
 
 async function commitLabel() {
-  const text = el.labelInput.value.trim();
+  const raw = el.labelInput.value;
+  const box = labelBox;
+  // A box keeps the lines it was given. A label is one line, so a stray line
+  // break becomes a space rather than vanishing into the word beside it.
+  const text = box ? raw.trim() : raw.replace(/\s*\n\s*/g, ' ').trim();
   const step = steps.find((s) => s.id === selectedId);
   const at = labelAt;
   const editing = labelEditing;
@@ -3260,22 +3435,27 @@ async function commitLabel() {
 
   if (editing) {
     await commitMarks(step, (step.marks || [])
-      .map((m) => (m.id === editing.id ? { ...m, text } : m)));
+      .map((m) => (m.id === editing.id ? fitText({ ...m, text }) : m)));
     return;
   }
 
-  const mark = {
-    id: `mk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
-    tool: 'text',
-    colour: markColour,
-    at,
-    text,
-  };
+  const id = `mk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  // A drawn box starts on a white card, nearly solid: readable over anything,
+  // and the colour and the slider on the strip change it from there.
+  const mark = box
+    ? fitText({ id, tool: 'text', colour: markColour, size: 'medium',
+                fontPct: fontPctNow('medium'), rect: box,
+                card: { fill: '#ffffff', opacity: 0.9 }, text })
+    : { id, tool: 'text', colour: markColour, at, text };
   await commitMarks(step, [...(step.marks || []), mark]);
 }
 
+el.labelInput.addEventListener('input', growLabel);
+
 el.labelInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { e.preventDefault(); commitLabel(); }
+  // Enter saves, as it always has. Shift+Enter is a new line, in a box only:
+  // a label is one line.
+  if (e.key === 'Enter' && !(e.shiftKey && labelBox)) { e.preventDefault(); commitLabel(); }
   else if (e.key === 'Escape') { e.preventDefault(); closeLabel(); }
   // Typing a label is not typing at the window: without this a letter or a
   // space would also reach the shortcuts.
@@ -3388,9 +3568,9 @@ el.wrap.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return;
   e.preventDefault();
 
-  // A label is placed, not dragged: there is no region to choose, only a spot
-  // for the words to start at.
-  if (armedTool === 'text') { openLabel(e.clientX, e.clientY); return; }
+  // The Text tool is dragged like a box: a click places a label, and a drag
+  // draws a box for the words to wrap inside. Which of the two is decided when
+  // the mouse is let go.
   const r = el.shot.getBoundingClientRect();
   dragStart = { x: e.clientX - r.left, y: e.clientY - r.top };
   Object.assign(el.selection.style, { left: `${dragStart.x}px`, top: `${dragStart.y}px`,
@@ -3436,6 +3616,17 @@ window.addEventListener('mouseup', async (e) => {
   // A box only needs the region; an arrow needs to know which end the reader
   // should be looking at, so the raw drag is kept as well.
   const rect = { x: sel.left, y: sel.top, w: sel.width, h: sel.height };
+
+  if (armedTool === 'text') {
+    // Big enough to have been meant as a box, or it was a click.
+    if (sel.width >= 16 && sel.height >= 12) {
+      openLabel(0, 0, null, { x: (sel.left / r.width) * 100, y: (sel.top / r.height) * 100,
+                              w: (sel.width / r.width) * 100, h: (sel.height / r.height) * 100 });
+    } else {
+      openLabel(r.left + from.x, r.top + from.y);
+    }
+    return;
+  }
   // `sel`, not `rect`: applyCrop works in the displayed box's own terms. And
   // `r.width` from up there, measured with the drag - not re-measured later,
   // which is a different number if anything reflowed in between.

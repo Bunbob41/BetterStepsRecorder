@@ -173,7 +173,7 @@
         continue;
       }
 
-      if (mark.tool === 'text') {
+      if (mark.tool === 'text' && !mark.rect) {
         const at = { x: mapX(mark.at.x), y: mapY(mark.at.y) };
         if (at.x < 0 || at.y < 0 || at.x > 100 || at.y > 100) continue;
         kept.push({ ...mark, at });
@@ -185,7 +185,12 @@
       const w = (mark.rect.w / 100) * iw / c.w * 100;
       const h = (mark.rect.h / 100) * ih / c.h * 100;
       if (x + w < 0 || y + h < 0 || x > 100 || y > 100) continue;
-      kept.push({ ...mark, rect: { x, y, w, h } });
+      // A text box's lettering is a share of the picture's height, and the
+      // picture just got shorter: without this the words would grow with every
+      // crop.
+      const fontPct = Number(mark.fontPct);
+      kept.push({ ...mark, rect: { x, y, w, h },
+                  ...(Number.isFinite(fontPct) && fontPct > 0 ? { fontPct: fontPct * ih / c.h } : {}) });
     }
     return kept;
   }

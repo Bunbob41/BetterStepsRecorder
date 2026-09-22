@@ -671,6 +671,7 @@ app.whenReady().then(async () => {
     document.getElementById('btn-text').click();
     await sleep(20);
     wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.4, 0.5) }));
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(0.4, 0.5) }));
     await sleep(60);
 
     const opened = !box.hidden;
@@ -846,6 +847,91 @@ app.whenReady().then(async () => {
         Math.abs(folded.back.wide - folded.wideBefore) <= 2,
         `${folded.wideBefore}px -> ${folded.back.wide}px`);
 
+  console.log('\ndrawing a text box:');
+  const tb = await win.webContents.executeJavaScript(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const wrap = document.getElementById('shot-wrap');
+    const shot = document.getElementById('shot');
+    const layer = document.getElementById('marks');
+    const box = document.getElementById('label-input');
+    const r = shot.getBoundingClientRect();
+    const at = (fx, fy) => ({ clientX: Math.round(r.left + r.width * fx),
+                              clientY: Math.round(r.top + r.height * fy) });
+
+    document.querySelector('#step-list li[data-id="s2"]').click();
+    await sleep(250);
+    const before = (steps.find((s) => s.id === 's2').marks || []).length;
+
+    document.getElementById('btn-text').click();
+    await sleep(20);
+    wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.1, 0.1) }));
+    window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, ...at(0.35, 0.3) }));
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(0.35, 0.3) }));
+    await sleep(80);
+    const editor = { open: !box.hidden, asBox: box.classList.contains('as-box'),
+                     width: box.getBoundingClientRect().width, expected: r.width * 0.25 };
+
+    box.value = 'Replace the filter cartridge before the pressure reading drops below the line';
+    box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await sleep(300);
+    document.getElementById('btn-text').click();     // disarm
+    await sleep(20);
+
+    const marks = steps.find((s) => s.id === 's2').marks || [];
+    const made = marks[marks.length - 1] || {};
+    const drawn = layer.querySelector('[data-mark="' + made.id + '"]');
+    const lines = drawn ? drawn.querySelectorAll('tspan').length : 0;
+    const card = drawn ? drawn.querySelector('rect') : null;
+
+    // Take hold of it: four corners, and the card controls.
+    wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.2, 0.15) }));
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(0.2, 0.15) }));
+    await sleep(150);
+    const corners = document.querySelectorAll('#mark-handles .mark-handle').length;
+    const cardShown = !document.getElementById('mark-card').hidden;
+    const kind = document.getElementById('mark-kind').textContent;
+
+    // See-through, all the way.
+    const slider = document.getElementById('mark-card-opacity');
+    slider.value = '0';
+    slider.dispatchEvent(new Event('change'));
+    await sleep(250);
+    const after = (steps.find((s) => s.id === 's2').marks || []).find((m) => m.id === made.id) || {};
+    const drawnAfter = layer.querySelector('[data-mark="' + made.id + '"]');
+
+    // Any colour, from the picker.
+    const pick = document.getElementById('mark-colour-custom');
+    pick.value = '#123456';
+    pick.dispatchEvent(new Event('change'));
+    await sleep(250);
+    const coloured = (steps.find((s) => s.id === 's2').marks || []).find((m) => m.id === made.id) || {};
+    document.getElementById('mark-done').click();
+    await sleep(50);
+
+    return { before, count: marks.length, editor, made, lines,
+             cardFill: card ? card.getAttribute('fill') : null,
+             cardOpacity: card ? card.getAttribute('fill-opacity') : null,
+             corners, cardShown, kind, opacityAfter: after.card && after.card.opacity,
+             cardRectAfter: drawnAfter ? Boolean(drawnAfter.querySelector('rect')) : null,
+             colour: coloured.colour };
+  })()`);
+
+  check('dragging with the Text tool opens a box, not a one-line label',
+        tb.editor.open && tb.editor.asBox, JSON.stringify(tb.editor));
+  check('as wide as the box that was dragged',
+        Math.abs(tb.editor.width - tb.editor.expected) < 6, tb.editor.width + ' vs ' + tb.editor.expected);
+  check('it is saved as a text box with the box it was drawn in',
+        tb.count === tb.before + 1 && tb.made.tool === 'text' && Boolean(tb.made.rect)
+        && Math.abs(tb.made.rect.w - 25) < 1, JSON.stringify(tb.made));
+  check('long words wrap onto several lines', tb.lines > 1, tb.lines + ' lines');
+  check('on a white card, nearly solid', tb.cardFill === '#ffffff' && tb.cardOpacity === '0.9',
+        tb.cardFill + ' ' + tb.cardOpacity);
+  check('selecting it gives four corners to resize it by', tb.corners === 4, String(tb.corners));
+  check('and the card controls', tb.cardShown && tb.kind === 'Text box', tb.kind);
+  check('the slider can make the card fully see-through', tb.opacityAfter === 0 && tb.cardRectAfter === false,
+        tb.opacityAfter + ' / ' + tb.cardRectAfter);
+  check('and the words can be any colour', tb.colour === '#123456', String(tb.colour));
+
   console.log('\ntaking hold of a mark:');
   const grabbed = await win.webContents.executeJavaScript(`(async () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -865,6 +951,7 @@ app.whenReady().then(async () => {
     document.getElementById('btn-text').click();
     await sleep(20);
     wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...at(0.25, 0.5) }));
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, ...at(0.25, 0.5) }));
     await sleep(60);
     box.value = 'woah';
     box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));

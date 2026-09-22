@@ -970,7 +970,13 @@ body.dropping::after {
   color: #14181f;
   font-weight: 600;
   outline: none;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  line-height: 1.25;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
 }
+.label-input.as-box { min-width: 0; box-sizing: border-box; }
 
 /* The strip that appears while a mark is selected.
 
@@ -979,7 +985,8 @@ body.dropping::after {
    screen permanently, describing a mark nobody has selected. The `hidden`
    PROPERTY reads true the whole time, so anything checking that - a test, or
    this code - is told the strip is hidden while it is plainly not. */
-.mark-bar[hidden], .mark-size[hidden] { display: none; }
+.mark-bar[hidden], .mark-size[hidden], .mark-custom[hidden], .mark-card[hidden],
+.eyedrop[hidden] { display: none; }
 
 .mark-bar {
   /* Over the picture, not above it.
@@ -1004,6 +1011,18 @@ body.dropping::after {
 /* Dropped to the foot of the picture when it would otherwise sit on the mark
    it is about - see paintMarkBar. */
 .mark-bar.low { top: auto; bottom: 8px; }
+.mark-bar { flex-wrap: wrap; max-width: calc(100% - 16px); }
+.mark-custom, .mark-card { display: flex; align-items: center; gap: 6px; color: #aab3c0; }
+.mark-custom input[type="color"], .mark-card input[type="color"] {
+  width: 24px; height: 22px; padding: 0; border: 1px solid #2b323d;
+  border-radius: 4px; background: none; cursor: pointer;
+}
+.mark-card input[type="range"] { width: 90px; }
+.eyedrop {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 22px; padding: 0; color: #e8ecf4;
+}
+.eyedrop svg { width: 14px; height: 14px; }
 .mark-kind { font-weight: 600; color: #e8ecf4; }
 .mark-colours { display: flex; gap: 6px; }
 .mark-colours button {

@@ -277,6 +277,72 @@ console.log('\na box can be resized by a corner:');
         a.handlesOf({ tool: 'text', at: { x: 1, y: 2 }, text: 'x' }).length === 0);
 }
 
+console.log('\na text box:');
+{
+  const tb = { id: 'tb1', tool: 'text', colour: 'black', size: 'medium',
+               rect: { x: 10, y: 10, w: 30, h: 8 }, fontPct: 2.5,
+               card: { fill: '#fafafa', opacity: 0.8 },
+               text: 'Replace the filter cartridge before the pressure reading drops below the line' };
+
+  const svg = a.svgFor(tb, 1600, 900);
+  const lines = (svg.match(/<tspan/g) || []).length;
+  check('its words wrap onto several lines', lines > 1, lines + ' lines');
+  check('on a card in the colour it was given', svg.includes('fill="#fafafa"') && svg.includes('fill-opacity="0.8"'));
+  check('with no halo round the letters on a card', !svg.includes('paint-order="stroke"'));
+  const bare = a.svgFor({ ...tb, card: { fill: '#fafafa', opacity: 0 } }, 1600, 900);
+  check('a see-through card draws no card at all', !bare.includes('<rect'));
+  check('and then the letters get the pale outline a label has', bare.includes('paint-order="stroke"'));
+
+  // The claim the whole design rests on: the window and Word draw the picture
+  // at different sizes, and the lines must break in the same places at both.
+  const at = (w, h) => {
+    const L = a.textBoxLayout(tb, w, h);
+    return L.lines.join('|');
+  };
+  check('the lines break in the same places at any size of picture',
+        at(1600, 900) === at(800, 450) && at(800, 450) === at(3840, 2160),
+        at(1600, 900) + ' / ' + at(800, 450));
+
+  const L = a.textBoxLayout(tb, 1600, 900);
+  const inner = L.w - L.pad * 2;
+  check('no line is estimated wider than the card', L.lines.every((l) => a.textWidth(l, L.font) <= inner + 0.001));
+  check('a line break the author typed is kept',
+        a.wrapLines('one\ntwo', 1000, 20).join('|') === 'one|two');
+  check('a word too long for any line is split rather than overflowing',
+        a.wrapLines('W'.repeat(40), 200, 20).length > 1
+        && a.wrapLines('W'.repeat(40), 200, 20).every((l) => a.textWidth(l, 20) <= 200));
+
+  const fitted = a.fitTextBox({ ...tb, rect: { ...tb.rect, h: 1 } }, 1600, 900);
+  check('a box too short for its words grows to fit them', fitted.rect.h > 1);
+  const tall = a.fitTextBox({ ...tb, rect: { ...tb.rect, h: 60 } }, 1600, 900);
+  check('and one drawn taller than it needs keeps its height', tall.rect.h === 60);
+
+  check('it is held by four corners', a.handlesOf(tb).length === 4);
+  const wider = a.withHandle(tb, 'se', 70, 40);
+  check('dragging one makes the box wider', wider.rect.w === 60);
+  check('which puts the words on fewer lines',
+        a.textBoxLayout(wider, 1600, 900).lines.length < L.lines.length);
+  const moved = a.movedBy(tb, 5, 5);
+  check('it moves as a box', moved.rect.x === 15 && moved.rect.y === 15);
+  check('it is found by clicking anywhere in it', a.markAt([tb], 35, 15) === tb);
+  check('a label at a point still has no corners',
+        a.handlesOf({ tool: 'text', at: { x: 1, y: 2 }, text: 'x' }).length === 0);
+}
+
+console.log('\nfree colours cannot write markup:');
+{
+  check('a colour picked by hand is used as it is', a.colourValue('#12ab9f') === '#12ab9f');
+  check('anything else that is not a named colour falls back to red',
+        a.colourValue('red"/><script>') === '#e5484d');
+  const nasty = { id: 'x', tool: 'text', rect: { x: 1, y: 1, w: 30, h: 10 }, text: 'hi',
+                  colour: '#fff" onload="x', card: { fill: 'url(javascript:1)', opacity: '7' } };
+  const svg = a.svgFor(nasty, 800, 600);
+  check('a text colour that is not #rrggbb never reaches the SVG', !svg.includes('onload'));
+  check('nor a card colour', !svg.includes('javascript') && svg.includes('fill="#ffffff"'));
+  check('and a card cannot be more than solid', a.cardOf(nasty).opacity === 1);
+  check('or less than see-through', a.cardOf({ card: { opacity: -3 } }).opacity === 0);
+}
+
 console.log('\nthe size a mark is measured against:');
   check('a screenshot uses its captured frame',
         a.sizeOf({ frame: { x: 0, y: 0, w: 1920, h: 1080 } }).w === 1920);

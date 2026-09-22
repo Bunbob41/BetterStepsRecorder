@@ -68,8 +68,20 @@
     { id: 'black', name: 'Black', value: '#14181f' },
   ];
 
+  /**
+   * A colour written out as #rrggbb, and nothing else.
+   *
+   * The one form a free colour may take. A mark is read back from a
+   * session.json that can be edited by hand or handed over by somebody else,
+   * and whatever it holds is written into SVG that the Word export renders -
+   * so anything that is not exactly six hex digits is refused here, in the one
+   * function every drawing goes through.
+   */
+  const isHex = (v) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+
+  // A named colour from the palette, or any colour picked by hand.
   const colourValue = (id) =>
-    (COLOURS.find((c) => c.id === id) || COLOURS[0]).value;
+    (isHex(id) ? id : (COLOURS.find((c) => c.id === id) || COLOURS[0]).value);
 
   /**
    * How big lettering should be on an image of this size.
@@ -100,6 +112,127 @@
   const sizeScale = (id) =>
     (SIZES.find((x) => x.id === id) || SIZES[1]).scale;
 
+  /** A label placed at a point, or a box somebody drew for the words to fill. */
+  const isTextBox = (m) => Boolean(m && m.tool === 'text' && m.rect);
+
+  const clampTo = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  /**
+   * A text box's lettering, as a share of the picture's height.
+   *
+   * Stored on the mark rather than worked out from the picture each time,
+   * because the picture is not one size. The window shows the screenshot as
+   * captured; Word gets it shrunk to the width of a page. `fontFor` stops
+   * scaling at its limits, so at the two sizes the letters would be different
+   * proportions of the box and the words would wrap in different places. As a
+   * share of the height, everything about the box scales together and the lines
+   * break in the same place wherever it is drawn.
+   */
+  function fontPctFor(width, height, size) {
+    const h = height > 0 ? height : 1000;
+    return (fontFor(width, h, sizeScale(size)) / h) * 100;
+  }
+
+  function fontPxOf(mark, width, height) {
+    const pct = Number(mark && mark.fontPct);
+    if (Number.isFinite(pct) && pct > 0) return (clampTo(pct, 0.3, 40) / 100) * height;
+    return fontFor(width, height, sizeScale(mark && mark.size));
+  }
+
+  /**
+   * The card behind a text box: a colour, and how solid it is from 0 to 1.
+   *
+   * Checked here for the same reason as a colour. No card at all reads as
+   * fully see-through, which is what a text box written before cards existed
+   * would have looked like.
+   */
+  function cardOf(mark) {
+    const card = (mark && mark.card) || {};
+    const opacity = Number(card.opacity);
+    return { fill: isHex(card.fill) ? card.fill : '#ffffff',
+             opacity: Number.isFinite(opacity) ? clampTo(opacity, 0, 1) : 0 };
+  }
+
+  /**
+   * Roughly how wide a line of lettering is, in pixels.
+   *
+   * Estimated, not measured. Measuring needs a canvas, and the Word export is
+   * drawn where the text is laid out in one process and painted in another -
+   * so a measurement would be of whichever font happened to be installed at
+   * the time. An estimate is the same number everywhere, which is the property
+   * that matters: the preview and the document break lines in the same places.
+   * The widths lean generous, so a line ends a little early rather than
+   * running off the edge of its card.
+   */
+  function charWidth(c) {
+    if (c === ' ') return 0.3;
+    if (/[MWmw@%]/.test(c)) return 0.88;
+    if (/[ilIjtfr.,:;'!|()[\]]/.test(c)) return 0.34;
+    if (/[A-Z0-9]/.test(c)) return 0.66;
+    return 0.57;
+  }
+
+  function textWidth(text, font) {
+    let w = 0;
+    for (const c of String(text)) w += charWidth(c);
+    return w * font;
+  }
+
+  /**
+   * Words broken into lines no wider than `maxWidth`.
+   *
+   * A line break typed by the author is kept. A word too long for any line is
+   * split, because the alternative is a line running out of its card.
+   */
+  function wrapLines(text, maxWidth, font) {
+    const limit = Math.max(font, maxWidth);
+    const lines = [];
+    for (const para of String(text ?? '').split(/\r?\n/)) {
+      const words = para.split(/ +/).filter((w) => w !== '');
+      if (!words.length) { lines.push(''); continue; }
+      let line = '';
+      for (let word of words) {
+        while (textWidth(word, font) > limit) {
+          let cut = 1;
+          while (cut < word.length - 1 && textWidth(word.slice(0, cut + 1), font) <= limit) cut++;
+          if (line) { lines.push(line); line = ''; }
+          lines.push(word.slice(0, cut));
+          word = word.slice(cut);
+        }
+        const next = line ? `${line} ${word}` : word;
+        if (textWidth(next, font) <= limit) line = next;
+        else { if (line) lines.push(line); line = word; }
+      }
+      lines.push(line);
+    }
+    return lines;
+  }
+
+  /**
+   * Where everything in a text box goes, in image pixels.
+   *
+   * The card is at least as tall as the box that was drawn, and taller if the
+   * words need it: a box drawn to cover something keeps covering it, and one
+   * too small for its words grows rather than cutting them off.
+   */
+  function textBoxLayout(mark, width, height) {
+    const r = { x: (mark.rect.x / 100) * width, y: (mark.rect.y / 100) * height,
+                w: (mark.rect.w / 100) * width, h: (mark.rect.h / 100) * height };
+    const font = fontPxOf(mark, width, height);
+    const pad = font * 0.4;
+    const lineH = font * 1.25;
+    const lines = wrapLines(mark.text, r.w - pad * 2, font);
+    const needH = lines.length * lineH + pad * 2;
+    return { x: r.x, y: r.y, w: r.w, h: Math.max(r.h, needH), needH, font, pad, lineH, lines };
+  }
+
+  /** The same box, made tall enough for its words. Never shorter than drawn. */
+  function fitTextBox(mark, width, height) {
+    if (!isTextBox(mark) || !(width > 0) || !(height > 0)) return mark;
+    const need = (textBoxLayout(mark, width, height).needH / height) * 100;
+    return need > mark.rect.h ? { ...mark, rect: { ...mark.rect, h: need } } : mark;
+  }
+
   const XML = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   const escapeXml = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => XML[c]);
 
@@ -119,7 +252,7 @@
         to: { x: px(mark.to.x, width), y: px(mark.to.y, height) },
       };
     }
-    if (mark.tool === 'text') {
+    if (mark.tool === 'text' && !mark.rect) {
       return { at: { x: px(mark.at.x, width), y: px(mark.at.y, height) } };
     }
     return {
@@ -149,6 +282,29 @@
       const fill = highlightFill(mark.colour);
       return `${open}<rect x="${p.rect.x}" y="${p.rect.y}" `
            + `width="${p.rect.w}" height="${p.rect.h}" fill="${fill}"/></g>`;
+    }
+
+    if (isTextBox(mark)) {
+      const L = textBoxLayout(mark, width, height);
+      const card = cardOf(mark);
+      const r2 = (v) => Math.round(v * 100) / 100;
+      let out = open;
+      if (card.opacity > 0) {
+        out += `<rect x="${r2(L.x)}" y="${r2(L.y)}" width="${r2(L.w)}" height="${r2(L.h)}" `
+             + `rx="${r2(L.font * 0.25)}" fill="${card.fill}" fill-opacity="${card.opacity}"/>`;
+      }
+      // The pale outline a label has, only when there is no card behind the
+      // words. On a card it is a halo round every letter, and a text box made to
+      // match the screenshot's own colours would stop matching.
+      const outline = card.opacity > 0 ? ''
+        : `paint-order="stroke" stroke="rgba(255,255,255,.9)" `
+          + `stroke-width="${Math.max(3, Math.round(L.font / 6))}" stroke-linejoin="round" `;
+      out += `<text font-size="${r2(L.font)}" font-family="Segoe UI, system-ui, sans-serif" `
+           + `font-weight="600" ${outline}fill="${colour}" xml:space="preserve">`
+           + L.lines.map((line, i) => `<tspan x="${r2(L.x + L.pad)}" `
+             + `y="${r2(L.y + L.pad + L.font * 0.95 + i * L.lineH)}">${escapeXml(line)}</tspan>`).join('')
+           + '</text></g>';
+      return out;
     }
 
     if (mark.tool === 'text') {
@@ -284,7 +440,7 @@
         h: Math.abs(mark.to.y - mark.from.y) + pad * 2,
       };
     }
-    if (mark.tool === 'text') {
+    if (mark.tool === 'text' && !mark.rect) {
       // Lettering hangs to the right of and above its anchor, which is the
       // baseline at the left end of the line.
       const len = Math.max(1, String(mark.text || '').length);
@@ -310,7 +466,7 @@
                from: { x: mark.from.x + dx, y: mark.from.y + dy },
                to: { x: mark.to.x + dx, y: mark.to.y + dy } };
     }
-    if (mark.tool === 'text') {
+    if (mark.tool === 'text' && !mark.rect) {
       return { ...mark, at: { x: mark.at.x + dx, y: mark.at.y + dy } };
     }
     return { ...mark,
@@ -330,8 +486,10 @@
    * The other shapes get their four corners, for the same reason: a box drawn
    * two fields too short could only be deleted and drawn again.
    *
-   * A label has none. Its size is a choice of three on the strip, and there is
-   * no second point on it to drag.
+   * A label placed at a point has none: there is no second point on it to
+   * drag. A text box has the four corners of its box, and dragging one changes
+   * where the words wrap rather than how big they are - that stays a choice of
+   * three on the strip.
    */
   function handlesOf(mark) {
     if (!mark) return [];
@@ -339,7 +497,7 @@
       return [{ key: 'from', x: mark.from.x, y: mark.from.y },
               { key: 'to', x: mark.to.x, y: mark.to.y }];
     }
-    if (mark.tool === 'text' || !mark.rect) return [];
+    if (!mark.rect) return [];
 
     const { x, y, w, h } = mark.rect;
     return [{ key: 'nw', x, y },
@@ -392,7 +550,7 @@
       const end = snap ? snapAngle(fixed, at, aspect) : at;
       return key === 'from' ? { ...mark, from: end } : { ...mark, to: end };
     }
-    if (mark.tool === 'text' || !mark.rect) return mark;
+    if (!mark.rect) return mark;
 
     // The corner diagonally opposite the one in hand is the anchor.
     const r = mark.rect;
@@ -597,7 +755,9 @@
       }));
   }
 
-  return { TOOLS, HIGHLIGHTS, COLOURS, highlightFill, colourValue, legendFor,
+  return { isHex, isTextBox, fontPctFor, cardOf, textWidth, wrapLines, textBoxLayout,
+           fitTextBox,
+           TOOLS, HIGHLIGHTS, COLOURS, highlightFill, colourValue, legendFor,
            strokeFor, fontFor, arrowGeometry, headArea, draw, isDeliberate,
            SIZES, sizeScale, svgFor, svgAll, outlineFor, sizeOf, boundsOf,
            markAt, movedBy, handlesOf, withHandle, pixelsOf, escapeXml };

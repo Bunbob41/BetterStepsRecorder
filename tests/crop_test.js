@@ -199,5 +199,17 @@ console.log('\nmarks move with the picture when it is cropped:');
         Array.isArray(c.marksAfter([null], region, image)));
 }
 
+console.log('\na text box survives a crop at the same size:');
+{
+  const image = { width: 1000, height: 800 };
+  const tb = { id: 't', tool: 'text', text: 'hello', fontPct: 2,
+               rect: { x: 40, y: 40, w: 20, h: 10 } };
+  const [after] = c.marksAfter([tb], { x: 200, y: 200, w: 600, h: 400 }, image);
+  check('it is kept, moved with the picture', Boolean(after) && after.rect.x > 0 && after.rect.x < 100);
+  // 2% of 800px is 16px of lettering. After the crop the picture is 400px
+  // tall, so the same 16px is 4% of it.
+  check('and its lettering stays the same number of pixels', Boolean(after) && Math.abs(after.fontPct - 4) < 1e-9);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

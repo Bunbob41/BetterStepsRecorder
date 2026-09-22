@@ -227,6 +227,44 @@ Proven in pixels rather than in structure: a blue box burned into a real image,
 its edge drawn, its middle untouched, the rest of the picture untouched, and the
 click marker still over it.
 
+### D-92 - Text boxes: drawn, wrapped, on a card, any colour
+`(this change)` - [ui/src/renderer/annotate.js](../ui/src/renderer/annotate.js),
+[ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
+[ui/src/renderer/crop.js](../ui/src/renderer/crop.js)
+
+A label was one line pinned at a point, sized by a three-way choice on the
+strip, with no handles. Asked for: resize text after placing it, and draw a
+box for it. The Text tool now drags: a click still places a label, a drag
+draws a **text box** - `{ tool: 'text', rect, text, size, fontPct, card }` -
+whose words wrap inside it. Its corners resize the box, which rewraps the words;
+lettering size stays the Small/Medium/Large choice. Enter saves, Shift+Enter is
+a new line.
+
+**The card.** A box starts on a white card at 90%. The strip's Card controls
+set its colour (a picker, or the eyedropper) and how solid it is, 0 to 100.
+With no card the letters get a label's pale outline; on a card they do not,
+so a box made to match the screenshot's colours can blend in. Any mark but a
+highlight can now take any colour as well as the five named ones; the
+eyedropper is Chromium's `EyeDropper`, which samples anywhere on the screen.
+
+**Why `fontPct`.** The same SVG is drawn at the picture's own size in the
+window and at page width for Word, and `fontFor` clamps, so lettering sized
+from the picture is a different proportion of the box at the two sizes and
+the lines break differently. A box's lettering is stored as a share of the
+picture's height, so the whole layout scales together; a test lays one box out
+at three sizes and requires identical lines. Wrapping is estimated from
+character classes rather than measured, for the same reason: a measurement
+belongs to whatever font the drawing process had. Estimates lean wide, so a
+line ends early rather than running off the card. Crop rescales `fontPct`.
+
+**Validated where it is drawn.** Main stores marks as the window sends them,
+and a recording's session.json can be hand-edited or shared, then rendered into
+SVG by the Word export. `isHex` accepts `#rrggbb` only and `cardOf` clamps the
+opacity, inside `svgFor`, the one function every drawing goes through.
+
+Not verified automatically: the eyedropper, which Chromium only opens from a
+real click.
+
 ### D-91 - The key that deletes steps is a choice
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
 [ui/src/main/settings.js](../ui/src/main/settings.js)
