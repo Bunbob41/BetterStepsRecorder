@@ -409,7 +409,13 @@ const watchdog = setTimeout(() => {
     for (const line of consoleLog.slice(-12)) console.log('    ' + line);
   }
   app.exit(2);
-}, 45000);
+  // One budget for the whole run, not per section, so it has to grow with the
+  // suite. At 45s it was being reached by a healthy run: each new section adds
+  // its sleeps, and the run that "hung" at its second-to-last section was one
+  // that simply got there at 45.5s. The time a run took is printed at the end,
+  // so the margin can be seen rather than rediscovered this way.
+}, 120000);
+const startedAt = Date.now();
 
 app.whenReady().then(async () => {
   // Its own directory, with its own package.json beside it.
@@ -3412,6 +3418,7 @@ app.whenReady().then(async () => {
 
   fs.rmSync(preloadDir, { recursive: true, force: true });
   clearTimeout(watchdog);
+  console.log(`\nthe run took ${((Date.now() - startedAt) / 1000).toFixed(1)}s of a 120s budget`);
   console.log(`\n${pass} passed, ${fail} failed`);
   app.exit(fail ? 1 : 0);
 }).catch((e) => { console.error(e); app.exit(1); });

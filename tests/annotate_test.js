@@ -325,6 +325,11 @@ console.log('\na text box:');
   const moved = a.movedBy(tb, 5, 5);
   check('it moves as a box', moved.rect.x === 15 && moved.rect.y === 15);
   check('it is found by clicking anywhere in it', a.markAt([tb], 35, 15) === tb);
+  check('selected, it has no dashed outline - its corners already say so',
+        a.outlineFor(tb, 1600, 900) === '');
+  check('but a label at a point keeps one, having no corners to show',
+        a.outlineFor({ id: 'p', tool: 'text', colour: 'red', at: { x: 10, y: 20 }, text: 'hi' },
+                     1600, 900) !== '');
   check('a label at a point still has no corners',
         a.handlesOf({ tool: 'text', at: { x: 1, y: 2 }, text: 'x' }).length === 0);
 }

@@ -265,6 +265,17 @@ opacity, inside `svgFor`, the one function every drawing goes through.
 Not verified automatically: the eyedropper, which Chromium only opens from a
 real click.
 
+A selected text box has no dashed selection outline, for the arrow's reason:
+its corner handles already say it is the one in hand, and the outline (drawn
+1.5% outside the card) only boxed the handles in. A label at a point keeps its
+outline, having no handles.
+
+Found on the way: `window_test.js` has one 45s watchdog for the whole run, and
+a healthy run had grown to 44.7s, so it "hung" at its second-to-last section on
+whichever runs crossed 45s. A run on the unchanged code happened to pass, which
+briefly made the outline change look like the cause. The budget is now 120s and
+every run prints how long it took.
+
 ### D-91 - The key that deletes steps is a choice
 `(this change)` - [ui/src/renderer/renderer.js](../ui/src/renderer/renderer.js),
 [ui/src/main/settings.js](../ui/src/main/settings.js)

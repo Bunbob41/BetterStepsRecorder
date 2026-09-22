@@ -407,6 +407,13 @@
     // thing saying which one is in hand.
     if (mark.tool === 'arrow') return '';
 
+    // Nor around a text box, for the arrow's reason: its four corner handles
+    // already say it is the one in hand, and the outline, drawn a little
+    // outside the card, only boxed the handles in. Said plainly: "do we need
+    // this border tho looks weird". A label at a point keeps it - it has no
+    // handles, so the outline is its only sign of being selected.
+    if (isTextBox(mark)) return '';
+
     const b = boundsOf(mark, 1.5);
     const x = (b.x / 100) * width;
     const y = (b.y / 100) * height;
