@@ -395,24 +395,15 @@
   function outlineFor(mark, width, height) {
     if (!mark) return '';
 
-    // Not around an arrow. An arrow is a diagonal line, so the box around it
-    // encloses a large area that is not part of the mark and says nothing about
-    // which way it points - it was the only cue that a mark was selected until
-    // the ends became handles, and with a dot on each end it is a rectangle
-    // doing no work. Said plainly: "is the blue border necessary? it doesn't do
-    // anything."
-    //
-    // The shapes keep theirs: a box or a ring's outline traces roughly what the
-    // mark is, and a label has no handles at all, so its outline is the only
-    // thing saying which one is in hand.
-    if (mark.tool === 'arrow') return '';
-
-    // Nor around a text box, for the arrow's reason: its four corner handles
-    // already say it is the one in hand, and the outline, drawn a little
-    // outside the card, only boxed the handles in. Said plainly: "do we need
-    // this border tho looks weird". A label at a point keeps it - it has no
-    // handles, so the outline is its only sign of being selected.
-    if (isTextBox(mark)) return '';
+    // Only around a mark with no handles, which today is a label at a point.
+    // The outline was the only sign a mark was selected until marks grew
+    // handles; once they had them it was a second sign saying the same thing,
+    // drawn a little outside the shape so that it boxed the handles in. It went
+    // from the arrow first ("is the blue border necessary? it doesn't do
+    // anything"), then the text box ("do we need this border tho looks weird"),
+    // then every other shape. A label at a point has no handles, so for it the
+    // outline is still the only thing saying which one is in hand.
+    if (handlesOf(mark).length) return '';
 
     const b = boundsOf(mark, 1.5);
     const x = (b.x / 100) * width;

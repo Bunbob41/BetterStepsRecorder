@@ -265,10 +265,12 @@ opacity, inside `svgFor`, the one function every drawing goes through.
 Not verified automatically: the eyedropper, which Chromium only opens from a
 real click.
 
-A selected text box has no dashed selection outline, for the arrow's reason:
-its corner handles already say it is the one in hand, and the outline (drawn
-1.5% outside the card) only boxed the handles in. A label at a point keeps its
-outline, having no handles.
+A selected mark now has a dashed selection outline only if it has no handles,
+which leaves just a label at a point. The rule is `handlesOf(mark).length`,
+not a list of tools. The outline was the only sign of selection until marks
+grew handles; after that it said the same thing again, drawn 1.5% outside the
+shape so that it boxed the handles in. It went from the arrow first, then the
+text box and, on request, every other shape.
 
 Found on the way: `window_test.js` has one 45s watchdog for the whole run, and
 a healthy run had grown to 44.7s, so it "hung" at its second-to-last section on

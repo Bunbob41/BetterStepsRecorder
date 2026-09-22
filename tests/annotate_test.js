@@ -270,9 +270,13 @@ console.log('\na box can be resized by a corner:');
   check('an arrow is not outlined - the box around a diagonal says nothing',
         a.outlineFor({ id: 'a2', tool: 'arrow', colour: 'red',
                        from: { x: 10, y: 10 }, to: { x: 80, y: 70 } }, 800, 600) === '');
-  check('and a box still is, because it has no handles until it is selected',
-        a.outlineFor({ id: 'b9', tool: 'box', colour: 'red',
-                       rect: { x: 10, y: 10, w: 20, h: 20 } }, 800, 600) !== '');
+  // Every shape with handles lost its outline: the corners already say it is
+  // the one selected. Checked for each, since each was a separate case once.
+  for (const tool of ['box', 'ellipse', 'highlight']) {
+    check(`a selected ${tool} has no dashed outline - its corners already say so`,
+          a.outlineFor({ id: 'b9', tool, colour: 'red',
+                         rect: { x: 10, y: 10, w: 20, h: 20 } }, 800, 600) === '');
+  }
   check('a label has no corners to drag - its size is a choice of three',
         a.handlesOf({ tool: 'text', at: { x: 1, y: 2 }, text: 'x' }).length === 0);
 }
