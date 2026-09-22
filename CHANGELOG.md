@@ -3,71 +3,90 @@
 Notable changes, newest first. The reasoning behind each decision lives in
 [docs/ENGINEERING.md](docs/ENGINEERING.md); this is the short version.
 
-## Unreleased
+## 0.2.4
 
-- **Stopping a recording says it was saved** — *Saved — Pump changeover, 12
-  steps* — and offers Export, Keep editing, or New recording. Nothing was ever
-  lost by stopping; it just never said so.
-- **A recording can be closed.** The × beside its name, or Recordings → Close
+### Finishing a recording
+
+- **Stopping a recording says it was saved**: *Saved, Pump changeover, 12
+  steps*, with Export, Keep editing, or New recording. Nothing was ever lost by
+  stopping; it just never said so.
+- **A recording can be closed.** The x beside its name, or Recordings, Close
   this recording, takes you back to the list with nothing open. Closing deletes
   nothing.
 - **The buttons say what they do:** *New recording* always makes a separate
   recording; *Continue this recording* adds to the one that is open.
-- Fixed: stopping with the stop hotkey left the recording out of the list until
-  something else refreshed it.
-- **A tidier step list.** Rows no longer repeat the window the row above already
-  named, the grey line under each row says *Click* or *Keyboard* instead of the
-  recorder's internal names, and the program is named only where it changes.
-  The header reads *Steps 12* on the left with its buttons on the right.
-- **Text boxes.** With the Text tool, drag to draw a box: the words wrap inside
-  it, and its corners resize it. Boxes sit on a card whose colour you can pick
-  or take straight off the screenshot, with a slider from solid to see-through,
-  so text can be made to blend in. Any mark can now be any colour. Shift+Enter
-  starts a new line. A click still places a one-line label as before.
-- **Backspace can now delete steps.** Choose Delete, Backspace, or either (the
-  default) under All shortcuts. Typing in a text box is never affected.
 - **Stopping a recording that captured nothing now says so** and offers to
   discard it (to the Recycle Bin). If the recording was limited to one program,
   it names that program, since clicks elsewhere are the usual reason.
 - **The recording clock stops while paused.**
-- **Recent recordings shows a "Show all" button** when you have more than twelve.
-  Damaged recordings no longer sit at the top of the list.
-- **Opening a recording with the Open button now works like opening it from the
-  list**: its name, its first step, and no leftovers from the last one.
-- **After an export, the notice says which file was made and offers Open and
-  Show in folder.** A failed export now says why in plain words, such as the
-  file being open in Word, instead of an error code in a pop-up, and no longer
-  leaves "Exporting…" showing.
+- Fixed: **if the recorder stopped unexpectedly mid-recording, nothing was said.**
+  It now tells you, how many steps were kept, and that Continue picks it up.
+- Fixed: **stopping a recording hid the notes left for afterwards**, such as a
+  program that could not be recorded because it was running as administrator.
+- Fixed: **the Capture choice in the toolbar was ignored when starting a new
+  recording**, which could record every program when you had chosen one. The
+  new recording now starts on that choice, and says so if the program has closed.
+- Fixed: stopping with the stop hotkey left the recording out of the list until
+  something else refreshed it.
+
+### Marking up screenshots
+
+- **Text boxes.** With the Text tool, drag to draw a box: the words wrap inside
+  it, and its corners resize it. Boxes sit on a card whose colour you can pick
+  or take straight off the screenshot, with a slider from solid to see-through,
+  so text can be made to blend in. Shift+Enter starts a new line. A click still
+  places a one-line label as before.
+- **Any mark can be any colour**, from a colour picker or an eyedropper that
+  takes the colour from anywhere on screen.
+- **Selected marks no longer have a dashed border** where they already show
+  corner handles. Only one-line labels, which have no handles, keep it.
+
+### Editing steps
+
+- **A tidier step list.** Rows no longer repeat the window the row above already
+  named, the grey line under each row says *Click* or *Keyboard* instead of the
+  recorder's internal names, and the program is named only where it changes.
+  The header reads *Steps 12* on the left with its buttons on the right.
+- **Backspace can now delete steps.** Choose Delete, Backspace, or either (the
+  default) under All shortcuts. Typing in a text box is never affected.
 - **Deleting steps keeps you where you were**, on the next step, and says what
   was deleted with an Undo button.
-- **Cancel on Re-record now actually cancels.** Before, the recorder kept waiting
-  and your next click anywhere replaced the step.
-- **No more pop-ups that stop everything.** Problems are shown in the notice bar
-  in plain words, with the technical details kept in the log.
-- Fixed: **typing a step's wording and quickly clicking another step could save
-  your words to the wrong step.**
 - **Undo now covers rewording, leaving a step out, reordering, and adding a note
   or heading.** Before, Ctrl+Z skipped all of these and undid an older change
   instead. A burst of typing, or leaving out several selected steps at once, is
   one undo.
-- Fixed: **the Capture choice in the toolbar was ignored when starting a new
-  recording**, which could record every program when you had chosen one. The
-  new recording now starts on that choice, and says so if the program has closed.
-- Fixed: **stopping a recording hid the notes left for afterwards**, such as a
-  program that could not be recorded because it was running as administrator.
-- Fixed: **if the recorder stopped unexpectedly mid-recording, nothing was said.**
-  It now tells you, how many steps were kept, and that Continue picks it up.
+- **Cancel on Re-record now actually cancels.** Before, the recorder kept waiting
+  and your next click anywhere replaced the step.
+- Fixed: **typing a step's wording and quickly clicking another step could save
+  your words to the wrong step.**
 - Fixed: the line above a step's screenshot numbered it by row, so a step below
   a note or heading showed a different number from the list, and it named the
   action with the recorder's internal word. It matches the list now.
+
+### Messages and exports
+
+- **No more pop-ups that stop everything.** Problems are shown in the notice bar
+  in plain words, with the technical details kept in the log.
+- **After an export, the notice says which file was made and offers Open and
+  Show in folder.** A failed export now says why in plain words, such as the
+  file being open in Word, instead of an error code in a pop-up, and no longer
+  leaves "Exporting..." showing.
+
+### Finding recordings
+
 - **The home screen is just your recordings.** With nothing open, the empty
   steps column is gone, and the name box says *No recording open*.
-- **Recordings name themselves without a step count** — *HYPACK Shell* rather
+- **Recent recordings shows a "Show all" button** when you have more than twelve.
+  Damaged recordings no longer sit at the top of the list.
+- **Opening a recording with the Open button now works like opening it from the
+  list**: its name, its first step, and no leftovers from the last one.
+- **Recordings name themselves without a step count**: *HYPACK Shell* rather
   than *HYPACK Shell - 37 steps*. The count is already shown beside it, and the
   name becomes the title of an exported guide. Existing names are unchanged.
-- Fixed: **program names with damaged characters built in** — HYPACK's
-  single-beam editor ships calling itself *HYPACK� 64 Bit…* — are shown cleaned
-  up in the list, the library and exports. Recordings keep what Windows reported.
+- Fixed: **program names with damaged characters built in** (HYPACK's
+  single-beam editor ships calling itself *HYPACK� 64 Bit...*) are shown
+  cleaned up in the list, the library and exports. Recordings keep what Windows
+  reported.
 
 ## 0.2.3
 
